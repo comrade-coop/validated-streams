@@ -3,8 +3,7 @@
 pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::pallet_prelude::*;
-	use frame_support::{debug, dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
+	use frame_support::{debug, pallet_prelude::*, traits::FindAuthor};
 	use frame_system::pallet_prelude::*;
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -27,30 +26,18 @@ pub mod pallet {
 	pub(super) type Streams<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::Hash, (T::AccountId, T::BlockNumber)>;
 
-	//// Dispatchable functions allow users to interact with the pallet and invoke state changes.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(0)]
+		// verification of whether the stream already exists in the txpool should be done in
+		// outer-node
 		pub fn validate_stream(origin: OriginFor<T>, stream: T::Hash) -> DispatchResult {
 			// Check that the extrinsic was signed and get the signer.
-			// This function will return an error if the extrinsic is not signed.
 			let sender = ensure_signed(origin)?;
-			//verify if tx already exists in the tx pool if not primary
-			// Verify that the specified claim has not already been stored.
-			//pallet_aura::pallet::Pallet::<T>::;
-
-			//let primary = T::Primary;
-			ensure!(!Streams::<T>::contains_key(&stream), Error::<T>::AlreadyValidated);
-
-			// Get the block number from the FRAME System pallet.
 			let current_block = <frame_system::Pallet<T>>::block_number();
-
-			// Store the claim with the sender and block number.
+			ensure!(!Streams::<T>::contains_key(&stream), Error::<T>::AlreadyValidated);
 			Streams::<T>::insert(&stream, (&sender, current_block));
-
-			// Emit an event that the claim was created.
 			Self::deposit_event(Event::ValidatedStream { StreamId: stream });
-
 			Ok(())
 		}
 	}

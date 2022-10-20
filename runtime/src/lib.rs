@@ -44,7 +44,8 @@ use pallet_transaction_payment::CurrencyAdapter;
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
-/// Import the template pallet.
+//pub use pallet_authorship;
+//pub use pallet_session;
 pub use pallet_validated_streams;
 
 /// An index to a block.
@@ -94,8 +95,8 @@ pub mod opaque {
 // https://docs.substrate.io/main-docs/build/upgrade#runtime-versioning
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("node-template"),
-	impl_name: create_runtime_str!("node-template"),
+	spec_name: create_runtime_str!("node"),
+	impl_name: create_runtime_str!("node"),
 	authoring_version: 1,
 	// The version of the runtime specification. A full node will not attempt to use its native
 	//   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
@@ -271,6 +272,13 @@ impl pallet_validated_streams::Config for Runtime {
 	type Event = Event;
 }
 
+//impl pallet_authorship::Config for Runtime {
+//type FindAuthor = AuraAuthorId<AccountId>;
+//type UncleGenerations = ConstU32<0>;
+//type FilterUncle = ();
+//type EventHandler = (ValidatedStreams);
+//}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub struct Runtime
@@ -288,6 +296,7 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
 		ValidatedStreams: pallet_validated_streams,
+		//AuthorShip: pallet_authorship,
 	}
 );
 
@@ -333,6 +342,7 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_validated_streams, ValidatedStreams]
+		//[pallet_authorship, AuthorShip]
 	);
 }
 
