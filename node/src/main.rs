@@ -8,7 +8,7 @@ mod benchmarking;
 mod cli;
 mod command;
 mod rpc;
-
+mod witness_block_import;
 fn main() -> sc_cli::Result<()> {
 	command::run()
 }
