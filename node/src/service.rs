@@ -45,12 +45,12 @@ pub fn new_partial(
 		sc_consensus::DefaultImportQueue<Block, FullClient>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
 		(
-			sc_finality_grandpa::GrandpaBlockImport<
+			WitnessBlockImport< sc_finality_grandpa::GrandpaBlockImport<
 				FullBackend,
 				Block,
 				FullClient,
 				FullSelectChain,
-			>,
+			>>,
 			sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 			Option<Telemetry>,
 		),
@@ -110,7 +110,7 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-    let witness_block_import = WitnessBlockImport(grandpa_block_import.clone());
+    let witness_block_import = WitnessBlockImport(grandpa_block_import.clone(),transaction_pool.clone());
 
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
@@ -147,7 +147,7 @@ pub fn new_partial(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (grandpa_block_import, grandpa_link, telemetry),
+		other: (witness_block_import, grandpa_link, telemetry),
 	})
 }
 
@@ -266,7 +266,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 				slot_duration,
 				client,
 				select_chain,
-				block_import:WitnessBlockImport(block_import),
+				block_import,
 				proposer_factory,
 				create_inherent_data_providers: move |_, ()| async move {
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();

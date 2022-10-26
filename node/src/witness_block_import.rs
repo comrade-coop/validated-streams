@@ -1,10 +1,15 @@
 use sc_consensus::{BlockCheckParams, BlockImportParams, ImportResult};
-use node_runtime::{self, opaque::Block};
+use node_runtime::{self, opaque::Block,RuntimeApi};
 use std::collections::HashMap;
 use sp_blockchain::well_known_cache_keys;
 use sp_consensus::Error as ConsensusError;
+pub use sc_executor::NativeElseWasmExecutor;
+use std::sync::Arc;
+use crate::service::ExecutorDispatch;
+pub(crate) type FullClient =
+	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 #[derive(Clone)]
-pub struct WitnessBlockImport<I>(pub I);
+pub struct WitnessBlockImport<I>(pub I,pub Arc<sc_transaction_pool::BasicPool<sc_transaction_pool::FullChainApi<FullClient,Block>,Block>>);
 #[async_trait::async_trait]
 impl<I: sc_consensus::BlockImport<Block>> sc_consensus::BlockImport<Block> for WitnessBlockImport<I>  where I:Send
   {  
