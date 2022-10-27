@@ -3743,6 +3743,7 @@ dependencies = [
  "frame-benchmarking-cli",
  "frame-system",
  "jsonrpsee",
+ "log",
  "node-runtime",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
