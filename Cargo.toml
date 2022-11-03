@@ -4,5 +4,8 @@ members = [
     "pallet",
     "runtime",
 ]
+exclude=[
+		"client"
+]
 [profile.release]
 panic = "unwind"

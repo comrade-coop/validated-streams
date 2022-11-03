@@ -1,0 +1,23 @@
+syntax="proto3";
+package ValidatedStreams;
+
+service Streams
+{
+		rpc ValidateStream (Stream) returns (StreamStatus);
+		rpc Witnessed(WitnessedStream) returns (StreamStatus);
+}
+// a stream is an extrinsic that could be included in the block and executed by the validated-streams pallet
+message Stream
+{
+		string stream_id =1;
+		bytes extrinsic = 2;
+}
+message WitnessedStream
+{
+		string digest = 1;
+		Stream extrinsic = 2;
+}
+message StreamStatus
+{
+		string status =1;
+}

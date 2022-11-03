@@ -16,7 +16,7 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		ValidatedStream { StreamId: T::Hash },
+		ValidatedStream { stream_id: T::Hash },
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -37,7 +37,7 @@ pub mod pallet {
 			let current_block = <frame_system::Pallet<T>>::block_number();
 			ensure!(!Streams::<T>::contains_key(&stream), Error::<T>::AlreadyValidated);
 			Streams::<T>::insert(&stream, (&sender, current_block));
-			Self::deposit_event(Event::ValidatedStream { StreamId: stream });
+			Self::deposit_event(Event::ValidatedStream { stream_id: stream });
 			Ok(())
 		}
 	}

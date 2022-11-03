@@ -43,6 +43,7 @@ impl<I: sc_consensus::BlockImport<Block>> sc_consensus::BlockImport<Block> for W
             block_extrinsics.next();
             for extrinsic in block_extrinsics
             {
+                println!("Block Extrinsic:: {:?}",extrinsic);
                 let mut ready_transactions= self.1.pool().validated_pool().ready();
                 let is_found = ready_transactions.any(|tx| {
                     let tx_extrinsic = &tx.data;
