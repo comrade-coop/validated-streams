@@ -4,7 +4,7 @@ package ValidatedStreams;
 service Streams
 {
 		rpc ValidateStream (Stream) returns (StreamStatus);
-		rpc Witnessed(WitnessedStream) returns (StreamStatus);
+		rpc Witnessed(WitnessedStream) returns (WitnessedStreamReply);
 }
 // a stream is an extrinsic that could be included in the block and executed by the validated-streams pallet
 message Stream
@@ -20,4 +20,8 @@ message WitnessedStream
 message StreamStatus
 {
 		string status =1;
+}
+message WitnessedStreamReply
+{
+		string reply = 1;
 }
