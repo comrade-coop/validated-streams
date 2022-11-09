@@ -14,8 +14,5 @@ use network_configs::LocalDockerNetworkConfiguration;
 use std::thread;
 use streams_server::ValidatedStreamsNode;
 fn main() -> Result<(), sc_cli::Error> {
-	thread::spawn(|| {
-		ValidatedStreamsNode::run(LocalDockerNetworkConfiguration { port: 5555 });
-	});
 	command::run()
 }

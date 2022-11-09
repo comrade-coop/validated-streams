@@ -66,6 +66,7 @@ impl ValidatedStreamsNode {
             {
                 log::info!("waiting server to get started");
                 thread::sleep(Duration::from_millis(2000));
+                log::info!("slept");
                 for addr in peers {
                     let connection_result = StreamsClient::<tonic::transport::Channel>::connect(addr.clone()).await;
                     match connection_result
@@ -95,7 +96,6 @@ impl ValidatedStreamsNode {
           Ok(())
     }
     //could prossibly make use of node configs in the future from runner in command.rs
-    #[tokio::main]
     pub async fn run<T>(configs:T) where T:NetworkConfiguration 
     {
         let addr = configs.get_self_address();
@@ -112,7 +112,7 @@ impl ValidatedStreamsNode {
         let mut streams = ValidatedStreamsNode::new(target);
         streams.intialize_mesh_network().await;
         match tokio::spawn(async move{
-            println!("Streams server listening on [::0]:5555]");
+            log::info!("Streams server listening on [::0]:5555]");
             Server::builder().add_service(StreamsServer::new(streams)).serve("[::0]:5555".parse().unwrap()).await
         }).await
         {

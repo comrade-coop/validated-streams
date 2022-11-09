@@ -8,6 +8,8 @@ use sc_keystore::LocalKeystore;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
+use crate::network_configs::LocalDockerNetworkConfiguration;
+use crate::streams_server::ValidatedStreamsNode;
 use std::{sync::Arc, time::Duration};
 use crate::witness_block_import::WitnessBlockImport;
 // Our native executor instance.
@@ -173,7 +175,8 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		transaction_pool,
 		other: (block_import, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
-
+	task_manager.spawn_essential_handle().spawn_blocking("gRPC server", None, 
+		ValidatedStreamsNode::run(LocalDockerNetworkConfiguration { port: 5555 }));
 	if let Some(url) = &config.keystore_remote {
 		match remote_keystore(url) {
 			Ok(k) => keystore_container.set_remote_keystore(k),
