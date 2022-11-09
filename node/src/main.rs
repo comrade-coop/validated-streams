@@ -10,9 +10,7 @@ mod network_configs;
 mod rpc;
 mod streams_server;
 mod witness_block_import;
-use network_configs::LocalDockerNetworkConfiguration;
-use std::thread;
-use streams_server::ValidatedStreamsNode;
+mod stream_proofs;
 fn main() -> Result<(), sc_cli::Error> {
 	command::run()
 }

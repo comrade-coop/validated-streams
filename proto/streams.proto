@@ -15,7 +15,7 @@ message Stream
 message WitnessedStream
 {
 		string digest = 1;
-		Stream extrinsic = 2;
+		string stream_id= 2;
 }
 message StreamStatus
 {

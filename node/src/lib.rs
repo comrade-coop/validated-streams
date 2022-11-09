@@ -4,3 +4,4 @@ pub mod service;
 pub mod witness_block_import;
 pub mod network_configs;
 pub mod streams_server;
+pub mod stream_proofs;
