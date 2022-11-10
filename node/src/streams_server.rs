@@ -10,7 +10,8 @@ use subxt::{OnlineClient, PolkadotConfig};
 use std::sync::Arc;
 use crate::network_configs::NetworkConfiguration;
 use crate::stream_proofs::{StreamProofs, InMemoryStreamProofs};
-
+use std::io::ErrorKind;
+use std::{io::Error, collections::HashMap};
 use self::validated_streams::WitnessedStreamReply;
 use self::validated_streams::streams_client::StreamsClient;
 
@@ -24,6 +25,7 @@ pub mod validated_streams
 
 pub struct ValidatedStreamsNode
 {
+    target:u16,
     peers : Vec<Endpoint>,
     validators_connections : Arc<Mutex<Vec<StreamsClient<Channel>>>>,
     stream_proofs: Box<dyn StreamProofs + Send + Sync> 
@@ -32,54 +34,95 @@ pub struct ValidatedStreamsNode
 #[tonic::async_trait]
 impl Streams for ValidatedStreamsNode
 {
+    //check if the watcher(client) has already submitted the stream
+    //if not create a WitnessedStream message, add it to the stream proofs and gossip it
     async fn validate_stream(&self,request:Request<Stream>) -> Result<Response<StreamStatus>,Status>
     {
-        let remote_addr = request.remote_addr();
+        let remote_addr = request.remote_addr().unwrap();
         log::info!("Received a request from {:?}",remote_addr);
         let stream = request.into_inner(); 
         let mut reply = StreamStatus 
         {
             status: String::from("Stream Submitted for validation"),
         };
-        
         if self.stream_proofs.contains(stream.stream_id.clone())
         {
             reply.status = String::from("Stream Already submitted");
             Ok(Response::new(reply))
         }else
         {
-            //sign the stream, add it to the proofs and gossip it
-            let witnessed_stream = WitnessedStream { digest: "SIGNED".to_string(), stream_id: stream.stream_id.clone() };   
-            self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.unwrap().to_string());
+            let witnessed_stream = ValidatedStreamsNode::create_witnessed_stream(stream);
+            self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream.clone()).await;
             match ValidatedStreamsNode::gossip(self.validators_connections.clone(), witnessed_stream).await
             {
                 Ok(_) => Ok(Response::new(reply)),
                 Err(e) => Err(Status::aborted(e.to_string())),
             }
         }
-        // let stream =  request.into_inner();
-        // let api = OnlineClient::<PolkadotConfig>::new().await.expect("failed substrate creating client");
-        // let submitable_stream = SubmittableExtrinsic::from_bytes(api, stream.extrinsic);
-        // submitable_stream.submit().await.expect("failed submitting extrinsic");
     } 
+    //receive what other validators have witnessed
     async fn witnessed(&self,request:Request<WitnessedStream>) -> Result<Response<WitnessedStreamReply>,Status>
     {
         //check signature, call add_stream_proof
-        log::info!("Received a request from {:?}",request.remote_addr());
+        let remote_addr = request.remote_addr().unwrap();
         let witnessed_stream = request.into_inner();
-        log::info!("Witnessed Stream content:{:?}",witnessed_stream);
-        let reply = WitnessedStreamReply 
+        if ValidatedStreamsNode::verify_witnessed_stream(witnessed_stream.clone())
         {
-            reply: String::from("Stream Witnessed"),
-        };
-        Ok(Response::new(reply))
+            log::info!("Received a request from {:?}",remote_addr);
+            log::info!("Witnessed Stream content:{:?}",witnessed_stream);
+            self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream).await
+        }else
+        {
+            let mut reply = WitnessedStreamReply 
+            {
+                reply: String::from(""),
+            };
+            reply.reply = String::from("INVALID Witnessed Stream Signature");
+            Ok(Response::new(reply))
+        }
     }
 }
 impl ValidatedStreamsNode {
     pub fn new(peers: Vec<Endpoint>) -> ValidatedStreamsNode
     {
         let peers_length= peers.len();
-        ValidatedStreamsNode { peers, validators_connections: Arc::new(Mutex::new(Vec::with_capacity(peers_length))) , stream_proofs: Box::new(InMemoryStreamProofs::new())}
+        let target = (2*((peers_length-1)/3)+1) as u16 ;
+        ValidatedStreamsNode { peers, validators_connections: Arc::new(Mutex::new(Vec::with_capacity(peers_length))) , stream_proofs: Box::new(InMemoryStreamProofs::new()),target:target}
+    }
+    pub fn verify_witnessed_stream(stream: WitnessedStream)-> bool
+    {
+        true
+    }
+    pub async fn process_witness_result(&self,result: Result<u16,Error>,proof:WitnessedStream) -> Result<Response<WitnessedStreamReply>,Status>
+    { 
+        match result{
+                Ok(count) =>
+                {
+                    let mut reply = WitnessedStreamReply 
+                    {
+                        reply: String::from("Stream Witnessed"),
+                    };
+                    // if count > self.target
+                    if count > 1
+                    {
+                        let extrinsic = proof.stream.unwrap().extrinsic;
+                        reply.reply= String::from("Stream Validated");
+                        let api = OnlineClient::<PolkadotConfig>::new().await.expect("failed creating substrate client");
+                        let submitable_stream = SubmittableExtrinsic::from_bytes(api, extrinsic);
+                        submitable_stream.submit().await.expect("failed submitting extrinsic");
+                        Ok(Response::new(reply))
+                    }else
+                    {
+                        reply.reply= String::from("Proof Count increased");
+                        Ok(Response::new(reply))
+                    }
+                }
+                Err(e) => Err(Status::already_exists(e.into_inner().unwrap().to_string())),
+            }
+    }
+    pub fn create_witnessed_stream(stream:Stream) -> WitnessedStream
+    {
+           WitnessedStream { digest: "SIGNED".to_string(), stream: Some(stream.clone()) }
     }
     pub async fn intialize_mesh_network(&mut self) 
     {

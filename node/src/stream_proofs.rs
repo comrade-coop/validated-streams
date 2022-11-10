@@ -1,4 +1,5 @@
-use std::{fmt::Error, collections::HashMap};
+use std::io::ErrorKind;
+use std::{io::Error, collections::HashMap};
 use std::sync::{Arc, Mutex};
 
 use crate::streams_server::validated_streams::WitnessedStream;
@@ -9,10 +10,11 @@ pub trait StreamProofs
     fn add_stream_proof(&self,stream:WitnessedStream,origin:String) -> Result<u16,Error>;
     fn get_proof_count(&self,id:&str) -> u16;
 }
+
 pub struct InMemoryStreamProofs 
 {
     target: u16, 
-    proofs: Arc<Mutex<HashMap<String,Vec<String>>>>,
+    proofs: Arc<Mutex<HashMap<String,Vec<WitnessedStream>>>>,
     verification_list: Arc<Mutex<HashMap<String,Vec<String>>>>
 }
 impl InMemoryStreamProofs
@@ -25,14 +27,16 @@ impl InMemoryStreamProofs
 impl StreamProofs for InMemoryStreamProofs
 {
     fn add_stream_proof(&self,stream:WitnessedStream,origin:String) -> Result<u16,Error> {
-        if self.verification_list.lock().unwrap().entry(stream.stream_id.clone()).or_insert(Vec::new()).contains(&origin)
+        let stream_id = stream.stream.as_ref().unwrap().stream_id.clone();
+        if self.verification_list.lock().unwrap().entry(stream_id.clone()).or_insert(Vec::new()).contains(&origin)
         {
-            println!("{} already sent a proof for stream {}",origin,stream.stream_id);
+            log::info!("{} already sent a proof for stream {}",origin,stream_id);
+            Err(Error::new(ErrorKind::AlreadyExists, "Already sent a proof"))
         }else
         {
-            self.proofs.lock().unwrap().entry(stream.stream_id.clone()).or_insert(Vec::new()).push(stream.digest);
+            self.proofs.lock().unwrap().entry(stream_id.clone()).or_insert(Vec::new()).push(stream.clone());
+            Ok(self.get_proof_count(&stream_id))   
         }
-        Ok(self.get_proof_count(&stream.stream_id))   
     }
     fn contains(&self,id:String) -> bool {
         self.verification_list.lock().unwrap().contains_key(&id)
