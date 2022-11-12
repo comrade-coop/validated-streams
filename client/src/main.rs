@@ -17,7 +17,7 @@ pub async fn create_signed_stream() -> Result<Stream, Box<dyn std::error::Error>
         //for some reason type neeed to explicitly specefied?
         let signer:PairSigner<PolkadotConfig,sp_keyring::sr25519::sr25519::Pair>=PairSigner::new(AccountKeyring::Alice.pair());
         let api = OnlineClient::<PolkadotConfig>::new().await?;
-        let stream_id = subxt::ext::sp_core::H256::repeat_byte(1);
+        let stream_id = subxt::ext::sp_core::H256::repeat_byte(0);
         let tx = stream_node::tx()
             .validated_streams()
             .validate_stream(stream_id);

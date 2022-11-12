@@ -10,8 +10,7 @@ use subxt::{OnlineClient, PolkadotConfig};
 use std::sync::Arc;
 use crate::network_configs::NetworkConfiguration;
 use crate::stream_proofs::{StreamProofs, InMemoryStreamProofs};
-use std::io::ErrorKind;
-use std::{io::Error, collections::HashMap};
+use std::io::Error;
 use self::validated_streams::WitnessedStreamReply;
 use self::validated_streams::streams_client::StreamsClient;
 
@@ -38,47 +37,55 @@ impl Streams for ValidatedStreamsNode
     //if not create a WitnessedStream message, add it to the stream proofs and gossip it
     async fn validate_stream(&self,request:Request<Stream>) -> Result<Response<StreamStatus>,Status>
     {
-        let remote_addr = request.remote_addr().unwrap();
-        log::info!("Received a request from {:?}",remote_addr);
-        let stream = request.into_inner(); 
-        let mut reply = StreamStatus 
+        if let Some(remote_addr) = request.remote_addr()
         {
-            status: String::from("Stream Submitted for validation"),
-        };
-        if self.stream_proofs.contains(stream.stream_id.clone())
-        {
-            reply.status = String::from("Stream Already submitted");
-            Ok(Response::new(reply))
-        }else
-        {
-            let witnessed_stream = ValidatedStreamsNode::create_witnessed_stream(stream);
-            self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream.clone()).await;
-            match ValidatedStreamsNode::gossip(self.validators_connections.clone(), witnessed_stream).await
+            log::info!("Received a request from {:?}",remote_addr);
+            let stream = request.into_inner(); 
+            let mut reply = StreamStatus 
             {
-                Ok(_) => Ok(Response::new(reply)),
-                Err(e) => Err(Status::aborted(e.to_string())),
+                status: String::from("Stream Submitted for validation"),
+            };
+            if self.stream_proofs.contains(stream.stream_id.clone())
+            {
+                reply.status = String::from("Stream Already submitted");
+                Ok(Response::new(reply))
+            }else
+            {
+                let witnessed_stream = ValidatedStreamsNode::create_witnessed_stream(stream);
+                self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream.clone()).await.ok();
+                match ValidatedStreamsNode::gossip(self.validators_connections.clone(), witnessed_stream).await
+                {
+                    Ok(_) => Ok(Response::new(reply)),
+                    Err(e) => Err(Status::aborted(e.to_string())),
+                }
             }
+        }else{
+            Err(Status::aborted("Malformed Request, can't retreive Origin address"))
         }
     } 
     //receive what other validators have witnessed
     async fn witnessed(&self,request:Request<WitnessedStream>) -> Result<Response<WitnessedStreamReply>,Status>
     {
         //check signature, call add_stream_proof
-        let remote_addr = request.remote_addr().unwrap();
-        let witnessed_stream = request.into_inner();
-        if ValidatedStreamsNode::verify_witnessed_stream(witnessed_stream.clone())
+        if let Some(remote_addr) = request.remote_addr()
         {
-            log::info!("Received a request from {:?}",remote_addr);
-            log::info!("Witnessed Stream content:{:?}",witnessed_stream);
-            self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream).await
+            let witnessed_stream = request.into_inner();
+            if ValidatedStreamsNode::verify_witnessed_stream(witnessed_stream.clone())
+            {
+                log::info!("Received a request from {:?}",remote_addr);
+                self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream).await
+            }else
+            {
+                let mut reply = WitnessedStreamReply 
+                {
+                    reply: String::from(""),
+                };
+                reply.reply = String::from("INVALID Witnessed Stream Signature");
+                Ok(Response::new(reply))
+            }
         }else
         {
-            let mut reply = WitnessedStreamReply 
-            {
-                reply: String::from(""),
-            };
-            reply.reply = String::from("INVALID Witnessed Stream Signature");
-            Ok(Response::new(reply))
+            Err(Status::aborted("Malformed Request, can't retreive Origin address"))
         }
     }
 }
@@ -86,8 +93,10 @@ impl ValidatedStreamsNode {
     pub fn new(peers: Vec<Endpoint>) -> ValidatedStreamsNode
     {
         let peers_length= peers.len();
-        let target = (2*((peers_length-1)/3)+1) as u16 ;
-        ValidatedStreamsNode { peers, validators_connections: Arc::new(Mutex::new(Vec::with_capacity(peers_length))) , stream_proofs: Box::new(InMemoryStreamProofs::new()),target:target}
+        let validators_length = peers_length +1;
+        let target = (2*((validators_length-1)/3)+1) as u16 ;
+        log::info!("Minimal number of nodes that needs to witness Streams is:{}",target);
+        ValidatedStreamsNode { peers, validators_connections: Arc::new(Mutex::new(Vec::with_capacity(peers_length))) , stream_proofs: Box::new(InMemoryStreamProofs::new()),target}
     }
     pub fn verify_witnessed_stream(stream: WitnessedStream)-> bool
     {
@@ -102,14 +111,12 @@ impl ValidatedStreamsNode {
                     {
                         reply: String::from("Stream Witnessed"),
                     };
-                    // if count > self.target
-                    if count > 1
+                    // if count == self.target
+                    if count == 1
                     {
-                        let extrinsic = proof.stream.unwrap().extrinsic;
-                        reply.reply= String::from("Stream Validated");
-                        let api = OnlineClient::<PolkadotConfig>::new().await.expect("failed creating substrate client");
-                        let submitable_stream = SubmittableExtrinsic::from_bytes(api, extrinsic);
-                        submitable_stream.submit().await.expect("failed submitting extrinsic");
+                        let extrinsic = proof.stream.expect("failed unwraping stream extrinsic").extrinsic;
+                        ValidatedStreamsNode::submit_stream_extrinsic(extrinsic).await;
+                        reply.reply = String::from("");
                         Ok(Response::new(reply))
                     }else
                     {
@@ -117,8 +124,25 @@ impl ValidatedStreamsNode {
                         Ok(Response::new(reply))
                     }
                 }
-                Err(e) => Err(Status::already_exists(e.into_inner().unwrap().to_string())),
+                Err(e) => { if let Some(e) = e.into_inner(){
+                        Err(Status::already_exists(e.to_string()))
+                    }else{
+                        Err(Status::already_exists("Already Witnessed"))
+                    }
             }
+        }
+    }
+    pub async fn submit_stream_extrinsic(extrinsic:Vec<u8>) 
+    {
+        let api = OnlineClient::<PolkadotConfig>::new().await.expect("failed creating substrate client");
+        let submitable_stream = SubmittableExtrinsic::from_bytes(api, extrinsic);
+        match submitable_stream.submit().await
+        {
+            Ok(v) => {
+                log::info!("Stream submitted with hash: {}",v);
+            }
+            Err(e) => {log::info!("Failed submitting stream with Error: {}",e);}
+        }
     }
     pub fn create_witnessed_stream(stream:Stream) -> WitnessedStream
     {
@@ -131,13 +155,13 @@ impl ValidatedStreamsNode {
         tokio::spawn(async move
             {
                 log::info!("waiting server to get started");
-                thread::sleep(Duration::from_millis(2000));
+                thread::sleep(Duration::from_millis(4000));
                 for addr in peers {
                     let connection_result = StreamsClient::<tonic::transport::Channel>::connect(addr.clone()).await;
                     match connection_result
                     {
                         Ok(conn) =>{
-                            log::info!("🤜🤛Connected successfully to validator with addr: {:?}",addr.clone());
+                            log::info!("🤜🤛Connected successfully to validator");
                             connections.lock().await.push(conn);}, 
                         Err(e) => {
                             log::error!("failed connecting to address {:?} with error {:?}",addr,e);
@@ -178,7 +202,7 @@ impl ValidatedStreamsNode {
         streams.intialize_mesh_network().await;
         match tokio::spawn(async move{
             log::info!("Streams server listening on [::0]:5555]");
-            Server::builder().add_service(StreamsServer::new(streams)).serve("[::0]:5555".parse().unwrap()).await
+            Server::builder().add_service(StreamsServer::new(streams)).serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address")).await
         }).await
         {
             Ok(_) => (),
