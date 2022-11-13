@@ -14,7 +14,7 @@ message Stream
 }
 message WitnessedStream
 {
-		string digest = 1;
+		bytes signature = 1;
 		Stream stream= 2;
 }
 message StreamStatus

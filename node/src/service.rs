@@ -176,7 +176,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		other: (block_import, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
 	task_manager.spawn_essential_handle().spawn_blocking("gRPC server", None, 
-		ValidatedStreamsNode::run(LocalDockerNetworkConfiguration { port: 5555 }));
+		ValidatedStreamsNode::run(LocalDockerNetworkConfiguration { port: 5555 },keystore_container.keystore()));
 	if let Some(url) = &config.keystore_remote {
 		match remote_keystore(url) {
 			Ok(k) => keystore_container.set_remote_keystore(k),
