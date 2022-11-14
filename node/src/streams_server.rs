@@ -1,9 +1,11 @@
+use std::str::FromStr;
 use std::thread;
+use std::str;
 use std::time::Duration;
 use std::io::ErrorKind;
 use futures::lock::Mutex;
 use sp_runtime::KeyTypeId;
-use sp_runtime::app_crypto::CryptoTypePublicPair;
+use sp_runtime::app_crypto::{CryptoTypePublicPair, Ss58Codec};
 use subxt::tx::SubmittableExtrinsic;
 use tonic::transport::{Channel, Endpoint};
 pub use tonic::{transport::Server, Request, Response, Status};
@@ -17,6 +19,7 @@ use std::io::Error;
 use self::validated_streams::WitnessedStreamReply;
 use self::validated_streams::streams_client::StreamsClient;
 use sp_keystore::CryptoStore;
+use sp_core::sr25519::Pair;
 
 #[subxt::subxt(runtime_metadata_path = "../artifacts/metadata.scale")]
 pub mod stream_node {}
@@ -34,7 +37,7 @@ pub struct ValidatedStreamsNode
     stream_proofs: Box<dyn StreamProofs + Send + Sync>,
     keystore : Arc<dyn CryptoStore>,
     key_type: KeyTypeId,
-    pub_key:CryptoTypePublicPair,
+    pub_key:sp_core::sr25519::Public,
 }
 
 #[tonic::async_trait]
@@ -62,11 +65,18 @@ impl Streams for ValidatedStreamsNode
                 {
                     Ok(witnessed_stream)=>
                     {
-                        self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream.clone()).await.ok();
-                        match ValidatedStreamsNode::gossip(self.validators_connections.clone(), witnessed_stream).await
+                        match self.verify_witnessed_stream(witnessed_stream.clone())
                         {
-                            Ok(_) => Ok(Response::new(reply)),
-                            Err(e) => Err(Status::aborted(e.to_string())),
+                            Ok(_)=>
+                            {
+                                self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream.clone()).await.ok();
+                                match ValidatedStreamsNode::gossip(self.validators_connections.clone(), witnessed_stream).await
+                                {
+                                    Ok(_) => Ok(Response::new(reply)),
+                                    Err(e) => Err(Status::aborted(e.to_string())),
+                                }
+                            }
+                            Err(e)=> Err(Status::aborted(e.to_string()))
                         }
                     }
                     Err(e)=>
@@ -86,18 +96,14 @@ impl Streams for ValidatedStreamsNode
         if let Some(remote_addr) = request.remote_addr()
         {
             let witnessed_stream = request.into_inner();
-            if ValidatedStreamsNode::verify_witnessed_stream(witnessed_stream.clone())
+            match self.verify_witnessed_stream(witnessed_stream.clone())
             {
-                log::info!("Received a request from {:?}",remote_addr);
-                self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream).await
-            }else
-            {
-                let mut reply = WitnessedStreamReply 
+                Ok(_)=>
                 {
-                    reply: String::from(""),
-                };
-                reply.reply = String::from("INVALID Witnessed Stream Signature");
-                Ok(Response::new(reply))
+                    log::info!("Received a request from {:?}",remote_addr);
+                    self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream).await
+                }
+                Err(e)=> Err(Status::aborted(e.to_string()))
             }
         }else
         {
@@ -111,17 +117,42 @@ impl ValidatedStreamsNode {
         let peers_length= peers.len();
         let validators_length = peers_length +1;
         let target = (2*((validators_length-1)/3)+1) as u16 ;
-        log::info!("Minimal number of nodes that needs to witness Streams is:{}",target);
+        log::info!("Minimal number of nodes that needs to witness Streams is: {}",target);
         let key_type =sp_core::crypto::key_types::AURA;
-        keystore.sr25519_generate_new(key_type, None).await.ok();
-        let pub_key = keystore.keys(key_type).await.expect("Failed retreiving public keys from keystore").get(0).expect("Failed unwraping retreived key").clone();
-        ValidatedStreamsNode { peers, validators_connections: Arc::new(Mutex::new(Vec::with_capacity(peers_length))) , 
-        stream_proofs: Box::new(InMemoryStreamProofs::new()),
-        target,keystore,key_type,pub_key}
+        if let Some(pub_key) =keystore.sr25519_generate_new(key_type, None).await.ok()
+        {
+            // let pub_key = keystore.keys(key_type).await.expect("Failed retreiving public keys from keystore").get(0).expect("Failed unwraping retreived key").clone();
+            ValidatedStreamsNode { peers, validators_connections: Arc::new(Mutex::new(Vec::with_capacity(peers_length))) , 
+            stream_proofs: Box::new(InMemoryStreamProofs::new()),
+            target,keystore,key_type,pub_key}
+        }else
+        {
+            panic!("failed creating key pair from the provided keystore")
+        }
     }
-    pub fn verify_witnessed_stream(stream: WitnessedStream)-> bool
+    pub fn verify_witnessed_stream(&self,witnessed_stream: WitnessedStream)-> Result<bool,Error>
     {
-        true
+        if let Some(stream)=witnessed_stream.stream
+        {
+            if let  Some(sig) = sp_core::sr25519::Signature::from_slice(&witnessed_stream.signature)
+            {
+
+                if let Some(pub_key) = sp_core::sr25519::Public::from_str(&witnessed_stream.pub_key).ok()
+                {
+                    Ok(Pair::verify_deprecated(&sig,stream.extrinsic ,&pub_key))
+                }
+                else
+                {
+                    Err(Error::new(ErrorKind::InvalidData, "invalid public key given"))
+                }
+            }else
+            {
+                Err(Error::new(ErrorKind::InvalidData, "invalid signature given"))
+            }
+        }else
+        {
+            Err(Error::new(ErrorKind::InvalidData, "Could not retreive stream from witnessed stream"))
+        }
     }
     pub async fn process_witness_result(&self,result: Result<u16,Error>,proof:WitnessedStream) -> Result<Response<WitnessedStreamReply>,Status>
     { 
@@ -167,18 +198,19 @@ impl ValidatedStreamsNode {
     }
     pub async fn create_witnessed_stream(&self,stream:Stream) -> Result<WitnessedStream,Error>
     {
-        match self.keystore.sign_with(self.key_type, &self.pub_key, stream.extrinsic.as_slice()).await
+        let stringfied_key = self.pub_key.to_string();
+        let key = CryptoTypePublicPair::from(&self.pub_key);
+        match self.keystore.sign_with(self.key_type, &key, stream.extrinsic.as_slice()).await
         {
             Ok(v) => {if let Some(sig) = v {
-                    log::info!("signature of stream {:?}",sig);
-                    Ok(WitnessedStream { signature: sig, stream: Some(stream.clone()) })
+                    Ok(WitnessedStream { signature: sig, pub_key:stringfied_key,stream: Some(stream.clone()) })
                 }
                 else
                 {
                     Err(Error::new(ErrorKind::Other, "Failed retriving signature"))
                 }
             }
-            Err(e)=>
+            Err(_)=>
             {
                 Err(Error::new(ErrorKind::Other, "Could not sign Witnessed stream"))
             }

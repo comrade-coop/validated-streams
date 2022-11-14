@@ -15,7 +15,8 @@ message Stream
 message WitnessedStream
 {
 		bytes signature = 1;
-		Stream stream= 2;
+		string pub_key = 2;
+		Stream stream= 3;
 }
 message StreamStatus
 {
