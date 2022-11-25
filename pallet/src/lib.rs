@@ -29,8 +29,6 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(0)]
-		// verification of whether the stream already exists in the txpool should be done in
-		// outer-node
 		pub fn validate_event(origin: OriginFor<T>, event: T::Hash) -> DispatchResult {
 			// Check that the extrinsic was signed and get the signer.
 			let sender = ensure_signed(origin)?;

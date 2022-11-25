@@ -36,9 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     println!("Attempting to connect");
     let mut client = StreamsClient::connect("http://127.0.0.1:5555").await?;
-    println!("connected");
     let event = create_signed_event().await?;
-    println!("signed event extrinsic created");
     let request = Request::new(event);
     let response = client.validate_event(request).await?;
     println!("Reply received from server {:?}",response);
