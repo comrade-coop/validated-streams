@@ -20,7 +20,7 @@ pub async fn create_signed_event() -> Result<ValidateEventRequest, Box<dyn std::
         let event_id = subxt::ext::sp_core::H256::repeat_byte(0);
         let tx = stream_node::tx()
             .validated_streams()
-            .validate_stream(event_id);
+            .validate_event(event_id);
 
         let submitable_extrinsic = api.tx().create_signed(&tx, &signer,BaseExtrinsicParamsBuilder::new()).await?;
         let encoded_extrinsic = submitable_extrinsic.encoded();
@@ -36,7 +36,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     println!("Attempting to connect");
     let mut client = StreamsClient::connect("http://127.0.0.1:5555").await?;
+    println!("connected");
     let event = create_signed_event().await?;
+    println!("signed event extrinsic created");
     let request = Request::new(event);
     let response = client.validate_event(request).await?;
     println!("Reply received from server {:?}",response);
