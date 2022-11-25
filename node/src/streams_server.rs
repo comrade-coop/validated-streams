@@ -1,282 +1,259 @@
-use std::str::FromStr;
-use std::thread;
-use std::str;
-use std::time::Duration;
-use std::io::ErrorKind;
+use self::validated_streams::{streams_client::StreamsClient, WitnessedEventResponse};
+use crate::{
+	event_proofs::{EventProofs, InMemoryEventProofs},
+	network_configs::NetworkConfiguration,
+};
 use futures::lock::Mutex;
-use sp_runtime::KeyTypeId;
-use sp_runtime::app_crypto::{CryptoTypePublicPair, Ss58Codec};
-use subxt::tx::SubmittableExtrinsic;
+use sp_core::sr25519::Pair;
+use sp_keystore::CryptoStore;
+use sp_runtime::{app_crypto::CryptoTypePublicPair, KeyTypeId};
+use std::{io::Error, str::FromStr, sync::Arc, thread, time::Duration};
+use subxt::{tx::SubmittableExtrinsic, OnlineClient, PolkadotConfig};
 use tonic::transport::{Channel, Endpoint};
 pub use tonic::{transport::Server, Request, Response, Status};
-use validated_streams::{Stream,StreamStatus,WitnessedStream};
-use validated_streams::streams_server::{Streams, StreamsServer};
-use subxt::{OnlineClient, PolkadotConfig};
-use std::sync::Arc;
-use crate::network_configs::NetworkConfiguration;
-use crate::stream_proofs::{StreamProofs, InMemoryStreamProofs};
-use std::io::Error;
-use self::validated_streams::WitnessedStreamReply;
-use self::validated_streams::streams_client::StreamsClient;
-use sp_keystore::CryptoStore;
-use sp_core::sr25519::Pair;
+use validated_streams::{
+	streams_server::{Streams, StreamsServer},
+	ValidateEventRequest, ValidateEventResponse, WitnessedEventRequest,
+};
 
 #[subxt::subxt(runtime_metadata_path = "../artifacts/metadata.scale")]
 pub mod stream_node {}
 
-pub mod validated_streams
-{
-    tonic::include_proto!("validated_streams");
+pub mod validated_streams {
+	tonic::include_proto!("validated_streams");
 }
 
-pub struct ValidatedStreamsNode
-{
-    target:u16,
-    peers : Vec<Endpoint>,
-    validators_connections : Arc<Mutex<Vec<StreamsClient<Channel>>>>,
-    stream_proofs: Box<dyn StreamProofs + Send + Sync>,
-    keystore : Arc<dyn CryptoStore>,
-    key_type: KeyTypeId,
-    pub_key:sp_core::sr25519::Public,
+pub struct ValidatedStreamsNode {
+	target: u16,
+	peers: Vec<Endpoint>,
+	validators_connections: Arc<Mutex<Vec<StreamsClient<Channel>>>>,
+	event_proofs: Box<dyn EventProofs + Send + Sync>,
+	keystore: Arc<dyn CryptoStore>,
+	key_type: KeyTypeId,
+	pub_key: sp_core::sr25519::Public,
 }
 
 #[tonic::async_trait]
-impl Streams for ValidatedStreamsNode
-{
-    //check if the watcher(client) has already submitted the stream
-    //if not create a WitnessedStream message, add it to the stream proofs and gossip it
-    async fn validate_stream(&self,request:Request<Stream>) -> Result<Response<StreamStatus>,Status>
-    {
-        if let Some(remote_addr) = request.remote_addr()
-        {
-            log::info!("Received a request from {:?}",remote_addr);
-            let stream = request.into_inner(); 
-            let mut reply = StreamStatus 
-            {
-                status: String::from("Stream Submitted for validation"),
-            };
-            if self.stream_proofs.contains(stream.stream_id.clone())
-            {
-                reply.status = String::from("Stream Already submitted");
-                Ok(Response::new(reply))
-            }else
-            {
-                match self.create_witnessed_stream(stream).await
-                {
-                    Ok(witnessed_stream)=>
-                    {
-                        match self.verify_witnessed_stream(witnessed_stream.clone())
-                        {
-                            Ok(_)=>
-                            {
-                                self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream.clone()).await.ok();
-                                match ValidatedStreamsNode::gossip(self.validators_connections.clone(), witnessed_stream).await
-                                {
-                                    Ok(_) => Ok(Response::new(reply)),
-                                    Err(e) => Err(Status::aborted(e.to_string())),
-                                }
-                            }
-                            Err(e)=> Err(Status::aborted(e.to_string()))
-                        }
-                    }
-                    Err(e)=>
-                    {
-                        Err(Status::aborted(e.to_string()))
-                    }    
-                }
-            }
-        }else{
-            Err(Status::aborted("Malformed Request, can't retreive Origin address"))
-        }
-    } 
-    //receive what other validators have witnessed
-    async fn witnessed(&self,request:Request<WitnessedStream>) -> Result<Response<WitnessedStreamReply>,Status>
-    {
-        //check signature, call add_stream_proof
-        if let Some(remote_addr) = request.remote_addr()
-        {
-            let witnessed_stream = request.into_inner();
-            match self.verify_witnessed_stream(witnessed_stream.clone())
-            {
-                Ok(_)=>
-                {
-                    log::info!("Received a request from {:?}",remote_addr);
-                    self.process_witness_result(self.stream_proofs.add_stream_proof(witnessed_stream.clone(),remote_addr.to_string()),witnessed_stream).await
-                }
-                Err(e)=> Err(Status::aborted(e.to_string()))
-            }
-        }else
-        {
-            Err(Status::aborted("Malformed Request, can't retreive Origin address"))
-        }
-    }
+impl Streams for ValidatedStreamsNode {
+	//check if the watcher(client) has already submitted the stream
+	//if not create a WitnessedEventRequest message, add it to the stream proofs and gossip it
+	async fn validate_event(
+		&self,
+		request: Request<ValidateEventRequest>,
+	) -> Result<Response<ValidateEventResponse>, Status> {
+		let remote_addr = request
+			.remote_addr()
+			.ok_or(Status::aborted("Malformed Request, can't retreive Origin address"))?;
+		log::info!("Received a request from {:?}", remote_addr);
+		let event = request.into_inner();
+		let mut reply =
+			ValidateEventResponse { status: String::from("Stream Submitted for validation") };
+		if self.event_proofs.contains(event.event_id.clone()) {
+			reply.status = String::from("Stream Already submitted");
+			Ok(Response::new(reply))
+		} else {
+			let witnessed_event = self.create_witnessed_event(event).await?;
+			self.verify_witnessed_event(witnessed_event.clone())?;
+			self.process_witness_result(
+				self.event_proofs
+					.add_event_proof(witnessed_event.clone(), remote_addr.to_string()),
+				witnessed_event.clone(),
+			)
+			.await
+			.ok();
+			match ValidatedStreamsNode::gossip(self.validators_connections.clone(), witnessed_event)
+				.await
+			{
+				Ok(_) => Ok(Response::new(reply)),
+				_ => Err(Status::aborted("Could not gossip the received event")),
+			}
+		}
+	}
+	//receive what other validators have witnessed
+	async fn witnessed_event(
+		&self,
+		request: Request<WitnessedEventRequest>,
+	) -> Result<Response<WitnessedEventResponse>, Status> {
+		//check signature, call add_event_proof
+		let remote_addr = request
+			.remote_addr()
+			.ok_or(Status::aborted("Malformed Request, can't retreive Origin address"))?;
+		let witnessed_event = request.into_inner();
+		self.verify_witnessed_event(witnessed_event.clone())?;
+		log::info!("Received a request from {:?}", remote_addr);
+		self.process_witness_result(
+			self.event_proofs
+				.add_event_proof(witnessed_event.clone(), remote_addr.to_string()),
+			witnessed_event,
+		)
+		.await
+	}
 }
 impl ValidatedStreamsNode {
-    pub async fn new(peers: Vec<Endpoint>,keystore:Arc<dyn CryptoStore>) -> ValidatedStreamsNode
-    {
-        let peers_length= peers.len();
-        let validators_length = peers_length +1;
-        let target = (2*((validators_length-1)/3)+1) as u16 ;
-        log::info!("Minimal number of nodes that needs to witness Streams is: {}",target);
-        let key_type =sp_core::crypto::key_types::AURA;
-        if let Some(pub_key) =keystore.sr25519_generate_new(key_type, None).await.ok()
-        {
-            // let pub_key = keystore.keys(key_type).await.expect("Failed retreiving public keys from keystore").get(0).expect("Failed unwraping retreived key").clone();
-            ValidatedStreamsNode { peers, validators_connections: Arc::new(Mutex::new(Vec::with_capacity(peers_length))) , 
-            stream_proofs: Box::new(InMemoryStreamProofs::new()),
-            target,keystore,key_type,pub_key}
-        }else
-        {
-            panic!("failed creating key pair from the provided keystore")
-        }
-    }
-    pub fn verify_witnessed_stream(&self,witnessed_stream: WitnessedStream)-> Result<bool,Error>
-    {
-        if let Some(stream)=witnessed_stream.stream
-        {
-            if let  Some(sig) = sp_core::sr25519::Signature::from_slice(&witnessed_stream.signature)
-            {
-
-                if let Some(pub_key) = sp_core::sr25519::Public::from_str(&witnessed_stream.pub_key).ok()
-                {
-                    Ok(Pair::verify_deprecated(&sig,stream.extrinsic ,&pub_key))
-                }
-                else
-                {
-                    Err(Error::new(ErrorKind::InvalidData, "invalid public key given"))
-                }
-            }else
-            {
-                Err(Error::new(ErrorKind::InvalidData, "invalid signature given"))
-            }
-        }else
-        {
-            Err(Error::new(ErrorKind::InvalidData, "Could not retreive stream from witnessed stream"))
-        }
-    }
-    pub async fn process_witness_result(&self,result: Result<u16,Error>,proof:WitnessedStream) -> Result<Response<WitnessedStreamReply>,Status>
-    { 
-        match result{
-                Ok(count) =>
-                {
-                    let mut reply = WitnessedStreamReply 
-                    {
-                        reply: String::from("Stream Witnessed"),
-                    };
-                    // if count == self.target
-                    if count == 1
-                    {
-                        let extrinsic = proof.stream.expect("failed unwraping stream extrinsic").extrinsic;
-                        ValidatedStreamsNode::submit_stream_extrinsic(extrinsic).await;
-                        reply.reply = String::from("");
-                        Ok(Response::new(reply))
-                    }else
-                    {
-                        reply.reply= String::from("Proof Count increased");
-                        Ok(Response::new(reply))
-                    }
-                }
-                Err(e) => { if let Some(e) = e.into_inner(){
-                        Err(Status::already_exists(e.to_string()))
-                    }else{
-                        Err(Status::already_exists("Already Witnessed"))
-                    }
-            }
-        }
-    }
-    pub async fn submit_stream_extrinsic(extrinsic:Vec<u8>) 
-    {
-        let api = OnlineClient::<PolkadotConfig>::new().await.expect("failed creating substrate client");
-        let submitable_stream = SubmittableExtrinsic::from_bytes(api, extrinsic);
-        match submitable_stream.submit().await
-        {
-            Ok(v) => {
-                log::info!("Stream submitted with hash: {}",v);
-            }
-            Err(e) => {log::info!("Failed submitting stream with Error: {}",e);}
-        }
-    }
-    pub async fn create_witnessed_stream(&self,stream:Stream) -> Result<WitnessedStream,Error>
-    {
-        let stringfied_key = self.pub_key.to_string();
-        let key = CryptoTypePublicPair::from(&self.pub_key);
-        match self.keystore.sign_with(self.key_type, &key, stream.extrinsic.as_slice()).await
-        {
-            Ok(v) => {if let Some(sig) = v {
-                    Ok(WitnessedStream { signature: sig, pub_key:stringfied_key,stream: Some(stream.clone()) })
-                }
-                else
-                {
-                    Err(Error::new(ErrorKind::Other, "Failed retriving signature"))
-                }
-            }
-            Err(_)=>
-            {
-                Err(Error::new(ErrorKind::Other, "Could not sign Witnessed stream"))
-            }
-        }
-        
-        
-    }
-    pub async fn intialize_mesh_network(&mut self) 
-    {
-        let connections = self.validators_connections.clone(); 
-        let peers = self.peers.clone();
-        tokio::spawn(async move
-            {
-                log::info!("waiting server to get started");
-                thread::sleep(Duration::from_millis(4000));
-                for addr in peers {
-                    let connection_result = StreamsClient::<tonic::transport::Channel>::connect(addr.clone()).await;
-                    match connection_result
-                    {
-                        Ok(conn) =>{
-                            log::info!("🤜🤛Connected successfully to validator");
-                            connections.lock().await.push(conn);}, 
-                        Err(e) => {
-                            log::error!("failed connecting to address {:?} with error {:?}",addr,e);
-                        }
-                    }
-            }
-        });
-    } 
-    pub async fn gossip(connections: Arc<Mutex<Vec<StreamsClient<Channel>>>>,stream: WitnessedStream)  -> Result<(),tonic::transport::Error> 
-    {
-          for conn in &mut connections.lock().await.iter_mut() {
-            let reply = conn.witnessed(Request::new(stream.clone())).await;
-            match reply
-            {
-                Ok(client_reply) => log::info!("{:?}",client_reply),
-                Err(e) => {
-                    log::info!("failed sending witnessing stream with err {:?}",e);
-                }
-             }
-          }
-          Ok(())
-    }
-    //could prossibly make use of node configs in the future from runner in command.rs
-    pub async fn run<T>(configs:T,keystore :Arc<dyn CryptoStore>) where T:NetworkConfiguration 
-    {
-        let addr = configs.get_self_address();
-        let self_endpoint = format!("http://{}",addr);
-        let peers = configs.get_peers_addresses();
-        let mut target :Vec<Endpoint> = Vec::new();
-        for peer in peers.iter()
-        {
-            if *peer != self_endpoint
-            {
-                target.push(peer.clone().parse().expect("invalid Endpoint"));
-            }
-        }
-        let mut streams = ValidatedStreamsNode::new(target,keystore).await;
-        streams.intialize_mesh_network().await;
-        match tokio::spawn(async move{
-            log::info!("Streams server listening on [::0]:5555]");
-            Server::builder().add_service(StreamsServer::new(streams)).serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address")).await
-        }).await
-        {
-            Ok(_) => (),
-            Err(e) => {panic!("Failed Creating StreamsServer due to Err: {}",e); }
-        }
-    }
+	pub async fn new(peers: Vec<Endpoint>, keystore: Arc<dyn CryptoStore>) -> ValidatedStreamsNode {
+		let peers_length = peers.len();
+		let validators_length = peers_length + 1;
+		let target = (2 * ((validators_length - 1) / 3) + 1) as u16;
+		log::info!("Minimal number of nodes that needs to witness Streams is: {}", target);
+		let key_type = sp_core::crypto::key_types::AURA;
+		if let Some(pub_key) = keystore.sr25519_generate_new(key_type, None).await.ok() {
+			// let pub_key = keystore.keys(key_type).await.expect("Failed retreiving public keys
+			// from keystore").get(0).expect("Failed unwraping retreived key").clone();
+			ValidatedStreamsNode {
+				peers,
+				validators_connections: Arc::new(Mutex::new(Vec::with_capacity(peers_length))),
+				event_proofs: Box::new(InMemoryEventProofs::new()),
+				target,
+				keystore,
+				key_type,
+				pub_key,
+			}
+		} else {
+			panic!("failed creating key pair from the provided keystore")
+		}
+	}
+	pub fn verify_witnessed_event(
+		&self,
+		witnessed_event: WitnessedEventRequest,
+	) -> Result<bool, Status> {
+		let event = witnessed_event
+			.event
+			.ok_or(Status::aborted("Could not retreive the event from witnessed event"))?;
+		let sig = sp_core::sr25519::Signature::from_slice(&witnessed_event.signature)
+			.ok_or(Status::aborted("invalid signature given"))?;
+		if let Some(pub_key) = sp_core::sr25519::Public::from_str(&witnessed_event.pub_key).ok() {
+			Ok(Pair::verify_deprecated(&sig, event.extrinsic, &pub_key))
+		} else {
+			Err(Status::aborted("invalid public key given"))
+		}
+	}
+	pub async fn process_witness_result(
+		&self,
+		result: Result<u16, Error>,
+		proof: WitnessedEventRequest,
+	) -> Result<Response<WitnessedEventResponse>, Status> {
+		match result {
+			Ok(count) => {
+				let mut reply = WitnessedEventResponse { reply: String::from("Stream Witnessed") };
+				// if count == self.target
+				if count == 1 {
+					let extrinsic =
+						proof.event.expect("failed unwraping event extrinsic").extrinsic;
+					ValidatedStreamsNode::submit_stream_extrinsic(extrinsic).await;
+					reply.reply = String::from("");
+					Ok(Response::new(reply))
+				} else {
+					reply.reply = String::from("Proof Count increased");
+					Ok(Response::new(reply))
+				}
+			},
+			Err(e) =>
+				if let Some(e) = e.into_inner() {
+					Err(Status::already_exists(e.to_string()))
+				} else {
+					Err(Status::already_exists("Already Witnessed"))
+				},
+		}
+	}
+	pub async fn submit_stream_extrinsic(extrinsic: Vec<u8>) {
+		let api = OnlineClient::<PolkadotConfig>::new()
+			.await
+			.expect("failed creating substrate client");
+		let submitable_stream = SubmittableExtrinsic::from_bytes(api, extrinsic);
+		match submitable_stream.submit().await {
+			Ok(v) => {
+				log::info!("Stream submitted with hash: {}", v);
+			},
+			Err(e) => {
+				log::info!("Failed submitting stream with Error: {}", e);
+			},
+		}
+	}
+	pub async fn create_witnessed_event(
+		&self,
+		event: ValidateEventRequest,
+	) -> Result<WitnessedEventRequest, Status> {
+		let stringfied_key = self.pub_key.to_string();
+		let key = CryptoTypePublicPair::from(&self.pub_key);
+		match self.keystore.sign_with(self.key_type, &key, event.extrinsic.as_slice()).await {
+			Ok(v) =>
+				if let Some(sig) = v {
+					Ok(WitnessedEventRequest {
+						signature: sig,
+						pub_key: stringfied_key,
+						event: Some(event.clone()),
+					})
+				} else {
+					Err(Status::aborted("Failed retriving signature"))
+				},
+			Err(_) => Err(Status::aborted("Could not sign Witnessed stream")),
+		}
+	}
+	pub async fn intialize_mesh_network(&mut self) {
+		let connections = self.validators_connections.clone();
+		let peers = self.peers.clone();
+		tokio::spawn(async move {
+			log::info!("waiting server to get started");
+			thread::sleep(Duration::from_millis(4000));
+			for addr in peers {
+				let connection_result =
+					StreamsClient::<tonic::transport::Channel>::connect(addr.clone()).await;
+				match connection_result {
+					Ok(conn) => {
+						log::info!("🤜🤛Connected successfully to validator");
+						connections.lock().await.push(conn);
+					},
+					Err(e) => {
+						log::error!("failed connecting to address {:?} with error {:?}", addr, e);
+					},
+				}
+			}
+		});
+	}
+	pub async fn gossip(
+		connections: Arc<Mutex<Vec<StreamsClient<Channel>>>>,
+		event: WitnessedEventRequest,
+	) -> Result<(), tonic::transport::Error> {
+		for conn in &mut connections.lock().await.iter_mut() {
+			let reply = conn.witnessed_event(Request::new(event.clone())).await;
+			match reply {
+				Ok(client_reply) => log::info!("{:?}", client_reply),
+				Err(e) => {
+					log::info!("failed sending witnessing stream with err {:?}", e);
+				},
+			}
+		}
+		Ok(())
+	}
+	//could prossibly make use of node configs in the future from runner in command.rs
+	pub async fn run<T>(configs: T, keystore: Arc<dyn CryptoStore>)
+	where
+		T: NetworkConfiguration,
+	{
+		let addr = configs.get_self_address();
+		let self_endpoint = format!("http://{}", addr);
+		let peers = configs.get_peers_addresses();
+		let mut target: Vec<Endpoint> = Vec::new();
+		for peer in peers.iter() {
+			if *peer != self_endpoint {
+				target.push(peer.clone().parse().expect("invalid Endpoint"));
+			}
+		}
+		let mut streams = ValidatedStreamsNode::new(target, keystore).await;
+		streams.intialize_mesh_network().await;
+		match tokio::spawn(async move {
+			log::info!("Streams server listening on [::0]:5555]");
+			Server::builder()
+				.add_service(StreamsServer::new(streams))
+				.serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address"))
+				.await
+		})
+		.await
+		{
+			Ok(_) => (),
+			Err(e) => {
+				panic!("Failed Creating StreamsServer due to Err: {}", e);
+			},
+		}
+	}
 }

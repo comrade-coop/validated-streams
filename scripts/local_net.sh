@@ -1,3 +1,5 @@
+#!/bin/sh 
+cd $(dirname $0)
 #purge old data
 ../target/release/node purge-chain --base-path /tmp/alice --chain local -y
 ../target/release/node purge-chain --base-path /tmp/bob --chain local -y

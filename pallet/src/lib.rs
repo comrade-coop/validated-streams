@@ -16,7 +16,7 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		ValidatedStream { stream_id: T::Hash },
+		ValidatedEvent { event_id: T::Hash },
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -31,13 +31,13 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		// verification of whether the stream already exists in the txpool should be done in
 		// outer-node
-		pub fn validate_stream(origin: OriginFor<T>, stream: T::Hash) -> DispatchResult {
+		pub fn validate_event(origin: OriginFor<T>, event: T::Hash) -> DispatchResult {
 			// Check that the extrinsic was signed and get the signer.
 			let sender = ensure_signed(origin)?;
 			let current_block = <frame_system::Pallet<T>>::block_number();
-			ensure!(!Streams::<T>::contains_key(&stream), Error::<T>::AlreadyValidated);
-			Streams::<T>::insert(&stream, (&sender, current_block));
-			Self::deposit_event(Event::ValidatedStream { stream_id: stream });
+			ensure!(!Streams::<T>::contains_key(&event), Error::<T>::AlreadyValidated);
+			Streams::<T>::insert(&event, (&sender, current_block));
+			Self::deposit_event(Event::ValidatedEvent { event_id: event });
 			Ok(())
 		}
 	}

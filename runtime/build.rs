@@ -1,5 +1,3 @@
-
-
 use substrate_wasm_builder::WasmBuilder;
 
 fn main() {

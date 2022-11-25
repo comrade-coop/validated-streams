@@ -1,4 +1,8 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
+use crate::{
+	network_configs::LocalDockerNetworkConfiguration, streams_server::ValidatedStreamsNode,
+	witness_block_import::WitnessBlockImport,
+};
 use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{BlockBackend, ExecutorProvider};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
@@ -8,10 +12,7 @@ use sc_keystore::LocalKeystore;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-use crate::network_configs::LocalDockerNetworkConfiguration;
-use crate::streams_server::ValidatedStreamsNode;
 use std::{sync::Arc, time::Duration};
-use crate::witness_block_import::WitnessBlockImport;
 // Our native executor instance.
 pub struct ExecutorDispatch;
 
@@ -47,12 +48,14 @@ pub fn new_partial(
 		sc_consensus::DefaultImportQueue<Block, FullClient>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
 		(
-			WitnessBlockImport< sc_finality_grandpa::GrandpaBlockImport<
-				FullBackend,
-				Block,
-				FullClient,
-				FullSelectChain,
-			>>,
+			WitnessBlockImport<
+				sc_finality_grandpa::GrandpaBlockImport<
+					FullBackend,
+					Block,
+					FullClient,
+					FullSelectChain,
+				>,
+			>,
 			sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 			Option<Telemetry>,
 		),
@@ -104,7 +107,6 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-
 	let (grandpa_block_import, grandpa_link) = sc_finality_grandpa::block_import(
 		client.clone(),
 		&(client.clone() as Arc<_>),
@@ -112,7 +114,8 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-    let witness_block_import = WitnessBlockImport(grandpa_block_import.clone(),transaction_pool.clone());
+	let witness_block_import =
+		WitnessBlockImport(grandpa_block_import.clone(), transaction_pool.clone());
 
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
@@ -162,10 +165,7 @@ fn remote_keystore(_url: &String) -> Result<Arc<LocalKeystore>, &'static str> {
 
 /// Builds a new service for a full client.
 pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> {
-	
-
-
-    let sc_service::PartialComponents {
+	let sc_service::PartialComponents {
 		client,
 		backend,
 		mut task_manager,
@@ -175,8 +175,14 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		transaction_pool,
 		other: (block_import, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
-	task_manager.spawn_essential_handle().spawn_blocking("gRPC server", None, 
-		ValidatedStreamsNode::run(LocalDockerNetworkConfiguration { port: 5555 },keystore_container.keystore()));
+	task_manager.spawn_essential_handle().spawn_blocking(
+		"gRPC server",
+		None,
+		ValidatedStreamsNode::run(
+			LocalDockerNetworkConfiguration { port: 5555 },
+			keystore_container.keystore(),
+		),
+	);
 	if let Some(url) = &config.keystore_remote {
 		match remote_keystore(url) {
 			Ok(k) => keystore_container.set_remote_keystore(k),
