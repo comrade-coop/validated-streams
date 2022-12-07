@@ -1,5 +1,6 @@
 pub mod chain_spec;
 pub mod event_proofs;
+pub mod gossip;
 pub mod network_configs;
 pub mod rpc;
 pub mod service;

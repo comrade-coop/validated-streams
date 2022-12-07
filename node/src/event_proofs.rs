@@ -10,14 +10,21 @@ pub trait EventProofs {
 	fn contains(&self, event_id: String) -> Result<bool, Error>;
 	fn add_event_proof(&self, event: WitnessedEventRequest, origin: String) -> Result<u16, Error>;
 	fn get_proof_count(&self, event_id: String) -> Result<u16, Error>;
+	fn verify_event_validity(&self, event_id: String) -> Result<bool, Error>;
+	fn verify_events_validity(&self, ids: Vec<String>) -> Result<Vec<String>, Error>;
+	fn set_target(&self, target: u16) -> Result<bool, Error>;
 }
 
 pub struct InMemoryEventProofs {
+	target: Mutex<u16>,
 	proofs: Arc<Mutex<HashMap<String, HashMap<String, WitnessedEventRequest>>>>,
 }
 impl InMemoryEventProofs {
 	pub fn new() -> Arc<dyn EventProofs + Send + Sync> {
-		Arc::new(InMemoryEventProofs { proofs: Arc::new(Mutex::new(HashMap::new())) })
+		Arc::new(InMemoryEventProofs {
+			proofs: Arc::new(Mutex::new(HashMap::new())),
+			target: Mutex::new(0),
+		})
 	}
 }
 impl EventProofs for InMemoryEventProofs {
@@ -31,7 +38,7 @@ impl EventProofs for InMemoryEventProofs {
 		let event_ref = witnessed_event
 			.event
 			.as_ref()
-			.ok_or(Error::new(ErrorKind::InvalidData, "Could not retreive Stream info"))?;
+			.ok_or(Error::new(ErrorKind::InvalidData, "Could not retreive event info"))?;
 		let event_id = event_ref.event_id.clone();
 		let mut proofs = self
 			.proofs
@@ -43,7 +50,7 @@ impl EventProofs for InMemoryEventProofs {
 		} else {
 			let proof_count = proofs
 				.get(&event_id)
-				.ok_or(Error::new(ErrorKind::InvalidData, "failed retreiving proof count"))?
+				.ok_or(Error::new(ErrorKind::InvalidData, "event was not inserted"))?
 				.len() as u16;
 			proofs
 				.entry(event_id.clone())
@@ -64,9 +71,56 @@ impl EventProofs for InMemoryEventProofs {
 			.proofs
 			.lock()
 			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking InMemoryProofs")))?;
-		Ok(proofs
-			.get(&event_id)
-			.ok_or(Error::new(ErrorKind::InvalidData, "failed retreiving proof Count"))?
-			.len() as u16)
+		if proofs.contains_key(&event_id) {
+			let count = proofs
+				.get(&event_id)
+				.ok_or(Error::new(ErrorKind::InvalidData, "Could not retreive event count"))?
+				.len() as u16;
+			Ok(count)
+		} else {
+			Ok(0)
+		}
+	}
+	fn verify_event_validity(&self, event_id: String) -> Result<bool, Error> {
+		if self.contains(event_id.clone())? {
+			let current_count = self.get_proof_count(event_id)?;
+			if current_count <
+				*self
+					.target
+					.lock()
+					.or(Err(Error::new(ErrorKind::InvalidData, "failed locking target")))?
+			{
+				Ok(true)
+			} else {
+				Ok(false)
+			}
+		} else {
+			Ok(false)
+		}
+	}
+	fn verify_events_validity(&self, ids: Vec<String>) -> Result<Vec<String>, Error> {
+		let mut unprepared_ids = Vec::new();
+		let target = *self
+			.target
+			.lock()
+			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking target")))?;
+		for id in ids {
+			if self.contains(id.clone())? {
+				let current_count = self.get_proof_count(id.clone())?;
+				if current_count < target {
+					unprepared_ids.push(id);
+				}
+			} else {
+				unprepared_ids.push(id);
+			}
+		}
+		Ok(unprepared_ids)
+	}
+	fn set_target(&self, val: u16) -> Result<bool, Error> {
+		*self
+			.target
+			.lock()
+			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking target")))? = val;
+		Ok(true)
 	}
 }

@@ -11,7 +11,7 @@ use pallet_grandpa::{
 };
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify},
@@ -344,7 +344,6 @@ mod benches {
 		//[pallet_authorship, AuthorShip]
 	);
 }
-
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
@@ -403,6 +402,30 @@ impl_runtime_apis! {
 		}
 	}
 
+	impl pallet_validated_streams::ExtrinsicDetails<Block> for Runtime
+	{
+		fn get_extrinsic_ids(extrinsics:&Vec<<Block as BlockT>::Extrinsic>) -> Vec<H256>
+		{
+			let mut ids = Vec::new();
+			for extrinsic in extrinsics.iter()
+			{
+				match &extrinsic.function
+				{
+					Call::ValidatedStreams(v) => {
+						match v
+						{
+							pallet_validated_streams::Call::<Runtime>::validate_event{event_id:call_data}=>{
+								ids.push(call_data.clone());
+							},
+							&_=>{}
+						}
+					},
+					_ => {}
+				}
+			}
+			ids
+		}
+	}
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
 		fn slot_duration() -> sp_consensus_aura::SlotDuration {
 			sp_consensus_aura::SlotDuration::from_millis(Aura::slot_duration())

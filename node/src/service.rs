@@ -9,6 +9,7 @@ use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
+//use sc_network_gossip::GossipEngine;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
@@ -114,8 +115,12 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let witness_block_import =
-		WitnessBlockImport(grandpa_block_import.clone(), transaction_pool.clone());
+	let event_proofs = InMemoryEventProofs::new();
+	let witness_block_import = WitnessBlockImport {
+		parent_block_import: grandpa_block_import.clone(),
+		client: client.clone(),
+		event_proofs: event_proofs.clone(),
+	};
 
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
@@ -175,14 +180,13 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		transaction_pool,
 		other: (block_import, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
-	let event_proofs = InMemoryEventProofs::new();
 	task_manager.spawn_essential_handle().spawn_blocking(
 		"gRPC server",
 		None,
 		ValidatedStreamsNode::run(
 			LocalDockerNetworkConfiguration { port: 5555 },
 			keystore_container.keystore(),
-			event_proofs.clone(),
+			block_import.event_proofs.clone(),
 		),
 	);
 	if let Some(url) = &config.keystore_remote {

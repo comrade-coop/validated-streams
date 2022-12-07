@@ -14,10 +14,10 @@ impl NetworkConfiguration for LocalDockerNetworkConfiguration {
 	}
 	fn get_peers_addresses(&self) -> Vec<String> {
 		vec![
-			format!("http://172.17.0.2:{}", &self.port),
-			format!("http://172.17.0.3:{}", &self.port),
-			format!("http://172.17.0.4:{}", &self.port),
-			format!("http://172.17.0.5:{}", &self.port),
+			format!("http://172.19.0.2:{}", &self.port),
+			format!("http://172.19.0.3:{}", &self.port),
+			format!("http://172.19.0.4:{}", &self.port),
+			format!("http://172.19.0.5:{}", &self.port),
 		]
 	}
 }

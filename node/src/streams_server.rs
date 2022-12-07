@@ -1,6 +1,7 @@
 use self::validated_streams::{streams_client::StreamsClient, WitnessedEventResponse};
 use crate::{event_proofs::EventProofs, network_configs::NetworkConfiguration};
 use futures::lock::Mutex;
+use local_ip_address::local_ip;
 use sp_core::{sr25519::Pair, H256};
 use sp_keystore::CryptoStore;
 use sp_runtime::{app_crypto::CryptoTypePublicPair, KeyTypeId};
@@ -76,8 +77,8 @@ impl Streams for ValidatedStreamsNode {
 			.remote_addr()
 			.ok_or(Status::aborted("Malformed Request, can't retreive Origin address"))?;
 		let witnessed_event = request.into_inner();
-		self.verify_witnessed_event(witnessed_event.clone())?;
 		log::info!("Received a request from {:?}", remote_addr);
+		self.verify_witnessed_event(witnessed_event.clone())?;
 		self.process_witness_result(
 			self.event_proofs
 				.add_event_proof(witnessed_event.clone(), remote_addr.to_string()),
@@ -97,6 +98,7 @@ impl ValidatedStreamsNode {
 		let target = (2 * ((validators_length - 1) / 3) + 1) as u16;
 		log::info!("Minimal number of nodes that needs to witness Streams is: {}", target);
 		let key_type = sp_core::crypto::key_types::AURA;
+		event_proofs.set_target(1).unwrap();
 		if let Some(pub_key) = keystore.sr25519_generate_new(key_type, None).await.ok() {
 			// let pub_key = keystore.keys(key_type).await.expect("Failed retreiving public keys
 			// from keystore").get(0).expect("Failed unwraping retreived key").clone();
@@ -245,7 +247,7 @@ impl ValidatedStreamsNode {
 		let mut streams = ValidatedStreamsNode::new(target, keystore, event_proofs).await;
 		streams.intialize_mesh_network().await;
 		match tokio::spawn(async move {
-			log::info!("Streams server listening on [::0]:5555]");
+			log::info!("Server could be reached at {}", local_ip().unwrap().to_string());
 			Server::builder()
 				.add_service(StreamsServer::new(streams))
 				.serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address"))

@@ -1,20 +1,19 @@
-use crate::service::ExecutorDispatch;
+use crate::{event_proofs::EventProofs, service::FullClient};
 use log::info;
-use node_runtime::{self, opaque::Block, RuntimeApi};
+use node_runtime::{self, opaque::Block, pallet_validated_streams::ExtrinsicDetails};
 use sc_consensus::{BlockCheckParams, BlockImportParams, ImportResult};
 pub use sc_executor::NativeElseWasmExecutor;
+use sp_api::ProvideRuntimeApi;
 use sp_blockchain::well_known_cache_keys;
 use sp_consensus::Error as ConsensusError;
+use sp_runtime::generic::BlockId;
 use std::{collections::HashMap, sync::Arc};
-pub(crate) type FullClient =
-	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 #[derive(Clone)]
-pub struct WitnessBlockImport<I>(
-	pub I,
-	pub  Arc<
-		sc_transaction_pool::BasicPool<sc_transaction_pool::FullChainApi<FullClient, Block>, Block>,
-	>,
-);
+pub struct WitnessBlockImport<I> {
+	pub parent_block_import: I,
+	pub client: Arc<FullClient>,
+	pub event_proofs: Arc<dyn EventProofs + Send + Sync>,
+}
 #[async_trait::async_trait]
 impl<I: sc_consensus::BlockImport<Block>> sc_consensus::BlockImport<Block> for WitnessBlockImport<I>
 where
@@ -27,7 +26,7 @@ where
 		&mut self,
 		block: BlockCheckParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
-		let parent_result = self.0.check_block(block).await;
+		let parent_result = self.parent_block_import.check_block(block).await;
 		match parent_result {
 			Ok(result) => {
 				info!("👌Block Checked");
@@ -45,27 +44,29 @@ where
 		if let Some(block_extrinsics) = &block.body {
 			// get an iterator for all ready transactions and skip the first element which contains
 			// the default extrinsic
-			let mut block_extrinsics = block_extrinsics.iter();
-			block_extrinsics.next();
-			for extrinsic in block_extrinsics {
-				println!("Block Extrinsic:: {:?}", extrinsic);
-				let mut ready_transactions = self.1.pool().validated_pool().ready();
-				let is_found = ready_transactions.any(|tx| {
-					let tx_extrinsic = &tx.data;
-					if tx_extrinsic == extrinsic {
-						return true
+			let block_id = BlockId::Number(self.client.chain_info().best_number);
+			let extrinsic_ids = self
+				.client
+				.runtime_api()
+				.get_extrinsic_ids(&block_id, block_extrinsics)
+				.ok()
+				.unwrap_or(Vec::new());
+			match self
+				.event_proofs
+				.verify_events_validity(extrinsic_ids.iter().map(|id| id.to_string()).collect())
+			{
+				Ok(unprepared_ids) =>
+					if unprepared_ids.len() > 0 {
+						log::info!("Block should be deffered as it contains unwitnessed events");
 					} else {
-						return false
-					};
-				});
-				if is_found == false {
-					return Err(ConsensusError::ClientImport(format!(
-						"Extrinsic does not exist in the pool"
-					)))
-				}
+						log::info!("All block events have been witnessed");
+					},
+				Err(e) => {
+					log::error!("the following Error happened while verifying block events in the event_proofs:{}",e);
+				},
 			}
 		}
-		let parent_result = self.0.import_block(block, cache).await;
+		let parent_result = self.parent_block_import.import_block(block, cache).await;
 		match parent_result {
 			Ok(result) => {
 				info!("👌Block Imported");
