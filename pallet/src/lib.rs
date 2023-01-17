@@ -42,6 +42,32 @@ pub mod pallet {
 			Ok(())
 		}
 	}
+	impl<T: Config> Pallet<T> {
+		pub fn get_all_events() -> Vec<T::Hash> {
+			Streams::<T>::iter().map(|(k, _)| k).collect()
+		}
+		pub fn get_account_events(account_id: T::AccountId) -> Vec<T::Hash> {
+			Streams::<T>::iter()
+				.filter(|(_, (id, _))| *id == account_id)
+				.map(|(k, _)| k)
+				.collect()
+		}
+		pub fn get_block_events(block_number: T::BlockNumber) -> Vec<T::Hash> {
+			Streams::<T>::iter()
+				.filter(|(_, (_, bn))| *bn == block_number)
+				.map(|(k, _)| k)
+				.collect()
+		}
+		pub fn get_account_events_at_block(
+			account_id: T::AccountId,
+			block_number: T::BlockNumber,
+		) -> Vec<T::Hash> {
+			Streams::<T>::iter()
+				.filter(|(_, (id, bn))| *bn == block_number && *id == account_id)
+				.map(|(k, _)| k)
+				.collect()
+		}
+	}
 	sp_api::decl_runtime_apis! {
 		pub trait ExtrinsicDetails{
 			fn get_extrinsic_ids(extrinsics: &Vec<Block::Extrinsic>) -> Vec<H256>;
