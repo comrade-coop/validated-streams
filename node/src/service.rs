@@ -1,7 +1,8 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 use crate::{
-	event_proofs::InMemoryEventProofs, network_configs::LocalDockerNetworkConfiguration,
-	streams_server::ValidatedStreamsNode, witness_block_import::WitnessBlockImport,
+	event_proofs::InMemoryEventProofs, gossip::StreamsGossip,
+	network_configs::LocalNetworkConfiguration, streams_server::ValidatedStreamsNode,
+	witness_block_import::WitnessBlockImport,
 };
 use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{BlockBackend, ExecutorProvider};
@@ -180,11 +181,17 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		transaction_pool,
 		other: (block_import, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
+
+	//task_manager.spawn_essential_handle().spawn_blocking(
+		//"Streams Gossip",
+		//None,
+		//StreamsGossip::run_test(),
+	//);
 	task_manager.spawn_essential_handle().spawn_blocking(
 		"gRPC server",
 		None,
 		ValidatedStreamsNode::run(
-			LocalDockerNetworkConfiguration { port: 5555 },
+			LocalNetworkConfiguration { port: 5555 },
 			keystore_container.keystore(),
 			block_import.event_proofs.clone(),
 		),

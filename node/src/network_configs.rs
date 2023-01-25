@@ -1,3 +1,4 @@
+use libp2p::Multiaddr;
 use local_ip_address::local_ip;
 // trait used to make it easier to create networkconfigurations from diffrent sources
 pub trait NetworkConfiguration {
@@ -5,10 +6,10 @@ pub trait NetworkConfiguration {
 	fn get_peers_addresses(&self) -> Vec<String>;
 }
 
-pub struct LocalDockerNetworkConfiguration {
+pub struct LocalNetworkConfiguration {
 	pub port: u16,
 }
-impl NetworkConfiguration for LocalDockerNetworkConfiguration {
+impl NetworkConfiguration for LocalNetworkConfiguration {
 	fn get_self_address(&self) -> String {
 		format!("{}:{}", local_ip().unwrap().to_string(), &self.port)
 	}
@@ -21,19 +22,19 @@ impl NetworkConfiguration for LocalDockerNetworkConfiguration {
 		]
 	}
 }
-pub struct LocalNetworkConfiguration {
-	pub port: u16,
-}
-impl NetworkConfiguration for LocalNetworkConfiguration {
-	fn get_self_address(&self) -> String {
-		format!("127.0.0.1:{}", &self.port)
+
+impl LocalNetworkConfiguration {
+	pub fn get_self_multi_addr() -> Multiaddr {
+		format!("/ip4/{}/tcp/10000", local_ip().expect("failed getting local ip").to_string())
+			.parse()
+			.expect("failed getting self multi address")
 	}
-	fn get_peers_addresses(&self) -> Vec<String> {
+	pub fn get_peers_multi_addresses() -> Vec<Multiaddr> {
 		vec![
-			format!("http://127.0.0.1:{}", &self.port),
-			format!("http://127.0.0.1:{}", &self.port + 1),
-			format!("http://127.0.0.1:{}", &self.port + 2),
-			format!("http://127.0.0.1:{}", &self.port + 3),
+			"/ip4/172.19.0.2/tcp/10000".parse().expect("Erroneous Multiaddr"),
+			"/ip4/172.19.0.3/tcp/10000".parse().expect("Erroneous Multiaddr"),
+			"/ip4/172.19.0.4/tcp/10000".parse().expect("Erroneous Multiaddr"),
+			"/ip4/172.19.0.5/tcp/10000".parse().expect("Erroneous Multiaddr"),
 		]
 	}
 }

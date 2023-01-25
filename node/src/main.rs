@@ -7,6 +7,7 @@ mod benchmarking;
 mod cli;
 mod command;
 mod event_proofs;
+mod gossip;
 mod network_configs;
 mod rpc;
 mod streams_server;
