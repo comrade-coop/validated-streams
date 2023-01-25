@@ -1,0 +1,164 @@
+use futures::{lock::Mutex, prelude::*, select};
+
+use libp2p::{
+	core::{muxing::StreamMuxerBox, transport::Boxed},
+	gossipsub::{self, Gossipsub, IdentTopic, MessageAuthenticity, GossipsubEvent},
+	identity::{self, Keypair},
+	swarm::SwarmEvent,
+	Multiaddr, PeerId, Swarm,
+};
+use std::{sync::Arc, time::Duration, future, collections::HashMap};
+
+use crate::network_configs::LocalNetworkConfiguration;
+
+
+pub struct StreamsGossip {
+	key: Keypair,
+	swarm: Swarm<Gossipsub>,
+}
+
+impl StreamsGossip {
+	pub async fn new() -> StreamsGossip {
+		let key = StreamsGossip::create_keys();
+		let transport = StreamsGossip::get_transport(key.clone()).await;
+		let behavior = StreamsGossip::get_behavior(key.clone());
+		let peer_id = StreamsGossip::get_peer_id(key.clone());
+        println!("PEER ID: {:?}",peer_id);
+		let swarm = StreamsGossip::create_swarm(transport, behavior, peer_id);
+		StreamsGossip { key, swarm }
+	}
+
+	pub fn create_keys() -> Keypair {
+		identity::Keypair::generate_ed25519()
+	}
+
+	pub fn get_peer_id(key: Keypair) -> PeerId {
+		PeerId::from(key.public())
+	}
+
+	pub async fn get_transport(key: Keypair) -> Boxed<(PeerId, StreamMuxerBox)> {
+		libp2p::development_transport(key.clone())
+			.await
+			.expect("failed creating the transport")
+	}
+
+	pub fn get_behavior(key: Keypair) -> Gossipsub {
+		let message_authenticity = MessageAuthenticity::Signed(key);
+		// set default parameters for gossipsub
+		let gossipsub_config = gossipsub::GossipsubConfig::default();
+		// build a gossipsub network behaviour
+		gossipsub::Gossipsub::new(message_authenticity, gossipsub_config).unwrap()
+	}
+
+	pub fn create_swarm(
+		transport: Boxed<(PeerId, StreamMuxerBox)>,
+		behaviour: Gossipsub,
+		peer_id: PeerId,
+	) -> Swarm<Gossipsub> {
+		libp2p::Swarm::with_tokio_executor(transport, behaviour, peer_id)
+	}
+
+	pub async fn dial_peers(&mut self, peers: Vec<Multiaddr>) {
+        println!("Dialing the following peers: {:?}",peers);
+		for peer in peers {
+			match self.swarm.dial(peer)
+            {
+                Err(e)=>{println!("Error dialing peer {:?}",e);},
+                Ok(_)=>{println!("Dialed Succefully");}
+            }
+		}
+	}
+
+	pub async fn subscribe(&mut self, topic: IdentTopic) {
+		self.swarm.behaviour_mut().subscribe(&topic).ok();
+	}
+
+	pub async fn mock_order()-> future::Ready<()> {
+        //match self.swarm.behaviour_mut().publish(topic, message){
+            //Ok(id)=>{println!("Message Gossiped Succesfully {:?}",id)},
+            //Err(e)=>{println!("Failed Gossiping message with Error: {:?}",e)}
+        //}
+        tokio::time::sleep(Duration::from_millis(5000)).await;
+        future::ready(())
+    }
+
+	pub async fn listen(mut swarm: Swarm<Gossipsub>, addr: Multiaddr) {
+		let addr = swarm
+			.listen_on(addr)
+			.unwrap();
+		println!("Listening on {:?}", addr);
+		loop {
+			    match swarm.select_next_some().await {
+				    SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {:?}", address),
+				    SwarmEvent::Behaviour(event) => println!("MESSAGE {:?}", event),
+				    _ => {},
+			    }
+            //sleeping to avoid starvation on swarm
+            tokio::time::sleep(Duration::from_millis(500)).await;    
+		}
+	}
+    
+    pub async fn run_test()
+    {
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+        let mut streams_gossip = StreamsGossip::new().await;
+        //let swarm_clone = streams_gossip.swarm.clone();
+        let peers = LocalNetworkConfiguration::get_peers_multi_addresses();
+        let self_addr = LocalNetworkConfiguration::get_self_multi_addr();
+        let self_addr_clone = self_addr.clone();
+        let witnessed_stream: IdentTopic= gossipsub::IdentTopic::new("WitnessedStream");
+        
+        streams_gossip.dial_peers(peers.into_iter().filter(|peer| *peer != self_addr_clone).collect()).await;
+        streams_gossip.subscribe(witnessed_stream.clone()).await;
+
+        let mut swarm = streams_gossip.swarm;
+		swarm.listen_on(self_addr).unwrap();
+        let mut count: u8 = 0; 
+        let mut count_map :HashMap<u8,Vec<String>>= HashMap::new();
+        count_map.entry(0).or_insert(Vec::new());
+        loop{
+        select! {
+            _= StreamsGossip::mock_order().fuse()=>{
+                   match swarm.behaviour_mut().publish(witnessed_stream.clone(), vec![count]){
+                        Ok(_)=>{},
+                        Err(e)=>{println!("Failed Gossiping message with Error: {:?}",e)}
+                        }
+            },
+            event = swarm.select_next_some() =>{
+			    match event{
+				    SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {:?}", address),
+				    SwarmEvent::Behaviour(GossipsubEvent::Message { propagation_source:_, message_id:_, message }) => 
+                    {
+                        let source= message.source.unwrap().to_base58();
+                        let data :&u8= message.data.get(0).unwrap();
+                        println!("peer:{:?} sent {:?}",source,data);
+                        if count_map.entry(*data).or_insert(Vec::new()).contains(&source)==false{
+                            count_map.get_mut(data).unwrap().push(source);
+                            if count_map.get_mut(data).unwrap().len() == 3{
+                                println!("received all gossiped messages of count {}",count);
+                                println!("{:?}",count_map);
+                                count+=1;
+                            }
+                        }else
+                        {
+                            println!("already received {} from {}",data,source);
+                            println!("{:?}",count_map);
+                        }
+                    },
+				    
+                    SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id, topic }) => println!("peer:{:?} subscribed to {:?}",peer_id,topic),
+				    _ => {},
+			        }
+                }
+            }
+        
+        }
+        //tokio::spawn(async {
+                //StreamsGossip::listen(swarm_clone,self_addr).await;
+        //});
+        //loop{
+                //streams_gossip.publish(witnessed_stream.clone(), vec![1,2,3]). await;
+                //tokio::time::sleep(Duration::from_millis(5000)).await;
+        //}
+    }
+}

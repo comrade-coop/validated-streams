@@ -93,10 +93,7 @@ impl ValidatedStreamsNode {
 		keystore: Arc<dyn CryptoStore>,
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 	) -> ValidatedStreamsNode {
-		let peers_length = peers.len();
-		let validators_length = peers_length + 1;
-		let target = (2 * ((validators_length - 1) / 3) + 1) as u16;
-		log::info!("Minimal number of nodes that needs to witness Streams is: {}", target);
+		let target = ValidatedStreamsNode::get_target(peers.len());
 		let key_type = sp_core::crypto::key_types::AURA;
 		event_proofs.set_target(1).unwrap();
 		if let Some(pub_key) = keystore.sr25519_generate_new(key_type, None).await.ok() {
@@ -104,7 +101,7 @@ impl ValidatedStreamsNode {
 			// from keystore").get(0).expect("Failed unwraping retreived key").clone();
 			ValidatedStreamsNode {
 				peers,
-				validators_connections: Arc::new(Mutex::new(Vec::with_capacity(peers_length))),
+				validators_connections: Arc::new(Mutex::new(Vec::new())),
 				event_proofs,
 				target,
 				keystore,
@@ -115,6 +112,14 @@ impl ValidatedStreamsNode {
 			panic!("failed creating key pair from the provided keystore")
 		}
 	}
+
+	pub fn get_target(num_peers: usize) -> u16 {
+		let validators_length = num_peers + 1;
+		let target = (2 * ((validators_length - 1) / 3) + 1) as u16;
+		log::info!("Minimal number of nodes that needs to witness Streams is: {}", target);
+		target
+	}
+
 	pub fn verify_witnessed_event(
 		&self,
 		witnessed_event: WitnessedEventRequest,

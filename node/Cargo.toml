@@ -18,13 +18,16 @@ local-ip-address = "0.4.9"
 ctrlc = "3.2.3"
 tonic = "0.8"
 prost = "0.11"
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.0", features = ["full"] }
 async-trait = "0.1.58"
 hex = "0.4.3"
 subxt = "0.24.0"
 futures = "0.3.13"
 clap = { version = "3.1.18", features = ["derive"] }
 log = "0.4.17"
+libp2p = { version = "0.50.0", features = [
+    "gossipsub","tcp", "dns", "async-std", "websocket", "noise", "mplex", "yamux"
+] }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "full", "bit-vec"] }
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", features = ["wasmtime"] , branch = "polkadot-v0.9.28" }
 sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
