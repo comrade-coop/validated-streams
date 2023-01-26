@@ -1,4 +1,4 @@
-use futures::{lock::Mutex, prelude::*, select};
+use futures::{lock::Mutex, prelude::*, select, channel::mpsc::{Receiver, channel, Sender}};
 
 use libp2p::{
 	core::{muxing::StreamMuxerBox, transport::Boxed},
@@ -8,10 +8,11 @@ use libp2p::{
 	Multiaddr, PeerId, Swarm,
 };
 
-use std::{sync::Arc, time::Duration, future, collections::HashMap};
+use std::{sync::Arc, time::Duration, collections::HashMap};
 
 use crate::network_configs::LocalNetworkConfiguration;
 
+pub struct Order (IdentTopic,Vec<u8>);
 
 pub struct StreamsGossip {
 	key: Keypair,
@@ -26,7 +27,7 @@ impl StreamsGossip {
 		let peer_id = StreamsGossip::get_peer_id(key.clone());
         log::info!("PEER ID: {:?}",peer_id);
 		let swarm = Arc::new(Mutex::new(StreamsGossip::create_swarm(transport, behavior, peer_id)));
-		StreamsGossip { key, swarm }
+		StreamsGossip { key, swarm}
 	}
 
 	pub fn create_keys() -> Keypair {
@@ -73,11 +74,8 @@ impl StreamsGossip {
 		self.swarm.lock().await.behaviour_mut().subscribe(&topic).ok();
 	}
 
-    pub async fn publish(&mut self,topic:IdentTopic,message:Vec<u8>){
-        match self.swarm.lock().await.behaviour_mut().publish(topic, message){
-            Ok(id)=>{log::info!("Gossiped msg with id:{:?}",id)},
-            Err(e)=>{log::info!("Failed Gossiping message with Error: {:?}",e)}
-        }
+    pub async fn publish(&mut self,mut tx:Sender<Order>,topic:IdentTopic,message:Vec<u8>){
+        tx.send(Order(topic,message)).await.unwrap_or_else(|e| log::error!("could not send order due to error:{:?}",e));
     }
     
     pub async fn listen(&self,addr:Multiaddr){
@@ -89,11 +87,9 @@ impl StreamsGossip {
 		log::info!("Listening on {:?}", addr);
     }
 
-    //used the select! instead of awaiting (select_next_some().await) directly to 
-    //prevent holding on the swarm since its used for both listening and publishing messages
-    //it drops the guard every 500 milliseconds via a mock asynch operation (sleeping)
-	pub async fn handle_incoming_messages(swarm: Arc<Mutex<Swarm<Gossipsub>>>) {
+	pub async fn handle_incoming_messages(swarm: Arc<Mutex<Swarm<Gossipsub>>>,mut rc:Receiver<Order>) {
         loop {
+            
             let mut guard = swarm.lock().await;
             select! {
                     event = guard.select_next_some() =>
@@ -105,32 +101,26 @@ impl StreamsGossip {
                                 let source= message.source.unwrap().to_base58();
                                 let data :&u8= message.data.get(0).unwrap();
                                 log::info!("peer:{:?} sent {:?}",source,data);
-
                             } 
                             _ => {},
                         }
                     }
-                    // used to drop the guard periodically to avoid starvation on swarm
-                    // sleeping is necessary to avoid immediate lock acuiring at the
-                    // start of the loop
-					_ = tokio::time::sleep(Duration::from_millis(500)).fuse()=>{
-						drop(guard);
-                        tokio::time::sleep(Duration::from_millis(100)).await;
-					}
+                    order = rc.select_next_some() =>{
+                        match guard.behaviour_mut().publish(order.0, order.1){
+                                Ok(id)=>{log::info!("Gossiped msg with id:{:?}",id)},
+                                Err(e)=>{log::info!("Failed Gossiping message with Error: {:?}",e)}
+                            }
+                    }
             }
 	    }
     }
-	pub async fn mock_order()-> future::Ready<()> {
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        future::ready(())
-    }
-
     // test message delivery by making each node send a message with count that gets increased only when
     // all nodes have sent the message, after 5 iterations proceed to test handle_incoming_messages and publiSH
     // functions
     pub async fn run_test()
     {
         tokio::time::sleep(Duration::from_millis(2000)).await;
+        let (tx,rc) = channel(32);
         let mut streams_gossip = StreamsGossip::new().await;
         let swarm_clone = streams_gossip.swarm.clone();
         let peers = LocalNetworkConfiguration::get_peers_multi_addresses();
@@ -148,7 +138,7 @@ impl StreamsGossip {
         let mut guard = streams_gossip.swarm.lock().await;    
         loop{
         select! {
-            _= StreamsGossip::mock_order().fuse()=>{
+            _= tokio::time::sleep(Duration::from_millis(100)).fuse()=>{
                 match guard.behaviour_mut().publish(witnessed_stream.clone(), vec![count]){
                         Ok(_)=>{},
                         Err(e)=>{log::error!("Failed Gossiping message with Error: {:?}",e)}
@@ -189,10 +179,10 @@ impl StreamsGossip {
             }
         }
         tokio::spawn(async move{
-                StreamsGossip::handle_incoming_messages(swarm_clone).await;
+                StreamsGossip::handle_incoming_messages(swarm_clone,rc).await;
         });
         loop{
-                streams_gossip.publish(witnessed_stream.clone(), vec![5,6,7]).await;
+                streams_gossip.publish(tx.clone(),witnessed_stream.clone(), vec![5,6,7]).await;
                 tokio::time::sleep(Duration::from_millis(5000)).await;
         }
     }
