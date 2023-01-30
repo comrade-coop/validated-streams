@@ -24,17 +24,23 @@ impl NetworkConfiguration for LocalNetworkConfiguration {
 }
 
 impl LocalNetworkConfiguration {
-	pub fn get_self_multi_addr() -> Multiaddr {
+	pub fn self_multi_addr() -> Multiaddr {
 		format!("/ip4/{}/tcp/10000", local_ip().expect("failed getting local ip").to_string())
 			.parse()
 			.expect("failed getting self multi address")
 	}
-	pub fn get_peers_multi_addresses() -> Vec<Multiaddr> {
+	pub fn validators_multiaddrs() -> Vec<Multiaddr> {
 		vec![
 			"/ip4/172.19.0.2/tcp/10000".parse().expect("Erroneous Multiaddr"),
 			"/ip4/172.19.0.3/tcp/10000".parse().expect("Erroneous Multiaddr"),
 			"/ip4/172.19.0.4/tcp/10000".parse().expect("Erroneous Multiaddr"),
 			"/ip4/172.19.0.5/tcp/10000".parse().expect("Erroneous Multiaddr"),
 		]
+	}
+	pub fn peers_multiaddrs(self_addr: Multiaddr) -> Vec<Multiaddr> {
+		LocalNetworkConfiguration::validators_multiaddrs()
+			.into_iter()
+			.filter(|peer| *peer != self_addr)
+			.collect()
 	}
 }

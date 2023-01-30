@@ -1,5 +1,4 @@
-use futures::{lock::Mutex, prelude::*, select, channel::mpsc::{Receiver, channel, Sender}};
-
+use futures::{lock::Mutex, prelude::*, select, channel::mpsc::{Receiver, Sender}};
 use libp2p::{
 	core::{muxing::StreamMuxerBox, transport::Boxed},
 	gossipsub::{self, Gossipsub, IdentTopic, MessageAuthenticity, GossipsubEvent},
@@ -7,16 +6,23 @@ use libp2p::{
 	swarm::SwarmEvent,
 	Multiaddr, PeerId, Swarm,
 };
-
-use std::{sync::Arc, time::Duration, collections::HashMap};
-
-use crate::network_configs::LocalNetworkConfiguration;
+use crate::event_service::EventService;
+use std::sync::Arc;
+use serde::{Serialize,Deserialize};
 
 pub struct Order (IdentTopic,Vec<u8>);
 
+#[derive(Clone,Debug,Serialize,Deserialize)]
+pub struct WitnessedEvent{
+    pub signature: Vec<u8>,
+    pub pub_key: Vec<u8>,
+    pub event_id:String,
+    pub extrinsic:Vec<u8>
+}
+
 pub struct StreamsGossip {
-	key: Keypair,
-	swarm: Arc<Mutex<Swarm<Gossipsub>>>,
+	pub key: Keypair,
+	pub swarm: Arc<Mutex<Swarm<Gossipsub>>>,
 }
 
 impl StreamsGossip {
@@ -65,7 +71,7 @@ impl StreamsGossip {
 			match self.swarm.lock().await.dial(peer)
             {
                 Err(e)=>{log::info!("Error dialing peer {:?}",e);},
-                Ok(_)=>{log::info!("Dialed Succefully");}
+                Ok(_)=>{log::info!("🤜🤛 Dialed Succefully");}
             }
 		}
 	}
@@ -74,7 +80,7 @@ impl StreamsGossip {
 		self.swarm.lock().await.behaviour_mut().subscribe(&topic).ok();
 	}
 
-    pub async fn publish(&mut self,mut tx:Sender<Order>,topic:IdentTopic,message:Vec<u8>){
+    pub async fn publish(mut tx:Sender<Order>,topic:IdentTopic,message:Vec<u8>){
         tx.send(Order(topic,message)).await.unwrap_or_else(|e| log::error!("could not send order due to error:{:?}",e));
     }
     
@@ -87,9 +93,8 @@ impl StreamsGossip {
 		log::info!("Listening on {:?}", addr);
     }
 
-	pub async fn handle_incoming_messages(swarm: Arc<Mutex<Swarm<Gossipsub>>>,mut rc:Receiver<Order>) {
+	pub async fn handle_incoming_messages(swarm: Arc<Mutex<Swarm<Gossipsub>>>,mut rc:Receiver<Order>,events_service:Arc<EventService>) {
         loop {
-            
             let mut guard = swarm.lock().await;
             select! {
                     event = guard.select_next_some() =>
@@ -98,10 +103,15 @@ impl StreamsGossip {
                             SwarmEvent::NewListenAddr { address, .. } => log::info!("Listening on {:?}", address),
                             SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id:_, topic:_ }) => {}
                             SwarmEvent::Behaviour(GossipsubEvent::Message { propagation_source:_, message_id:_, message }) =>{
-                                let source= message.source.unwrap().to_base58();
-                                let data :&u8= message.data.get(0).unwrap();
-                                log::info!("peer:{:?} sent {:?}",source,data);
-                            } 
+                                if let Some(source) = message.source{
+                                    match bincode::deserialize::<WitnessedEvent>(message.data.as_slice()){
+                                        Ok(witnessed_event)=> events_service.handle_witnessed_event(witnessed_event,source.to_base58()).await,
+                                        Err(e)=> log::error!("failed deserilizing message data due to error:{:?}",e),
+                                    }
+                                }else{
+                                     log::error!("malformed msg, could not source");
+                                }
+                            }
                             _ => {},
                         }
                     }
@@ -117,73 +127,74 @@ impl StreamsGossip {
     // test message delivery by making each node send a message with count that gets increased only when
     // all nodes have sent the message, after 5 iterations proceed to test handle_incoming_messages and publiSH
     // functions
-    pub async fn run_test()
-    {
-        tokio::time::sleep(Duration::from_millis(2000)).await;
-        let (tx,rc) = channel(32);
-        let mut streams_gossip = StreamsGossip::new().await;
-        let swarm_clone = streams_gossip.swarm.clone();
-        let peers = LocalNetworkConfiguration::get_peers_multi_addresses();
-        let self_addr = LocalNetworkConfiguration::get_self_multi_addr();
-        let self_addr_clone = self_addr.clone();
-        let witnessed_stream: IdentTopic= gossipsub::IdentTopic::new("WitnessedStream");
+/*    pub async fn run_test()*/
+    /*{*/
+        /*tokio::time::sleep(Duration::from_millis(2000)).await;*/
+        /*let (tx,rc) = channel(32);*/
+        /*let mut streams_gossip = StreamsGossip::new().await;*/
+        /*let swarm_clone = streams_gossip.swarm.clone();*/
+        /*let boot_nodes = LocalNetworkConfiguration::get_boot_nodes_multiaddrs();*/
+        /*let self_addr = LocalNetworkConfiguration::get_self_multi_addr();*/
+        /*let peers = LocalNetworkConfiguration::get_peers_multiaddrs(self_addr.clone());*/
+        /*let self_addr_clone = self_addr.clone();*/
+        /*let witnessed_stream: IdentTopic= gossipsub::IdentTopic::new("WitnessedStream");*/
         
-        streams_gossip.listen(self_addr).await;
-        streams_gossip.dial_peers(peers.into_iter().filter(|peer| *peer != self_addr_clone).collect()).await;
-        streams_gossip.subscribe(witnessed_stream.clone()).await;
-        let peer_id = StreamsGossip::get_peer_id(streams_gossip.key.clone()).to_base58();
-        log::info!("peerd_id {}",peer_id);
-        let mut count: u8 = 0; 
-        let mut count_map :HashMap<u8,Vec<String>>= HashMap::new();
-        let mut guard = streams_gossip.swarm.lock().await;    
-        loop{
-        select! {
-            _= tokio::time::sleep(Duration::from_millis(100)).fuse()=>{
-                match guard.behaviour_mut().publish(witnessed_stream.clone(), vec![count]){
-                        Ok(_)=>{},
-                        Err(e)=>{log::error!("Failed Gossiping message with Error: {:?}",e)}
-                        }
-            },
-            event = guard.select_next_some() =>{
-                 match event{
-                    SwarmEvent::NewListenAddr { address, .. } => log::info!("Listening on {:?}", address),
-                    SwarmEvent::Behaviour(GossipsubEvent::Message { propagation_source:_, message_id:_, message }) => 
-                    {
-                        let source= message.source.unwrap().to_base58();
-                        let data :&u8= message.data.get(0).unwrap();
-                        log::info!("peer:{:?} sent {:?}",source,data);
-                        //why vec![peer_id] wont add the element in or_insert?
-                        if count_map.entry(*data).or_insert(Vec::new()).contains(&peer_id)==false{
-                            count_map.get_mut(data).unwrap().push(peer_id.clone());
-                            match guard.behaviour_mut().publish(witnessed_stream.clone(), vec![count]){
-                                     Ok(_)=>{},
-                                     Err(e)=>{log::error!("Failed Gossiping message with Error: {:?}",e)}
-                                }
-                        }
-                        if count_map.get(data).unwrap().contains(&source)==false{
-                            count_map.get_mut(data).unwrap().push(source);
-                            if count_map.get_mut(data).unwrap().len() == 4{
-                                log::info!("received all gossiped messages of count {}",count);
-                                count+=1;
-                                if count == 5 {
-                                    drop(guard);
-                                    break
-                                };
-                            }
-                        }
-                    },
-                    SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id:_, topic:_ }) => {}
-                    _ => {},
-                    }
-                }
-            }
-        }
-        tokio::spawn(async move{
-                StreamsGossip::handle_incoming_messages(swarm_clone,rc).await;
-        });
-        loop{
-                streams_gossip.publish(tx.clone(),witnessed_stream.clone(), vec![5,6,7]).await;
-                tokio::time::sleep(Duration::from_millis(5000)).await;
-        }
-    }
+        /*streams_gossip.listen(self_addr).await;*/
+        /*streams_gossip.dial_peers(peers).await;*/
+        /*streams_gossip.subscribe(witnessed_stream.clone()).await;*/
+        /*let peer_id = StreamsGossip::get_peer_id(streams_gossip.key.clone()).to_base58();*/
+        /*log::info!("peerd_id {}",peer_id);*/
+        /*let mut count: u8 = 0; */
+        /*let mut count_map :HashMap<u8,Vec<String>>= HashMap::new();*/
+        /*let mut guard = streams_gossip.swarm.lock().await;    */
+        /*loop{*/
+        /*select! {*/
+            /*_= tokio::time::sleep(Duration::from_millis(100)).fuse()=>{*/
+                /*match guard.behaviour_mut().publish(witnessed_stream.clone(), vec![count]){*/
+                        /*Ok(_)=>{},*/
+                        /*Err(e)=>{log::error!("Failed Gossiping message with Error: {:?}",e)}*/
+                        /*}*/
+            /*},*/
+            /*event = guard.select_next_some() =>{*/
+                 /*match event{*/
+                    /*SwarmEvent::NewListenAddr { address, .. } => log::info!("Listening on {:?}", address),*/
+                    /*SwarmEvent::Behaviour(GossipsubEvent::Message { propagation_source:_, message_id:_, message }) => */
+                    /*{*/
+                        /*let source= message.source.unwrap().to_base58();*/
+                        /*let data :&u8= message.data.get(0).unwrap();*/
+                        /*log::info!("peer:{:?} sent {:?}",source,data);*/
+                        /*//why vec![peer_id] wont add the element in or_insert?*/
+                        /*if count_map.entry(*data).or_insert(Vec::new()).contains(&peer_id)==false{*/
+                            /*count_map.get_mut(data).unwrap().push(peer_id.clone());*/
+                            /*match guard.behaviour_mut().publish(witnessed_stream.clone(), vec![count]){*/
+                                     /*Ok(_)=>{},*/
+                                     /*Err(e)=>{log::error!("Failed Gossiping message with Error: {:?}",e)}*/
+                                /*}*/
+                        /*}*/
+                        /*if count_map.get(data).unwrap().contains(&source)==false{*/
+                            /*count_map.get_mut(data).unwrap().push(source);*/
+                            /*if count_map.get_mut(data).unwrap().len() == 4{*/
+                                /*log::info!("received all gossiped messages of count {}",count);*/
+                                /*count+=1;*/
+                                /*if count == 5 {*/
+                                    /*drop(guard);*/
+                                    /*break*/
+                                /*};*/
+                            /*}*/
+                        /*}*/
+                    /*},*/
+                    /*SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id:_, topic:_ }) => {}*/
+                    /*_ => {},*/
+                    /*}*/
+                /*}*/
+            /*}*/
+        /*}*/
+        /*tokio::spawn(async move{*/
+                /*StreamsGossip::handle_incoming_messages(swarm_clone,rc).await;*/
+        /*});*/
+        /*loop{*/
+                /*streams_gossip.publish(tx.clone(),witnessed_stream.clone(), vec![5,6,7]).await;*/
+                /*tokio::time::sleep(Duration::from_millis(5000)).await;*/
+        /*}*/
+    /*}*/
 }

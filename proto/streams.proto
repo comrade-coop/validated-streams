@@ -4,7 +4,7 @@ package ValidatedStreams;
 service Streams
 {
 		rpc ValidateEvent (ValidateEventRequest) returns (ValidateEventResponse);
-		rpc WitnessedEvent(WitnessedEventRequest) returns (WitnessedEventResponse);
+		//rpc WitnessedEvent(WitnessedEventRequest) returns (WitnessedEventResponse);
 }
 // a stream is an extrinsic that could be included in the block and executed by the validated-streams pallet
 message ValidateEventRequest
