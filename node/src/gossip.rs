@@ -6,7 +6,7 @@ use libp2p::{
 	swarm::SwarmEvent,
 	Multiaddr, PeerId, Swarm,
 };
-use crate::event_service::EventService;
+use crate::{event_service::EventService, network_configs::LocalNetworkConfiguration};
 use std::sync::Arc;
 use serde::{Serialize,Deserialize};
 
@@ -103,14 +103,10 @@ impl StreamsGossip {
                             SwarmEvent::NewListenAddr { address, .. } => log::info!("Listening on {:?}", address),
                             SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id:_, topic:_ }) => {}
                             SwarmEvent::Behaviour(GossipsubEvent::Message { propagation_source:_, message_id:_, message }) =>{
-                                if let Some(source) = message.source{
                                     match bincode::deserialize::<WitnessedEvent>(message.data.as_slice()){
-                                        Ok(witnessed_event)=> events_service.handle_witnessed_event(witnessed_event,source.to_base58()).await,
+                                        Ok(witnessed_event)=> events_service.handle_witnessed_event(witnessed_event).await,
                                         Err(e)=> log::error!("failed deserilizing message data due to error:{:?}",e),
                                     }
-                                }else{
-                                     log::error!("malformed msg, could not source");
-                                }
                             }
                             _ => {},
                         }
@@ -124,6 +120,20 @@ impl StreamsGossip {
             }
 	    }
     }
+    pub async fn start(&self,rc:Receiver<Order>,events_service:Arc<EventService>){
+        let self_addr = LocalNetworkConfiguration::self_multiaddr();
+        let peers = LocalNetworkConfiguration::peers_multiaddrs(self_addr.clone());
+        self.listen(self_addr).await;
+        self.dial_peers(peers.clone()).await;
+        self.subscribe(IdentTopic::new("WitnessedEvent")).await;
+        let swarm_clone = self.swarm.clone();
+        
+        tokio::spawn(async move{
+            StreamsGossip::handle_incoming_messages(swarm_clone,rc,events_service).await;
+        });
+
+    }
+
     // test message delivery by making each node send a message with count that gets increased only when
     // all nodes have sent the message, after 5 iterations proceed to test handle_incoming_messages and publiSH
     // functions

@@ -24,7 +24,7 @@ impl NetworkConfiguration for LocalNetworkConfiguration {
 }
 
 impl LocalNetworkConfiguration {
-	pub fn self_multi_addr() -> Multiaddr {
+	pub fn self_multiaddr() -> Multiaddr {
 		format!("/ip4/{}/tcp/10000", local_ip().expect("failed getting local ip").to_string())
 			.parse()
 			.expect("failed getting self multi address")

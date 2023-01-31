@@ -191,7 +191,9 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		None,
 		ValidatedStreamsNode::run(
 			block_import.event_proofs.clone(),
-		),
+		client.clone(),
+        keystore_container.keystore().clone()
+        ),
 	);
 	if let Some(url) = &config.keystore_remote {
 		match remote_keystore(url) {
@@ -228,7 +230,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 			block_announce_validator_builder: None,
 			warp_sync: Some(warp_sync),
 		})?;
-
+    
 	if config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(
 			&config,

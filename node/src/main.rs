@@ -9,6 +9,7 @@ mod command;
 mod event_proofs;
 mod event_service;
 mod gossip;
+mod key_vault;
 mod network_configs;
 mod rpc;
 mod streams_server;

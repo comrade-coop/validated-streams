@@ -8,7 +8,7 @@ use crate::gossip::WitnessedEvent;
 
 pub trait EventProofs {
 	fn contains(&self, event_id: String) -> Result<bool, Error>;
-	fn add_event_proof(&self, event: &WitnessedEvent, origin: String) -> Result<u16, Error>;
+	fn add_event_proof(&self, event: &WitnessedEvent, origin: Vec<u8>) -> Result<u16, Error>;
 	fn get_proof_count(&self, event_id: String) -> Result<u16, Error>;
 	fn verify_event_validity(&self, event_id: String) -> Result<bool, Error>;
 	fn verify_events_validity(&self, ids: Vec<String>) -> Result<Vec<String>, Error>;
@@ -18,7 +18,7 @@ pub trait EventProofs {
 pub struct InMemoryEventProofs {
 	target: Mutex<u16>,
 	//map event ids to provided senders of event proofs
-	proofs: Arc<Mutex<HashMap<String, HashMap<String, WitnessedEvent>>>>,
+	proofs: Arc<Mutex<HashMap<String, HashMap<Vec<u8>, WitnessedEvent>>>>,
 }
 impl InMemoryEventProofs {
 	pub fn new() -> Arc<dyn EventProofs + Send + Sync> {
@@ -34,7 +34,7 @@ impl EventProofs for InMemoryEventProofs {
 	fn add_event_proof(
 		&self,
 		witnessed_event: &WitnessedEvent,
-		origin: String,
+		origin: Vec<u8>,
 	) -> Result<u16, Error> {
 		let event_id = witnessed_event.event_id.clone();
 		let mut proofs = self
@@ -42,7 +42,7 @@ impl EventProofs for InMemoryEventProofs {
 			.lock()
 			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking InMemoryProofs")))?;
 		if proofs.entry(event_id.clone()).or_insert(HashMap::new()).contains_key(&origin) {
-			log::info!("{} already sent a proof for event {}", origin, event_id);
+			log::info!("{:?} already sent a proof for event {}", origin, event_id);
 			Err(Error::new(ErrorKind::AlreadyExists, "Already sent a proof"))
 		} else {
 			let proof_count = proofs

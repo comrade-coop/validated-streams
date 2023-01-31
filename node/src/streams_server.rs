@@ -1,9 +1,10 @@
-use crate::{event_proofs::EventProofs, network_configs::LocalNetworkConfiguration, gossip::StreamsGossip};
+use crate::{event_proofs::EventProofs, gossip::StreamsGossip, service::FullClient, key_vault::KeyVault};
 use futures::channel::mpsc::channel;
-use libp2p::gossipsub::IdentTopic;
 use local_ip_address::local_ip;
+use sp_keystore::CryptoStore;
+use sp_runtime::key_types::AURA;
 use crate::event_service::EventService;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 pub use tonic::{transport::Server, Request, Response, Status};
 pub use validated_streams::{
 	streams_server::{Streams, StreamsServer},
@@ -40,23 +41,17 @@ impl Streams for ValidatedStreamsNode {
 
 impl ValidatedStreamsNode 
 {
-	//could prossibly make use of node configs in the future from runner in command.rs
-	pub async fn run(event_proofs: Arc<dyn EventProofs + Send + Sync>)
+	pub async fn run(event_proofs: Arc<dyn EventProofs + Send + Sync>,client: Arc<FullClient>,keystore:Arc<dyn CryptoStore>)
 	{
-		let self_addr = LocalNetworkConfiguration::self_multi_addr();
-		let validators = LocalNetworkConfiguration::validators_multiaddrs();
-        let peers = LocalNetworkConfiguration::peers_multiaddrs(self_addr.clone());
-        let streams_gossip = StreamsGossip::new().await;
-        streams_gossip.listen(self_addr).await;
-        streams_gossip.dial_peers(peers.clone()).await;
-        streams_gossip.subscribe(IdentTopic::new("WitnessedEvent")).await;
+        //wait until all keys are created by aura
+        tokio::time::sleep(Duration::from_millis(3000)).await;
+        let keyvault = KeyVault::new(keystore, client.clone(), AURA).await;
         let (tx,rc) = channel(64);
-        let swarm_clone = streams_gossip.swarm.clone();
-        let events_service= Arc::new(EventService::new(validators,event_proofs,streams_gossip,tx));
+        let events_service= Arc::new(EventService::new(KeyVault::validators_pubkeys(client.clone()),event_proofs,tx,keyvault));
         let events_service_clone = events_service.clone();
-        tokio::spawn(async move{
-            StreamsGossip::handle_incoming_messages(swarm_clone,rc,events_service_clone).await;
-        });
+        let streams_gossip = StreamsGossip::new().await;
+        streams_gossip.start(rc,events_service_clone).await;
+
         match tokio::spawn(async move {
 			log::info!("Server could be reached at {}", local_ip().unwrap().to_string());
 			Server::builder()
