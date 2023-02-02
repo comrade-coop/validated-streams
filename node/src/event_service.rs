@@ -1,19 +1,26 @@
 use futures::channel::mpsc::Sender;
 use libp2p::gossipsub::IdentTopic;
-use sp_core::{sr25519::{Public, Signature}, ByteArray};
-use sp_runtime::{key_types::AURA, app_crypto::RuntimePublic};
-use crate::{event_proofs::EventProofs, gossip::{StreamsGossip, Order}, key_vault::KeyVault};
+use sc_transaction_pool::{BasicPool, FullChainApi};
+use sc_transaction_pool_api::TransactionSource;
+use sp_core::{sr25519::{Public, Signature}, ByteArray, H256};
+use sp_runtime::{key_types::AURA, app_crypto::RuntimePublic, OpaqueExtrinsic};
+use crate::{event_proofs::EventProofs, gossip::{StreamsGossip, Order}, key_vault::KeyVault, service::FullClient};
 use crate::gossip::WitnessedEvent;
-use subxt::{tx::SubmittableExtrinsic, OnlineClient, PolkadotConfig};
+use node_runtime::opaque::{Block, BlockId};
+use sc_client_api::HeaderBackend;
 pub use tonic::{transport::Server, Request, Response, Status};
-use std::sync::Arc;
+use std::{sync::Arc, io::ErrorKind};
+use std::io::Error;
 use crate::streams_server::{ValidateEventRequest,ValidateEventResponse};
+const TX_SOURCE: TransactionSource = TransactionSource::External;
 pub struct EventService {
 	target: u16,
 	validators: Vec<Public>,
 	event_proofs: Arc<dyn EventProofs + Send + Sync>,
 	order_transmitter: Sender<Order>,
-    keyvault:KeyVault,    
+    keyvault:KeyVault,
+    tx_pool:Arc<BasicPool<FullChainApi<FullClient,Block>,Block>>,
+    client:Arc<FullClient>
 }
 impl EventService {
 	pub fn new(
@@ -21,30 +28,37 @@ impl EventService {
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		order_transmitter: Sender<Order>,
 	    keyvault:KeyVault,
+        tx_pool:Arc<BasicPool<FullChainApi<FullClient,Block>,Block>>,
+    client:Arc<FullClient>
         ) -> EventService {
 		EventService {
-			target: EventService::target(validators.len()),
+			target: EventService::target(validators.len(),event_proofs.clone()),
 			validators,
 			event_proofs,
 			order_transmitter,
             keyvault,
+            tx_pool,
+            client
 		}
 	}
-	pub fn target(num_peers: usize) -> u16 {
+	pub fn target(num_peers: usize,_event_proofs:Arc<dyn EventProofs+ Send + Sync>) -> u16 {
 		let validators_length = num_peers + 1;
 		let target = (2 * ((validators_length - 1) / 3) + 1) as u16;
+        //event_proofs.set_target(target).ok();
 		log::info!("Minimal number of nodes that needs to witness Streams is: {}", target);
 		target
 	}
+    //should return a final response of whether its included in block or not (should not care about
+    //internal event handling)
     pub async fn handle_client_request(&self,event:ValidateEventRequest)-> Result<Response<ValidateEventResponse>,Status>{
         let witnessed_event = self.create_witnessed_event(event).await?;
-        self.handle_witnessed_event(witnessed_event.clone()).await;
+        self.handle_witnessed_event(witnessed_event.clone()).await?;
         StreamsGossip::publish(self.order_transmitter.clone(), IdentTopic::new("WitnessedEvent"),
         bincode::serialize(&witnessed_event).expect("failed serializing")).await;
         Ok(Response::new(ValidateEventResponse { status: "event gossiped".into() }))
     }
     //verify that source is one of validators
-    pub async fn handle_witnessed_event(&self,witnessed_event:WitnessedEvent)
+    pub async fn handle_witnessed_event(&self,witnessed_event:WitnessedEvent)->Result<String,Error>
     {
         if self.verify_witnessed_event(&witnessed_event)
         {
@@ -52,34 +66,43 @@ impl EventService {
                 Ok(proof_count)=>{
                     //if proof_count == self.target{
                     if proof_count == 1{
-                        EventService::submit_event_extrinsic(witnessed_event.extrinsic).await;
+                        Ok(self.submit_event_extrinsic(witnessed_event.extrinsic).await?.to_string())
+                    }else{
+                        Ok("Event has been added to the event proofs and proof_count increased".to_string())
                     }
                 },
-                Err(e)=>{log::info!("Failed adding event proof due to error:{:?}",e);}
+                Err(e)=>{log::info!("Failed adding event proof due to error:{:?}",e);
+                    Err(Error::new(ErrorKind::Other, format!("{:?}",e)))
+                }
             }
         }else
         {
             log::error!("bad witnessed event signature from peer {:?}",witnessed_event.pub_key);
+            Err(Error::new(ErrorKind::Other,format!("bad witnessed event signature from peer {:?}",witnessed_event.pub_key)))
         }
 
     }
     //add and update the target
     pub fn add_validator(&mut self,validator:Public){
         self.validators.push(validator);
-        let target = EventService::target(self.validators.len());
+        let target = EventService::target(self.validators.len(),self.event_proofs.clone());
         self.target= target;
     }
 
-	pub async fn submit_event_extrinsic(extrinsic: Vec<u8>){
-		if let Ok(api) = OnlineClient::<PolkadotConfig>::new()
-            .await{
-                let submitable_stream = SubmittableExtrinsic::from_bytes(api, extrinsic);
-                match submitable_stream.submit().await {
-                    Ok(h) => log::info!("event added on chain via tx with hash:{:?}",h),
-                    Err(e) =>log::error!("Failed submitting event to the txpool with Error {:?}", e.to_string()),}
-            }else{log::error!("failed creating substrate client");
-        }
-	}    
+	pub async fn submit_event_extrinsic(&self,extrinsic: Vec<u8>)-> Result<H256,Error>{
+        match OpaqueExtrinsic::from_bytes(extrinsic.as_slice()){
+            Ok(opaque_extrinsic)=>
+            {
+                let best_block_id = BlockId::hash(self.client.info().best_hash);
+                return Ok(self.tx_pool.pool().submit_one(&best_block_id, TX_SOURCE,opaque_extrinsic).await.or_else(|e|
+                    {Err(Error::new(ErrorKind::Other,format!("{:?}",e)))})?)
+            },
+            Err(e)=>{log::error!("failed creating opaque Exrtinisc from given extrinsic due to error:{:?}",e);
+                    Err(Error::new(ErrorKind::Other,format!("{:?}",e)))
+            },
+        }    
+    }
+
     pub async fn create_witnessed_event(
         &self,
         event: ValidateEventRequest,

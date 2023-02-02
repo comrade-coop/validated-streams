@@ -2,7 +2,7 @@ use node_runtime::opaque::BlockId;
 use sc_service::Arc;
 use sp_core::{sr25519::Public, H256, ByteArray};
 use sp_keystore::CryptoStore;
-use sp_runtime::{app_crypto::CryptoTypePublicPair, key_types::AURA, KeyTypeId};
+use sp_runtime::{app_crypto::CryptoTypePublicPair, KeyTypeId};
 use crate::service::FullClient;
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::AuraApi;
@@ -29,7 +29,6 @@ impl KeyVault{
             .get(0)
             .expect("failed retreiving validator keypair from keystore")
             .clone();
-        println!("all aura keys{:?}",keys);
         KeyVault { keystore, keys, pubkey }
     }
     pub fn validators_pubkeys(client: Arc<FullClient>)-> Vec<Public>

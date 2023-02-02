@@ -104,7 +104,7 @@ impl StreamsGossip {
                             SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id:_, topic:_ }) => {}
                             SwarmEvent::Behaviour(GossipsubEvent::Message { propagation_source:_, message_id:_, message }) =>{
                                     match bincode::deserialize::<WitnessedEvent>(message.data.as_slice()){
-                                        Ok(witnessed_event)=> events_service.handle_witnessed_event(witnessed_event).await,
+                                        Ok(witnessed_event)=> {events_service.handle_witnessed_event(witnessed_event).await.ok();},
                                         Err(e)=> log::error!("failed deserilizing message data due to error:{:?}",e),
                                     }
                             }

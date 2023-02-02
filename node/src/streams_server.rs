@@ -1,6 +1,8 @@
 use crate::{event_proofs::EventProofs, gossip::StreamsGossip, service::FullClient, key_vault::KeyVault};
 use futures::channel::mpsc::channel;
 use local_ip_address::local_ip;
+use sc_transaction_pool::{BasicPool, FullChainApi};
+use node_runtime::opaque::Block;
 use sp_keystore::CryptoStore;
 use sp_runtime::key_types::AURA;
 use crate::event_service::EventService;
@@ -41,13 +43,14 @@ impl Streams for ValidatedStreamsNode {
 
 impl ValidatedStreamsNode 
 {
-	pub async fn run(event_proofs: Arc<dyn EventProofs + Send + Sync>,client: Arc<FullClient>,keystore:Arc<dyn CryptoStore>)
+	pub async fn run(event_proofs: Arc<dyn EventProofs + Send + Sync>,client: Arc<FullClient>,keystore:Arc<dyn CryptoStore>,
+        tx_pool:Arc<BasicPool<FullChainApi<FullClient,Block>,Block>>)
 	{
         //wait until all keys are created by aura
         tokio::time::sleep(Duration::from_millis(3000)).await;
         let keyvault = KeyVault::new(keystore, client.clone(), AURA).await;
         let (tx,rc) = channel(64);
-        let events_service= Arc::new(EventService::new(KeyVault::validators_pubkeys(client.clone()),event_proofs,tx,keyvault));
+        let events_service= Arc::new(EventService::new(KeyVault::validators_pubkeys(client.clone()),event_proofs,tx,keyvault,tx_pool,client));
         let events_service_clone = events_service.clone();
         let streams_gossip = StreamsGossip::new().await;
         streams_gossip.start(rc,events_service_clone).await;
