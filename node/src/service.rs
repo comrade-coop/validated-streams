@@ -107,7 +107,6 @@ pub fn new_partial(
 		task_manager.spawn_essential_handle(),
 		client.clone(),
 	);
-    
 
 	let (grandpa_block_import, grandpa_link) = sc_finality_grandpa::block_import(
 		client.clone(),
@@ -182,20 +181,20 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		other: (block_import, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
 
-    //task_manager.spawn_essential_handle().spawn_blocking(
-        //"Streams Gossip",
-        //None,
-        //StreamsGossip::run_test(),
-    //);
-	task_manager.spawn_essential_handle().spawn_blocking(
+	//task_manager.spawn_essential_handle().spawn_blocking(
+	//"Streams Gossip",
+	//None,
+	//StreamsGossip::run_test(),
+	//);
+	task_manager.spawn_handle().spawn_blocking(
 		"gRPC server",
 		None,
 		ValidatedStreamsNode::run(
 			block_import.event_proofs.clone(),
-		client.clone(),
-        keystore_container.keystore().clone(),
-        transaction_pool.clone()
-        ),
+			client.clone(),
+			keystore_container.keystore().clone(),
+			transaction_pool.clone(),
+		),
 	);
 	if let Some(url) = &config.keystore_remote {
 		match remote_keystore(url) {
@@ -232,7 +231,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 			block_announce_validator_builder: None,
 			warp_sync: Some(warp_sync),
 		})?;
-    
+
 	if config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(
 			&config,

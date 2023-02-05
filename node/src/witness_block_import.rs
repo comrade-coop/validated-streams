@@ -59,7 +59,7 @@ where
 					if unprepared_ids.len() > 0 {
 						log::info!("Block should be deffered as it contains unwitnessed events");
 					} else {
-						log::info!("All block events have been witnessed:{:?}",extrinsic_ids);
+						log::info!("All block events have been witnessed:{:?}", extrinsic_ids);
 					},
 				Err(e) => {
 					log::error!("the following Error happened while verifying block events in the event_proofs:{}",e);

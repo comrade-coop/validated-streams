@@ -7,27 +7,42 @@ services:
     build: .
     image: stream_node
     ports:
-      - "5555:5555"
-      - "9944:9944"
-    command: --alice "--port 30333" "--ws-port 9944" "--rpc-port 9933" --unsafe-ws-external
+      - "5556:5555"
+    command: --alice 
   validator2:
     stdin_open: true
     tty: true
     container_name: second
     build: .
     image: stream_node
-    command: --bob "--port 30333" "--ws-port 9944" "--rpc-port 9933"
+    ports:
+      - "5557:5555"
+    command: --bob 
   validator3:
     stdin_open: true
     tty: true
     container_name: third
     build: .
     image: stream_node
-    command: --charlie "--port 30333" "--ws-port 9944" "--rpc-port 9933"
+    ports:
+      - "5558:5555"
+    command: --charlie 
   validator4:
     stdin_open: true
     tty: true
     container_name: forth
     build: .
     image: stream_node
-    command: --dave "--port 30333" "--ws-port 9944" "--rpc-port 9933"
+    ports:
+      - "5559:5555"
+    command: --dave 
+  syncnode:
+    stdin_open: true
+    tty: true
+    container_name: fifth
+    build: .
+    image: stream_node
+    ports:
+      - "9944:9944"
+    command: --eve "--ws-port 9944" --unsafe-ws-external 
+
