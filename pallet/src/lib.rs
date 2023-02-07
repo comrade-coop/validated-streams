@@ -10,7 +10,7 @@
 pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::pallet_prelude::*;
+	use frame_support::pallet_prelude::{ValidTransaction, *};
 	use frame_system::pallet_prelude::*;
 	use sp_api;
 	use sp_core::H256;
@@ -35,8 +35,7 @@ pub mod pallet {
 		AlreadyValidated,
 	}
 	#[pallet::storage]
-	pub(super) type Streams<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::Hash, (T::AccountId, T::BlockNumber)>;
+	pub(super) type Streams<T: Config> = StorageMap<_, Blake2_128Concat, T::Hash, T::BlockNumber>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -47,13 +46,24 @@ pub mod pallet {
 		/// If not, it inserts the event and its details into the storage and raise a
 		/// `ValidatedEvent` event.
 		#[pallet::weight(0)]
-		pub fn validate_event(origin: OriginFor<T>, event_id: T::Hash) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+		pub fn validate_event(_origin: OriginFor<T>, event_id: T::Hash) -> DispatchResult {
 			let current_block = <frame_system::Pallet<T>>::block_number();
 			ensure!(!Streams::<T>::contains_key(&event_id), Error::<T>::AlreadyValidated);
-			Streams::<T>::insert(&event_id, (&sender, current_block));
+			Streams::<T>::insert(&event_id, current_block);
 			Self::deposit_event(Event::ValidatedEvent { event_id });
 			Ok(())
+		}
+	}
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+		fn validate_unsigned(
+			_source: TransactionSource,
+			_call: &Self::Call,
+		) -> TransactionValidity {
+			ValidTransaction::with_tag_prefix("validated_streams")
+				.and_provides(b"validate_event".to_vec())
+				.build()
 		}
 	}
 	impl<T: Config> Pallet<T> {
@@ -61,27 +71,10 @@ pub mod pallet {
 		pub fn get_all_events() -> Vec<T::Hash> {
 			Streams::<T>::iter().map(|(k, _)| k).collect()
 		}
-		/// This function is used to get all events of a specific account.
-		pub fn get_account_events(account_id: T::AccountId) -> Vec<T::Hash> {
-			Streams::<T>::iter()
-				.filter(|(_, (id, _))| *id == account_id)
-				.map(|(k, _)| k)
-				.collect()
-		}
 		/// This function is used to get all events of a specific block.
 		pub fn get_block_events(block_number: T::BlockNumber) -> Vec<T::Hash> {
 			Streams::<T>::iter()
-				.filter(|(_, (_, bn))| *bn == block_number)
-				.map(|(k, _)| k)
-				.collect()
-		}
-		/// This function is used to get all events of a specific account at a specific block.
-		pub fn get_account_events_at_block(
-			account_id: T::AccountId,
-			block_number: T::BlockNumber,
-		) -> Vec<T::Hash> {
-			Streams::<T>::iter()
-				.filter(|(_, (id, bn))| *bn == block_number && *id == account_id)
+				.filter(|(_, bn)| *bn == block_number)
 				.map(|(k, _)| k)
 				.collect()
 		}

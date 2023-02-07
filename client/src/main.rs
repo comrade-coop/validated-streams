@@ -20,7 +20,7 @@ pub async fn create_signed_event() -> Result<ValidateEventRequest, Box<dyn std::
 	let api = OnlineClient::<PolkadotConfig>::new().await?;
 	let event_id = subxt::ext::sp_core::H256::repeat_byte(0);
 	let tx = stream_node::tx().validated_streams().validate_event(event_id);
-	let submitable_extrinsic = api.tx().create_signed(&tx, &signer, BaseExtrinsicParamsBuilder::new()).await?;
+	let submitable_extrinsic = api.tx().create_unsigned(&tx)?;
 	let encoded_extrinsic = submitable_extrinsic.encoded();
 	let stringifed_id = event_id.to_string();
 	Ok(ValidateEventRequest {
