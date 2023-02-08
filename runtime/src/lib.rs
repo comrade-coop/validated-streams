@@ -402,7 +402,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_validated_streams::ExtrinsicDetails<Block> for Runtime
+	impl pallet_validated_streams::ExtrinsicDetails<Block,UncheckedExtrinsic> for Runtime
 	{
 		fn get_extrinsic_ids(extrinsics:&Vec<<Block as BlockT>::Extrinsic>) -> Vec<H256>
 		{
@@ -424,6 +424,14 @@ impl_runtime_apis! {
 				}
 			}
 			ids
+		}
+		fn create_unsigned_extrinsic(event_id:H256) -> UncheckedExtrinsic
+		{
+			UncheckedExtrinsic
+			{
+				signature:None,
+				function:pallet_validated_streams::Call::<Runtime>::validate_event { event_id }.into(),
+			}
 		}
 	}
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {

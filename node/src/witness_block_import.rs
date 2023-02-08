@@ -51,10 +51,7 @@ where
 				.get_extrinsic_ids(&block_id, block_extrinsics)
 				.ok()
 				.unwrap_or(Vec::new());
-			match self
-				.event_proofs
-				.verify_events_validity(extrinsic_ids.iter().map(|id| id.to_string()).collect())
-			{
+			match self.event_proofs.verify_events_validity(extrinsic_ids.clone()) {
 				Ok(unprepared_ids) =>
 					if unprepared_ids.len() > 0 {
 						log::info!("Block should be deffered as it contains unwitnessed events");

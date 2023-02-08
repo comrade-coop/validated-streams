@@ -3,14 +3,18 @@ use crate::{
 	gossip::{Order, StreamsGossip, WitnessedEvent},
 	key_vault::KeyVault,
 	service::FullClient,
-	streams_server::{ValidateEventRequest, ValidateEventResponse},
 };
 use futures::channel::mpsc::Sender;
 use libp2p::gossipsub::IdentTopic;
-use node_runtime::opaque::{Block, BlockId};
+use node_runtime::{
+	self,
+	opaque::{Block, BlockId},
+	pallet_validated_streams::ExtrinsicDetails,
+};
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool::{BasicPool, FullChainApi};
 use sc_transaction_pool_api::TransactionSource;
+use sp_api::ProvideRuntimeApi;
 use sp_core::{
 	sr25519::{Public, Signature},
 	ByteArray, H256,
@@ -57,12 +61,8 @@ impl EventService {
 		log::info!("Minimal number of nodes that needs to witness Streams is: {}", target);
 		target
 	}
-	//should return a final response of whether its included in block or not (should not care about
-	//internal event handling)
-	pub async fn handle_client_request(
-		&self,
-		event: ValidateEventRequest,
-	) -> Result<Response<ValidateEventResponse>, Status> {
+
+	pub async fn handle_client_request(&self, event: H256) -> Result<String, Error> {
 		let witnessed_event = self.create_witnessed_event(event).await?;
 		let response = self.handle_witnessed_event(witnessed_event.clone()).await?;
 		StreamsGossip::publish(
@@ -71,7 +71,7 @@ impl EventService {
 			bincode::serialize(&witnessed_event).expect("failed serializing"),
 		)
 		.await;
-		Ok(Response::new(ValidateEventResponse { status: response }))
+		Ok(response)
 	}
 	//verify that source is one of validators
 	pub async fn handle_witnessed_event(
@@ -87,10 +87,7 @@ impl EventService {
 					log::info!("proof count is at:{}", proof_count);
 					if proof_count == self.target {
 						//if proof_count == 1 {
-						Ok(self
-							.submit_event_extrinsic(witnessed_event.extrinsic)
-							.await?
-							.to_string())
+						Ok(self.submit_event_extrinsic(witnessed_event.event_id).await?.to_string())
 					} else {
 						Ok("Event has been added to the event proofs and proof_count increased"
 							.to_string())
@@ -116,35 +113,27 @@ impl EventService {
 		self.target = target;
 	}
 
-	pub async fn submit_event_extrinsic(&self, extrinsic: Vec<u8>) -> Result<H256, Error> {
-		match OpaqueExtrinsic::from_bytes(extrinsic.as_slice()) {
-			Ok(opaque_extrinsic) => {
-				let best_block_id = BlockId::hash(self.client.info().best_hash);
-				return Ok(self
-					.tx_pool
-					.pool()
-					.submit_one(&best_block_id, TX_SOURCE, opaque_extrinsic)
-					.await
-					.or_else(|e| Err(Error::new(ErrorKind::Other, format!("{:?}", e))))?)
-			},
-			Err(e) => {
-				log::error!(
-					"failed creating opaque Exrtinisc from given extrinsic due to error:{:?}",
-					e
-				);
-				Err(Error::new(ErrorKind::Other, format!("{:?}", e)))
-			},
-		}
+	pub async fn submit_event_extrinsic(&self, event_id: H256) -> Result<H256, Error> {
+		let best_block_id = BlockId::hash(self.client.info().best_hash);
+		let unsigned_extrinsic = self
+			.client
+			.runtime_api()
+			.create_unsigned_extrinsic(&best_block_id, event_id)
+			.or_else(|e| Err(Error::new(ErrorKind::Other, format!("{:?}", e))))?;
+		let opaque_extrinsic = OpaqueExtrinsic::from(unsigned_extrinsic);
+		return Ok(self
+			.tx_pool
+			.pool()
+			.submit_one(&best_block_id, TX_SOURCE, opaque_extrinsic)
+			.await
+			.or_else(|e| Err(Error::new(ErrorKind::Other, format!("{:?}", e))))?)
 	}
 
-	pub async fn create_witnessed_event(
-		&self,
-		event: ValidateEventRequest,
-	) -> Result<WitnessedEvent, Status> {
+	pub async fn create_witnessed_event(&self, event_id: H256) -> Result<WitnessedEvent, Error> {
 		match self
 			.keyvault
 			.keystore
-			.sign_with(AURA, &self.keyvault.keys, event.extrinsic.as_slice())
+			.sign_with(AURA, &self.keyvault.keys, event_id.as_bytes())
 			.await
 		{
 			Ok(v) =>
@@ -152,14 +141,15 @@ impl EventService {
 					Ok(WitnessedEvent {
 						signature: sig,
 						pub_key: self.keyvault.pubkey.to_vec(),
-						event_id: event.event_id,
-						extrinsic: event.extrinsic,
+						event_id,
 					})
 				} else {
-					Err(Status::aborted("Failed retriving signature"))
+					Err(Error::new(ErrorKind::Other, "Failed retriving signature".to_string()))
 				},
-			Err(e) =>
-				Err(Status::aborted(format!("Could not sign Witnessed stream due to error{:?}", e))),
+			Err(e) => Err(Error::new(
+				ErrorKind::Other,
+				format!("Could not sign Witnessed stream due to error{:?}", e),
+			)),
 		}
 	}
 
@@ -171,7 +161,7 @@ impl EventService {
 				if let Some(signature) =
 					Signature::from_slice(&witnessed_event.signature.as_slice())
 				{
-					return pubkey.verify(&witnessed_event.extrinsic, &signature)
+					return pubkey.verify(&witnessed_event.event_id, &signature)
 				} else {
 					log::error!("cant create sr25519 signature from witnessed event");
 					return false

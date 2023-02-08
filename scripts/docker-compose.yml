@@ -3,7 +3,7 @@ services:
   validator1:
     stdin_open: true
     tty: true
-    container_name: first
+    container_name: validator1
     build: .
     image: stream_node
     ports:
@@ -12,7 +12,7 @@ services:
   validator2:
     stdin_open: true
     tty: true
-    container_name: second
+    container_name: validator2
     build: .
     image: stream_node
     ports:
@@ -21,7 +21,7 @@ services:
   validator3:
     stdin_open: true
     tty: true
-    container_name: third
+    container_name: validator3
     build: .
     image: stream_node
     ports:
@@ -30,7 +30,7 @@ services:
   validator4:
     stdin_open: true
     tty: true
-    container_name: forth
+    container_name: validator4
     build: .
     image: stream_node
     ports:
@@ -39,7 +39,7 @@ services:
   syncnode:
     stdin_open: true
     tty: true
-    container_name: fifth
+    container_name: syncnode
     build: .
     image: stream_node
     ports:

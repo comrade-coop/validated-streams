@@ -6,9 +6,14 @@ use futures::channel::mpsc::channel;
 use local_ip_address::local_ip;
 use node_runtime::opaque::Block;
 use sc_transaction_pool::{BasicPool, FullChainApi};
+use sp_core::H256;
 use sp_keystore::CryptoStore;
 use sp_runtime::key_types::AURA;
-use std::{sync::Arc, time::Duration};
+use std::{
+	io::{Error, ErrorKind},
+	sync::Arc,
+	time::Duration,
+};
 pub use tonic::{transport::Server, Request, Response, Status};
 pub use validated_streams::{
 	streams_server::{Streams, StreamsServer},
@@ -36,7 +41,18 @@ impl Streams for ValidatedStreamsNode {
 			.ok_or(Status::aborted("Malformed Request, can't retreive Origin address"))?;
 		log::info!("Received a request from {:?}", remote_addr);
 		let event = request.into_inner();
-		self.events_service.handle_client_request(event).await
+        //double check that event_id is 32 bytes long otherwise could
+        //risk panicing when creating h256 hash
+		if event.event_id.len() == 32 {
+			Ok(Response::new(ValidateEventResponse {
+				status: self
+					.events_service
+					.handle_client_request(H256::from_slice(event.event_id.as_slice()))
+					.await?,
+			}))
+		} else {
+			Err(Error::new(ErrorKind::Other, "invalid event_id sent".to_string()).into())
+		}
 	}
 }
 

@@ -13,6 +13,7 @@ use libp2p::{
 	Multiaddr, PeerId, Swarm,
 };
 use serde::{Deserialize, Serialize};
+use sp_core::H256;
 use std::sync::Arc;
 
 pub struct Order(IdentTopic, Vec<u8>);
@@ -21,8 +22,7 @@ pub struct Order(IdentTopic, Vec<u8>);
 pub struct WitnessedEvent {
 	pub signature: Vec<u8>,
 	pub pub_key: Vec<u8>,
-	pub event_id: String,
-	pub extrinsic: Vec<u8>,
+	pub event_id: H256,
 }
 
 pub struct StreamsGossip {

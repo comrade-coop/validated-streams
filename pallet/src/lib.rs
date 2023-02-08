@@ -14,6 +14,8 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_api;
 	use sp_core::H256;
+	pub use sp_runtime::traits::Extrinsic;
+
 	use sp_std::vec::Vec;
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -83,8 +85,9 @@ pub mod pallet {
 	/// Get extrinsic ids from a vector of extrinsics
 	/// that should be used to quickly retreive all the event ids (hashes) given a vector of extrinsics
 	/// currently used to inspect the proposed block event ids and whether they are witnessed offchain or not
-		pub trait ExtrinsicDetails{
+		pub trait ExtrinsicDetails<T> where T:Extrinsic + Decode{
 			fn get_extrinsic_ids(extrinsics: &Vec<Block::Extrinsic>) -> Vec<H256>;
+			fn create_unsigned_extrinsic(event_id:H256)-> T;
 		}
 	}
 }
