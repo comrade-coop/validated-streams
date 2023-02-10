@@ -50,10 +50,10 @@ where
 				.runtime_api()
 				.get_extrinsic_ids(&block_id, block_extrinsics)
 				.ok()
-				.unwrap_or(Vec::new());
+				.unwrap_or_default();
 			match self.event_proofs.verify_events_validity(extrinsic_ids.clone()) {
 				Ok(unprepared_ids) =>
-					if unprepared_ids.len() > 0 {
+					if !unprepared_ids.is_empty() {
 						log::info!("Block should be deffered as it contains unwitnessed events");
 					} else {
 						log::info!("All block events have been witnessed:{:?}", extrinsic_ids);

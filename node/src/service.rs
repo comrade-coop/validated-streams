@@ -39,30 +39,24 @@ pub(crate) type FullClient =
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
-pub fn new_partial(
-	config: &Configuration,
-) -> Result<
-	sc_service::PartialComponents<
-		FullClient,
-		FullBackend,
-		FullSelectChain,
-		sc_consensus::DefaultImportQueue<Block, FullClient>,
-		sc_transaction_pool::FullPool<Block, FullClient>,
-		(
-			WitnessBlockImport<
-				sc_finality_grandpa::GrandpaBlockImport<
-					FullBackend,
-					Block,
-					FullClient,
-					FullSelectChain,
-				>,
-			>,
-			sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
-			Option<Telemetry>,
-		),
+type FullPartialComponents = sc_service::PartialComponents<
+	FullClient,
+	FullBackend,
+	FullSelectChain,
+	sc_consensus::DefaultImportQueue<Block, FullClient>,
+	sc_transaction_pool::FullPool<Block, FullClient>,
+	FullPartialComponentsOther,
+>;
+
+type FullPartialComponentsOther = (
+	WitnessBlockImport<
+		sc_finality_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 	>,
-	ServiceError,
-> {
+	sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
+	Option<Telemetry>,
+);
+
+pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, ServiceError> {
 	if config.keystore_remote.is_some() {
 		return Err(ServiceError::Other("Remote Keystores are not supported.".into()))
 	}
@@ -115,7 +109,7 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let event_proofs = InMemoryEventProofs::new();
+	let event_proofs = InMemoryEventProofs::create();
 	let witness_block_import = WitnessBlockImport {
 		parent_block_import: grandpa_block_import.clone(),
 		client: client.clone(),
@@ -127,7 +121,7 @@ pub fn new_partial(
 	let import_queue =
 		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _, _>(ImportQueueParams {
 			block_import: witness_block_import.clone(),
-			justification_import: Some(Box::new(grandpa_block_import.clone())),
+			justification_import: Some(Box::new(grandpa_block_import)),
 			client: client.clone(),
 			create_inherent_data_providers: move |_, ()| async move {
 				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
@@ -161,7 +155,7 @@ pub fn new_partial(
 	})
 }
 
-fn remote_keystore(_url: &String) -> Result<Arc<LocalKeystore>, &'static str> {
+fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
 	// FIXME: here would the concrete keystore be built,
 	//        must return a concrete type (NOT `LocalKeystore`) that
 	//        implements `CryptoStore` and `SyncCryptoStore`

@@ -50,8 +50,8 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn validate_event(_origin: OriginFor<T>, event_id: T::Hash) -> DispatchResult {
 			let current_block = <frame_system::Pallet<T>>::block_number();
-			ensure!(!Streams::<T>::contains_key(&event_id), Error::<T>::AlreadyValidated);
-			Streams::<T>::insert(&event_id, current_block);
+			ensure!(!Streams::<T>::contains_key(event_id), Error::<T>::AlreadyValidated);
+			Streams::<T>::insert(event_id, current_block);
 			Self::deposit_event(Event::ValidatedEvent { event_id });
 			Ok(())
 		}
@@ -86,6 +86,7 @@ pub mod pallet {
 	/// that should be used to quickly retreive all the event ids (hashes) given a vector of extrinsics
 	/// currently used to inspect the proposed block event ids and whether they are witnessed offchain or not
 		pub trait ExtrinsicDetails<T> where T:Extrinsic + Decode{
+			#[allow(clippy::ptr_arg)]
 			fn get_extrinsic_ids(extrinsics: &Vec<Block::Extrinsic>) -> Vec<H256>;
 			fn create_unsigned_extrinsic(event_id:H256)-> T;
 		}

@@ -11,7 +11,7 @@ pub struct LocalNetworkConfiguration {
 }
 impl NetworkConfiguration for LocalNetworkConfiguration {
 	fn get_self_address(&self) -> String {
-		format!("{}:{}", local_ip().unwrap().to_string(), &self.port)
+		format!("{}:{}", local_ip().unwrap(), &self.port)
 	}
 	fn get_peers_addresses(&self) -> Vec<String> {
 		vec![
@@ -25,7 +25,7 @@ impl NetworkConfiguration for LocalNetworkConfiguration {
 
 impl LocalNetworkConfiguration {
 	pub fn self_multiaddr() -> Multiaddr {
-		format!("/ip4/{}/tcp/10000", local_ip().expect("failed getting local ip").to_string())
+		format!("/ip4/{}/tcp/10000", local_ip().expect("failed getting local ip"))
 			.parse()
 			.expect("failed getting self multi address")
 	}

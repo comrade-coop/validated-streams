@@ -1,5 +1,5 @@
 use std::{
-	collections::HashMap,
+	collections::{hash_map::Entry, HashMap},
 	io::{Error, ErrorKind},
 	sync::{Arc, Mutex},
 };
@@ -17,13 +17,15 @@ pub trait EventProofs {
 	fn set_target(&self, target: u16) -> Result<bool, Error>;
 }
 
+type ProofsMap = HashMap<H256, HashMap<Vec<u8>, WitnessedEvent>>;
+
 pub struct InMemoryEventProofs {
 	target: Mutex<u16>,
 	//map event ids to provided senders of event proofs
-	proofs: Arc<Mutex<HashMap<H256, HashMap<Vec<u8>, WitnessedEvent>>>>,
+	proofs: Arc<Mutex<ProofsMap>>,
 }
 impl InMemoryEventProofs {
-	pub fn new() -> Arc<dyn EventProofs + Send + Sync> {
+	pub fn create() -> Arc<dyn EventProofs + Send + Sync> {
 		Arc::new(InMemoryEventProofs {
 			proofs: Arc::new(Mutex::new(HashMap::new())),
 			target: Mutex::new(0),
@@ -38,24 +40,27 @@ impl EventProofs for InMemoryEventProofs {
 		witnessed_event: &WitnessedEvent,
 		origin: Vec<u8>,
 	) -> Result<u16, Error> {
-		let event_id = witnessed_event.event_id.clone();
+		let event_id = witnessed_event.event_id;
 		let mut proofs = self
 			.proofs
 			.lock()
 			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking InMemoryProofs")))?;
-		if proofs.entry(event_id.clone()).or_insert(HashMap::new()).contains_key(&origin) {
-			log::info!("{:?} already sent a proof for event {:?}", origin, event_id);
-			Err(Error::new(ErrorKind::AlreadyExists, "Already sent a proof"))
-		} else {
-			let proof_count = proofs
-				.get(&event_id)
-				.ok_or(Error::new(ErrorKind::InvalidData, "event was not inserted"))?
-				.len() as u16;
-			proofs
-				.entry(event_id.clone())
-				.or_insert(HashMap::new())
-				.insert(origin, witnessed_event.clone());
-			Ok(proof_count + 1)
+
+		let event_witnesses = proofs.entry(event_id).or_default();
+		let event_witnesses_count = event_witnesses.len() as u16;
+		match event_witnesses.entry(origin) {
+			Entry::Vacant(e) => {
+				e.insert(witnessed_event.clone());
+				Ok(event_witnesses_count + 1)
+			},
+			witness_entry => {
+				log::info!(
+					"{:?} already sent a proof for event {:?}",
+					witness_entry.key(),
+					event_id
+				);
+				Err(Error::new(ErrorKind::AlreadyExists, "Already sent a proof"))
+			},
 		}
 	}
 	fn contains(&self, event_id: H256) -> Result<bool, Error> {
@@ -73,7 +78,9 @@ impl EventProofs for InMemoryEventProofs {
 		if proofs.contains_key(&event_id) {
 			let count = proofs
 				.get(&event_id)
-				.ok_or(Error::new(ErrorKind::InvalidData, "Could not retreive event count"))?
+				.ok_or_else(|| {
+					Error::new(ErrorKind::InvalidData, "Could not retreive event count")
+				})?
 				.len() as u16;
 			Ok(count)
 		} else {
@@ -81,7 +88,7 @@ impl EventProofs for InMemoryEventProofs {
 		}
 	}
 	fn verify_event_validity(&self, event_id: H256) -> Result<bool, Error> {
-		if self.contains(event_id.clone())? {
+		if self.contains(event_id)? {
 			let current_count = self.get_proof_count(event_id)?;
 			if current_count <
 				*self
@@ -104,8 +111,8 @@ impl EventProofs for InMemoryEventProofs {
 			.lock()
 			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking target")))?;
 		for id in ids {
-			if self.contains(id.clone())? {
-				let current_count = self.get_proof_count(id.clone())?;
+			if self.contains(id)? {
+				let current_count = self.get_proof_count(id)?;
 				if current_count < target {
 					unprepared_ids.push(id);
 				}

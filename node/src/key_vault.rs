@@ -35,7 +35,7 @@ impl KeyVault {
 				.clone();
 			Ok(KeyVault { keystore, keys, pubkey })
 		} else {
-			return Err(Error::new(
+			Err(Error::new(
 				std::io::ErrorKind::NotFound,
 				"Self pubkey was not found in the list of validators".to_string(),
 			))
@@ -46,7 +46,6 @@ impl KeyVault {
 		let authority_ids = client
 			.runtime_api()
 			.authorities(&block_id)
-			.ok()
 			.expect("failed retreiving authorities public keys");
 		authority_ids
 			.iter()

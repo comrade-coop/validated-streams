@@ -106,7 +106,9 @@ impl EventService {
 			))
 		}
 	}
+
 	//add and update the target
+	#[allow(dead_code)]
 	pub fn add_validator(&mut self, validator: Public) {
 		self.validators.push(validator);
 		let target = EventService::target(self.validators.len(), self.event_proofs.clone());
@@ -119,14 +121,13 @@ impl EventService {
 			.client
 			.runtime_api()
 			.create_unsigned_extrinsic(&best_block_id, event_id)
-			.or_else(|e| Err(Error::new(ErrorKind::Other, format!("{:?}", e))))?;
+			.map_err(|e| Error::new(ErrorKind::Other, format!("{:?}", e)))?;
 		let opaque_extrinsic = OpaqueExtrinsic::from(unsigned_extrinsic);
-		return Ok(self
-			.tx_pool
+		self.tx_pool
 			.pool()
 			.submit_one(&best_block_id, TX_SOURCE, opaque_extrinsic)
 			.await
-			.or_else(|e| Err(Error::new(ErrorKind::Other, format!("{:?}", e))))?)
+			.map_err(|e| Error::new(ErrorKind::Other, format!("{:?}", e)))
 	}
 
 	pub async fn create_witnessed_event(&self, event_id: H256) -> Result<WitnessedEvent, Error> {
@@ -156,23 +157,22 @@ impl EventService {
 	/// verifies whether the received witnessed event was originited by one of the validators
 	/// than proceeds to retreiving the pubkey and the signature and checks the signature
 	fn verify_witnessed_event(&self, witnessed_event: &WitnessedEvent) -> bool {
-		if let Ok(pubkey) = Public::from_slice(&witnessed_event.pub_key.as_slice()) {
+		if let Ok(pubkey) = Public::from_slice(witnessed_event.pub_key.as_slice()) {
 			if self.validators.contains(&pubkey) {
-				if let Some(signature) =
-					Signature::from_slice(&witnessed_event.signature.as_slice())
+				if let Some(signature) = Signature::from_slice(witnessed_event.signature.as_slice())
 				{
-					return pubkey.verify(&witnessed_event.event_id, &signature)
+					pubkey.verify(&witnessed_event.event_id, &signature)
 				} else {
 					log::error!("cant create sr25519 signature from witnessed event");
-					return false
+					false
 				}
 			} else {
 				log::error!("received a gossip message from a non validator");
-				return false
+				false
 			}
 		} else {
 			log::error!("cant retreive the sr25519 key from witnessed event");
-			return false
+			false
 		}
 	}
 }

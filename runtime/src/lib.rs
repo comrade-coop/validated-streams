@@ -409,18 +409,9 @@ impl_runtime_apis! {
 			let mut ids = Vec::new();
 			for extrinsic in extrinsics.iter()
 			{
-				match &extrinsic.function
+				if let Call::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event{event_id:call_data}) = &extrinsic.function
 				{
-					Call::ValidatedStreams(v) => {
-						match v
-						{
-							pallet_validated_streams::Call::<Runtime>::validate_event{event_id:call_data}=>{
-								ids.push(call_data.clone());
-							},
-							&_=>{}
-						}
-					},
-					_ => {}
+					ids.push(*call_data);
 				}
 			}
 			ids
