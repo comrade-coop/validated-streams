@@ -1,0 +1,9 @@
+/target
+/.direnv
+/.envrc
+scripts/docker_local_net.sh
+scripts/local_net.sh
+scripts/stream_node
+/.git
+Dockerfile
+.dockerignore
