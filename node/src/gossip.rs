@@ -54,7 +54,7 @@ impl StreamsGossip {
             .upgrade(upgrade::Version::V1)
             .authenticate(
                 tls::Config::new(&key)    
-                .expect("Signing libp2p-noise static DH keypair failed."),
+                .expect("Failed using tls keys"),
             )
             .multiplex(mplex::MplexConfig::new())
             .boxed()
