@@ -6,7 +6,7 @@ use std::{
 
 use sp_core::H256;
 
-use crate::gossip::WitnessedEvent;
+use crate::streams::gossip::WitnessedEvent;
 
 pub trait EventProofs {
 	fn contains(&self, event_id: H256) -> Result<bool, Error>;

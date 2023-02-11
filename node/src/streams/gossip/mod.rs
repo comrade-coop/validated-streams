@@ -1,4 +1,6 @@
-use crate::{event_service::EventService, network_configs::LocalNetworkConfiguration};
+use crate::streams::{
+	configs::network_configs::LocalNetworkConfiguration, services::event_service::EventService,
+};
 use futures::{
 	channel::mpsc::{Receiver, Sender},
 	lock::Mutex,
@@ -6,11 +8,12 @@ use futures::{
 	select,
 };
 use libp2p::{
-	core::{muxing::StreamMuxerBox, upgrade,transport::Boxed},
+	core::{muxing::StreamMuxerBox, transport::Boxed, upgrade},
 	gossipsub::{self, Gossipsub, GossipsubEvent, IdentTopic, MessageAuthenticity},
 	identity::{self, Keypair},
-	swarm::SwarmEvent,mplex,
-	Multiaddr, PeerId, Swarm,tls,tcp,Transport
+	mplex,
+	swarm::SwarmEvent,
+	tcp, tls, Multiaddr, PeerId, Swarm, Transport,
 };
 use serde::{Deserialize, Serialize};
 use sp_core::H256;
@@ -50,14 +53,11 @@ impl StreamsGossip {
 	}
 
 	pub async fn get_transport(key: Keypair) -> Boxed<(PeerId, StreamMuxerBox)> {
-        tcp::async_io::Transport::new(tcp::Config::default())
-            .upgrade(upgrade::Version::V1)
-            .authenticate(
-                tls::Config::new(&key)    
-                .expect("Failed using tls keys"),
-            )
-            .multiplex(mplex::MplexConfig::new())
-            .boxed()
+		tcp::async_io::Transport::new(tcp::Config::default())
+			.upgrade(upgrade::Version::V1)
+			.authenticate(tls::Config::new(&key).expect("Failed using tls keys"))
+			.multiplex(mplex::MplexConfig::new())
+			.boxed()
 	}
 
 	pub fn get_behavior(key: Keypair) -> Gossipsub {

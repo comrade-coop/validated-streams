@@ -1,6 +1,9 @@
 use crate::{
-	event_proofs::EventProofs, event_service::EventService, gossip::StreamsGossip,
-	key_vault::KeyVault, service::FullClient,
+	service::FullClient,
+	streams::{
+		configs::keyvault::KeyVault, gossip::StreamsGossip, proofs::EventProofs,
+		services::event_service::EventService,
+	},
 };
 use futures::channel::mpsc::channel;
 use local_ip_address::local_ip;

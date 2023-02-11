@@ -1,7 +1,7 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
-use crate::{
-	event_proofs::InMemoryEventProofs, streams_server::ValidatedStreamsNode,
-	witness_block_import::WitnessBlockImport,
+use crate::streams::{
+	proofs::InMemoryEventProofs, server::ValidatedStreamsNode,
+	services::witness_block_import::WitnessBlockImport,
 };
 use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{BlockBackend, ExecutorProvider};

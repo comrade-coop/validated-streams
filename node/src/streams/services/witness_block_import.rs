@@ -1,4 +1,4 @@
-use crate::{event_proofs::EventProofs, service::FullClient};
+use crate::{service::FullClient, streams::proofs::EventProofs};
 use log::info;
 use node_runtime::{self, opaque::Block, pallet_validated_streams::ExtrinsicDetails};
 use sc_consensus::{BlockCheckParams, BlockImportParams, ImportResult};

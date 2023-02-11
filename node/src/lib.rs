@@ -1,10 +1,4 @@
 pub mod chain_spec;
-pub mod event_proofs;
-pub mod event_service;
-pub mod gossip;
-pub mod key_vault;
-pub mod network_configs;
 pub mod rpc;
 pub mod service;
-pub mod streams_server;
-pub mod witness_block_import;
+pub mod streams;

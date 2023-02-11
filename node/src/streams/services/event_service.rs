@@ -1,8 +1,10 @@
 use crate::{
-	event_proofs::EventProofs,
-	gossip::{Order, StreamsGossip, WitnessedEvent},
-	key_vault::KeyVault,
 	service::FullClient,
+	streams::{
+		configs::keyvault::KeyVault,
+		gossip::{Order, StreamsGossip, WitnessedEvent},
+		proofs::EventProofs,
+	},
 };
 use futures::channel::mpsc::Sender;
 use libp2p::gossipsub::IdentTopic;
