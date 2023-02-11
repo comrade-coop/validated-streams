@@ -1,4 +1,4 @@
-FROM rust
+FROM debian:bullseye-slim
 COPY ./stream_node /bin/stream_node
 COPY ./private_chain_setup.sh /bin/private_chain_setup.sh
 WORKDIR /bin/

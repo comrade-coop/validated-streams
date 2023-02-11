@@ -6,11 +6,11 @@ use futures::{
 	select,
 };
 use libp2p::{
-	core::{muxing::StreamMuxerBox, transport::Boxed},
+	core::{muxing::StreamMuxerBox, upgrade,transport::Boxed},
 	gossipsub::{self, Gossipsub, GossipsubEvent, IdentTopic, MessageAuthenticity},
 	identity::{self, Keypair},
-	swarm::SwarmEvent,
-	Multiaddr, PeerId, Swarm,
+	swarm::SwarmEvent,mplex,
+	Multiaddr, PeerId, Swarm,tls,tcp,Transport
 };
 use serde::{Deserialize, Serialize};
 use sp_core::H256;
@@ -50,9 +50,14 @@ impl StreamsGossip {
 	}
 
 	pub async fn get_transport(key: Keypair) -> Boxed<(PeerId, StreamMuxerBox)> {
-		libp2p::development_transport(key.clone())
-			.await
-			.expect("failed creating the transport")
+        tcp::async_io::Transport::new(tcp::Config::default())
+            .upgrade(upgrade::Version::V1)
+            .authenticate(
+                tls::Config::new(&key)    
+                .expect("Signing libp2p-noise static DH keypair failed."),
+            )
+            .multiplex(mplex::MplexConfig::new())
+            .boxed()
 	}
 
 	pub fn get_behavior(key: Keypair) -> Gossipsub {
