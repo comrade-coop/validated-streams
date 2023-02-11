@@ -2,6 +2,7 @@ use crate::{
 	service::FullClient,
 	streams::{
 		configs::keyvault::KeyVault,
+		errors::Error,
 		gossip::{Order, StreamsGossip, WitnessedEvent},
 		proofs::EventProofs,
 	},
@@ -22,12 +23,10 @@ use sp_core::{
 	ByteArray, H256,
 };
 use sp_runtime::{app_crypto::RuntimePublic, key_types::AURA, OpaqueExtrinsic};
-use std::{
-	io::{Error, ErrorKind},
-	sync::Arc,
-};
+use std::sync::Arc;
 pub use tonic::{transport::Server, Request, Response, Status};
-const TX_SOURCE: TransactionSource = TransactionSource::External;
+
+const TX_SOURCE: TransactionSource = TransactionSource::Local;
 pub struct EventService {
 	target: u16,
 	validators: Vec<Public>,
@@ -67,10 +66,12 @@ impl EventService {
 	pub async fn handle_client_request(&self, event: H256) -> Result<String, Error> {
 		let witnessed_event = self.create_witnessed_event(event).await?;
 		let response = self.handle_witnessed_event(witnessed_event.clone()).await?;
+		let serilized_event = bincode::serialize(&witnessed_event)
+			.or_else(|e| Err(Error::SerilizationFailure(e.to_string())))?;
 		StreamsGossip::publish(
 			self.order_transmitter.clone(),
 			IdentTopic::new("WitnessedEvent"),
-			bincode::serialize(&witnessed_event).expect("failed serializing"),
+			serilized_event,
 		)
 		.await;
 		Ok(response)
@@ -88,24 +89,20 @@ impl EventService {
 				Ok(proof_count) => {
 					log::info!("proof count is at:{}", proof_count);
 					if proof_count == self.target {
-						//if proof_count == 1 {
-						Ok(self.submit_event_extrinsic(witnessed_event.event_id).await?.to_string())
+						self.submit_event_extrinsic(witnessed_event.event_id).await?;
+						Ok(format!("Event:{} has been witnessed by a mjority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count))
 					} else {
-						Ok("Event has been added to the event proofs and proof_count increased"
-							.to_string())
+						Ok(format!("Event:{} has been added to the event proofs, Current Proof Count:{}",witnessed_event.event_id,proof_count))
 					}
 				},
 				Err(e) => {
-					log::info!("Failed adding event proof due to error:{:?}", e);
-					Err(Error::new(ErrorKind::Other, format!("{:?}", e)))
+					log::info!("{}", e);
+					Err(e)
 				},
 			}
 		} else {
 			log::error!("bad witnessed event signature from peer {:?}", witnessed_event.pub_key);
-			Err(Error::new(
-				ErrorKind::Other,
-				format!("bad witnessed event signature from peer {:?}", witnessed_event.pub_key),
-			))
+			Err(Error::BadWitnessedEventSignature("witnessed_event.pub_key".to_string()))
 		}
 	}
 
@@ -123,13 +120,13 @@ impl EventService {
 			.client
 			.runtime_api()
 			.create_unsigned_extrinsic(&best_block_id, event_id)
-			.map_err(|e| Error::new(ErrorKind::Other, format!("{:?}", e)))?;
+			.map_err(|e| Error::Other(e.to_string()))?;
 		let opaque_extrinsic = OpaqueExtrinsic::from(unsigned_extrinsic);
 		self.tx_pool
 			.pool()
 			.submit_one(&best_block_id, TX_SOURCE, opaque_extrinsic)
 			.await
-			.map_err(|e| Error::new(ErrorKind::Other, format!("{:?}", e)))
+			.map_err(|e| Error::Other(e.to_string()))
 	}
 
 	pub async fn create_witnessed_event(&self, event_id: H256) -> Result<WitnessedEvent, Error> {
@@ -147,12 +144,9 @@ impl EventService {
 						event_id,
 					})
 				} else {
-					Err(Error::new(ErrorKind::Other, "Failed retriving signature".to_string()))
+					Err(Error::Other("Failed retriving signature".to_string()))
 				},
-			Err(e) => Err(Error::new(
-				ErrorKind::Other,
-				format!("Could not sign Witnessed stream due to error{:?}", e),
-			)),
+			Err(e) => Err(Error::Other(e.to_string())),
 		}
 	}
 

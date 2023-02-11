@@ -1,12 +1,10 @@
 use std::{
 	collections::{hash_map::Entry, HashMap},
-	io::{Error, ErrorKind},
 	sync::{Arc, Mutex},
 };
 
+use crate::streams::{errors::Error, gossip::WitnessedEvent};
 use sp_core::H256;
-
-use crate::streams::gossip::WitnessedEvent;
 
 pub trait EventProofs {
 	fn contains(&self, event_id: H256) -> Result<bool, Error>;
@@ -41,14 +39,12 @@ impl EventProofs for InMemoryEventProofs {
 		origin: Vec<u8>,
 	) -> Result<u16, Error> {
 		let event_id = witnessed_event.event_id;
-		let mut proofs = self
-			.proofs
-			.lock()
-			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking InMemoryProofs")))?;
+		let mut proofs =
+			self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
 
 		let event_witnesses = proofs.entry(event_id).or_default();
 		let event_witnesses_count = event_witnesses.len() as u16;
-		match event_witnesses.entry(origin) {
+		match event_witnesses.entry(origin.clone()) {
 			Entry::Vacant(e) => {
 				e.insert(witnessed_event.clone());
 				Ok(event_witnesses_count + 1)
@@ -59,28 +55,20 @@ impl EventProofs for InMemoryEventProofs {
 					witness_entry.key(),
 					event_id
 				);
-				Err(Error::new(ErrorKind::AlreadyExists, "Already sent a proof"))
+				Err(Error::AlreadySentProof(event_id))
 			},
 		}
 	}
 	fn contains(&self, event_id: H256) -> Result<bool, Error> {
-		let proofs = self
-			.proofs
-			.lock()
-			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking InMemoryProofs")))?;
+		let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
 		Ok(proofs.contains_key(&event_id))
 	}
 	fn get_proof_count(&self, event_id: H256) -> Result<u16, Error> {
-		let proofs = self
-			.proofs
-			.lock()
-			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking InMemoryProofs")))?;
+		let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
 		if proofs.contains_key(&event_id) {
 			let count = proofs
 				.get(&event_id)
-				.ok_or_else(|| {
-					Error::new(ErrorKind::InvalidData, "Could not retreive event count")
-				})?
+				.ok_or_else(|| Error::Other("Could not retreive event count".to_string()))?
 				.len() as u16;
 			Ok(count)
 		} else {
@@ -91,10 +79,7 @@ impl EventProofs for InMemoryEventProofs {
 		if self.contains(event_id)? {
 			let current_count = self.get_proof_count(event_id)?;
 			if current_count <
-				*self
-					.target
-					.lock()
-					.or(Err(Error::new(ErrorKind::InvalidData, "failed locking target")))?
+				*self.target.lock().or(Err(Error::LockFail("ProofsTarget".to_string())))?
 			{
 				Ok(true)
 			} else {
@@ -106,10 +91,7 @@ impl EventProofs for InMemoryEventProofs {
 	}
 	fn verify_events_validity(&self, ids: Vec<H256>) -> Result<Vec<H256>, Error> {
 		let mut unprepared_ids = Vec::new();
-		let target = *self
-			.target
-			.lock()
-			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking target")))?;
+		let target = *self.target.lock().or(Err(Error::LockFail("ProofsTarget".to_string())))?;
 		for id in ids {
 			if self.contains(id)? {
 				let current_count = self.get_proof_count(id)?;
@@ -123,10 +105,7 @@ impl EventProofs for InMemoryEventProofs {
 		Ok(unprepared_ids)
 	}
 	fn set_target(&self, val: u16) -> Result<bool, Error> {
-		*self
-			.target
-			.lock()
-			.or(Err(Error::new(ErrorKind::InvalidData, "failed locking target")))? = val;
+		*self.target.lock().or(Err(Error::LockFail("ProofsTarget".to_string())))? = val;
 		Ok(true)
 	}
 }

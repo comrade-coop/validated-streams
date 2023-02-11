@@ -1,7 +1,7 @@
 #!/bin/bash
-docker-compose up -d
-echo waiting until all grpc ports in local net are opened
-sleep 15
+#docker-compose up -d
+#echo waiting until all grpc ports in local net are opened
+#sleep 20
 validators=(
   "localhost:5556"
   "localhost:5557"
@@ -17,7 +17,7 @@ req='{
 for server in "${validators[@]}"; do
 
   RESPONSE=$(grpcurl -plaintext -import-path ../proto -proto streams.proto  -d "$req" "$server" ValidatedStreams.Streams/ValidateEvent)
-  echo "Server: $SERVER"
+  echo Server: $server
   echo "$RESPONSE"
   echo
 done

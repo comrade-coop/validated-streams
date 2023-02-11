@@ -51,7 +51,8 @@ impl Streams for ValidatedStreamsNode {
 				status: self
 					.events_service
 					.handle_client_request(H256::from_slice(event.event_id.as_slice()))
-					.await?,
+					.await
+					.map_err(|e| Status::aborted(e.to_string()))?,
 			}))
 		} else {
 			Err(Error::new(ErrorKind::Other, "invalid event_id sent".to_string()).into())
