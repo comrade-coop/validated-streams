@@ -46,7 +46,7 @@ impl EventService {
 		client: Arc<FullClient>,
 	) -> EventService {
 		EventService {
-			target: EventService::target(validators.len(), event_proofs.clone()),
+			target: EventService::target(validators.len()),
 			validators,
 			event_proofs,
 			order_transmitter,
@@ -55,10 +55,9 @@ impl EventService {
 			client,
 		}
 	}
-	pub fn target(num_peers: usize, event_proofs: Arc<dyn EventProofs + Send + Sync>) -> u16 {
+	pub fn target(num_peers: usize) -> u16 {
 		let validators_length = num_peers + 1;
 		let target = (2 * ((validators_length - 1) / 3) + 1) as u16;
-		event_proofs.set_target(target).ok();
 		log::info!("Minimal number of nodes that needs to witness Streams is: {}", target);
 		target
 	}
@@ -110,7 +109,7 @@ impl EventService {
 	#[allow(dead_code)]
 	pub fn add_validator(&mut self, validator: Public) {
 		self.validators.push(validator);
-		let target = EventService::target(self.validators.len(), self.event_proofs.clone());
+		let target = EventService::target(self.validators.len());
 		self.target = target;
 	}
 
@@ -171,4 +170,33 @@ impl EventService {
 			false
 		}
 	}
+	#[allow(dead_code)]
+    pub fn verify_event_validity(&self, event_id: H256) -> Result<bool, Error> {
+		if self.event_proofs.contains(event_id)? {
+			let current_count = self.event_proofs.get_proof_count(event_id)?;
+			if current_count < self.target
+			{
+				Ok(true)
+			} else {
+				Ok(false)
+			}
+		} else {
+			Ok(false)
+		}
+	}
+	pub fn verify_events_validity(&self, ids: Vec<H256>) -> Result<Vec<H256>, Error> {
+		let mut unprepared_ids = Vec::new();
+		for id in ids {
+			if self.event_proofs.contains(id)? {
+				let current_count = self.event_proofs.get_proof_count(id)?;
+				if current_count < self.target {
+					unprepared_ids.push(id);
+				}
+			} else {
+				unprepared_ids.push(id);
+			}
+		}
+		Ok(unprepared_ids)
+	}
+
 }

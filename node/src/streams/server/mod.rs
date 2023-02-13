@@ -5,6 +5,7 @@ use crate::{
 		services::event_service::EventService,
 	},
 };
+use crate::streams::services::witness_block_import::WitnessBlockImport;
 use futures::channel::mpsc::channel;
 use local_ip_address::local_ip;
 use node_runtime::opaque::Block;
@@ -15,7 +16,7 @@ use sp_runtime::key_types::AURA;
 use std::{
 	io::{Error, ErrorKind},
 	sync::Arc,
-	time::Duration,
+	time::Duration, any::Any,
 };
 pub use tonic::{transport::Server, Request, Response, Status};
 pub use validated_streams::{
@@ -60,13 +61,14 @@ impl Streams for ValidatedStreamsNode {
 	}
 }
 
-impl ValidatedStreamsNode {
-	pub async fn run(
+impl ValidatedStreamsNode{
+	pub async fn run<T:Any>(
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		client: Arc<FullClient>,
 		keystore: Arc<dyn CryptoStore>,
 		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
-	) {
+        mut block_import:WitnessBlockImport<T>
+	){
 		//wait until all keys are created by aura
 		tokio::time::sleep(Duration::from_millis(3000)).await;
 		if let Ok(keyvault) = KeyVault::new(keystore, client.clone(), AURA).await {
@@ -79,6 +81,7 @@ impl ValidatedStreamsNode {
 				tx_pool,
 				client,
 			));
+            block_import.event_service = Some(events_service.clone());
 			let events_service_clone = events_service.clone();
 			let streams_gossip = StreamsGossip::new().await;
 			streams_gossip.start(rc, events_service_clone).await;

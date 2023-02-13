@@ -1,7 +1,7 @@
 #!/bin/bash
-#docker-compose up -d
-#echo waiting until all grpc ports in local net are opened
-#sleep 20
+docker-compose up -d
+echo waiting until all grpc ports in local net are opened
+sleep 20
 validators=(
   "localhost:5556"
   "localhost:5557"

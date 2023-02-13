@@ -1,5 +1,6 @@
-use crate::{service::FullClient, streams::proofs::EventProofs};
+use crate::service::FullClient;
 use log::info;
+use crate::streams::services::event_service::EventService;
 use node_runtime::{self, opaque::Block, pallet_validated_streams::ExtrinsicDetails};
 use sc_consensus::{BlockCheckParams, BlockImportParams, ImportResult};
 pub use sc_executor::NativeElseWasmExecutor;
@@ -12,7 +13,7 @@ use std::{collections::HashMap, sync::Arc};
 pub struct WitnessBlockImport<I> {
 	pub parent_block_import: I,
 	pub client: Arc<FullClient>,
-	pub event_proofs: Arc<dyn EventProofs + Send + Sync>,
+	pub event_service: Option<Arc<EventService>>,
 }
 #[async_trait::async_trait]
 impl<I: sc_consensus::BlockImport<Block>> sc_consensus::BlockImport<Block> for WitnessBlockImport<I>
@@ -41,7 +42,8 @@ where
 		block: BlockImportParams<Block, Self::Transaction>,
 		cache: HashMap<well_known_cache_keys::Id, Vec<u8>>,
 	) -> Result<ImportResult, Self::Error> {
-		if let Some(block_extrinsics) = &block.body {
+        if let Some(event_service) = &self.event_service{
+            if let Some(block_extrinsics) = &block.body {
 			// get an iterator for all ready transactions and skip the first element which contains
 			// the default extrinsic
 			let block_id = BlockId::Number(self.client.chain_info().best_number);
@@ -51,7 +53,7 @@ where
 				.get_extrinsic_ids(&block_id, block_extrinsics)
 				.ok()
 				.unwrap_or_default();
-			match self.event_proofs.verify_events_validity(extrinsic_ids.clone()) {
+			match event_service.verify_events_validity(extrinsic_ids.clone()) {
 				Ok(unprepared_ids) =>
 					if !unprepared_ids.is_empty() {
 						log::info!("Block should be deffered as it contains unwitnessed events");
@@ -63,7 +65,8 @@ where
 				},
 			}
 		}
-		let parent_result = self.parent_block_import.import_block(block, cache).await;
+        } 
+			let parent_result = self.parent_block_import.import_block(block, cache).await;
 		match parent_result {
 			Ok(result) => {
 				info!("👌Block Imported");
