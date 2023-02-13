@@ -37,7 +37,7 @@ impl EventProofs for InMemoryEventProofs {
 
 		let event_witnesses = proofs.entry(event_id).or_default();
 		let event_witnesses_count = event_witnesses.len() as u16;
-		match event_witnesses.entry(origin.clone()) {
+		match event_witnesses.entry(origin) {
 			Entry::Vacant(e) => {
 				e.insert(witnessed_event.clone());
 				Ok(event_witnesses_count + 1)

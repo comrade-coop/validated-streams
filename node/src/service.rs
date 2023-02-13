@@ -188,7 +188,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 			client.clone(),
 			keystore_container.keystore().clone(),
 			transaction_pool.clone(),
-            block_import.clone()
+			block_import.clone(),
 		),
 	);
 	if let Some(url) = &config.keystore_remote {

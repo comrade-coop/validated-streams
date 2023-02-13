@@ -24,7 +24,6 @@ use sp_core::{
 };
 use sp_runtime::{app_crypto::RuntimePublic, key_types::AURA, OpaqueExtrinsic};
 use std::sync::Arc;
-pub use tonic::{transport::Server, Request, Response, Status};
 
 const TX_SOURCE: TransactionSource = TransactionSource::Local;
 pub struct EventService {
@@ -66,7 +65,7 @@ impl EventService {
 		let witnessed_event = self.create_witnessed_event(event).await?;
 		let response = self.handle_witnessed_event(witnessed_event.clone()).await?;
 		let serilized_event = bincode::serialize(&witnessed_event)
-			.or_else(|e| Err(Error::SerilizationFailure(e.to_string())))?;
+			.map_err(|e| Error::SerilizationFailure(e.to_string()))?;
 		StreamsGossip::publish(
 			self.order_transmitter.clone(),
 			IdentTopic::new("WitnessedEvent"),
@@ -91,7 +90,10 @@ impl EventService {
 						self.submit_event_extrinsic(witnessed_event.event_id).await?;
 						Ok(format!("Event:{} has been witnessed by a mjority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count))
 					} else {
-						Ok(format!("Event:{} has been added to the event proofs, Current Proof Count:{}",witnessed_event.event_id,proof_count))
+						Ok(format!(
+							"Event:{} has been added to the event proofs, Current Proof Count:{}",
+							witnessed_event.event_id, proof_count
+						))
 					}
 				},
 				Err(e) => {
@@ -171,11 +173,10 @@ impl EventService {
 		}
 	}
 	#[allow(dead_code)]
-    pub fn verify_event_validity(&self, event_id: H256) -> Result<bool, Error> {
+	pub fn verify_event_validity(&self, event_id: H256) -> Result<bool, Error> {
 		if self.event_proofs.contains(event_id)? {
 			let current_count = self.event_proofs.get_proof_count(event_id)?;
-			if current_count < self.target
-			{
+			if current_count < self.target {
 				Ok(true)
 			} else {
 				Ok(false)
@@ -198,5 +199,4 @@ impl EventService {
 		}
 		Ok(unprepared_ids)
 	}
-
 }
