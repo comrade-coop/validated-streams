@@ -1,34 +1,45 @@
 use crate::{
 	service::FullClient,
 	streams::{
-		configs::keyvault::KeyVault,
 		errors::Error,
-		gossip::{Order, StreamsGossip, WitnessedEvent},
+		gossip::{Order, StreamsGossip},
 		proofs::EventProofs,
 	},
 };
-use futures::channel::mpsc::Sender;
+use sp_consensus_aura::AuraApi;
+pub mod keyvault;
+use futures::{channel::mpsc::Sender, StreamExt};
+use keyvault::KeyVault;
 use libp2p::gossipsub::IdentTopic;
 use node_runtime::{
 	self,
 	opaque::{Block, BlockId},
 	pallet_validated_streams::ExtrinsicDetails,
 };
-use sc_client_api::HeaderBackend;
+use sc_client_api::{BlockchainEvents, HeaderBackend};
 use sc_transaction_pool::{BasicPool, FullChainApi};
 use sc_transaction_pool_api::TransactionSource;
+use serde::{Deserialize, Serialize};
 use sp_api::ProvideRuntimeApi;
 use sp_core::{
 	sr25519::{Public, Signature},
 	ByteArray, H256,
 };
 use sp_runtime::{app_crypto::RuntimePublic, key_types::AURA, OpaqueExtrinsic};
-use std::sync::Arc;
-
+use std::sync::{Arc, Mutex};
+pub use tonic::{transport::Server, Request, Response, Status};
 const TX_SOURCE: TransactionSource = TransactionSource::Local;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WitnessedEvent {
+	pub signature: Vec<u8>,
+	pub pub_key: Vec<u8>,
+	pub event_id: H256,
+}
+
 pub struct EventService {
 	target: u16,
-	validators: Vec<Public>,
+	validators: Arc<Mutex<Vec<Public>>>,
 	event_proofs: Arc<dyn EventProofs + Send + Sync>,
 	order_transmitter: Sender<Order>,
 	keyvault: KeyVault,
@@ -36,7 +47,7 @@ pub struct EventService {
 	client: Arc<FullClient>,
 }
 impl EventService {
-	pub fn new(
+	pub async fn new(
 		validators: Vec<Public>,
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		order_transmitter: Sender<Order>,
@@ -44,8 +55,11 @@ impl EventService {
 		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 		client: Arc<FullClient>,
 	) -> EventService {
+		let target = EventService::target(validators.len());
+		let validators = Arc::new(Mutex::new(validators.clone()));
+		EventService::handle_imported_blocks(client.clone(), validators.clone()).await;
 		EventService {
-			target: EventService::target(validators.len()),
+			target,
 			validators,
 			event_proofs,
 			order_transmitter,
@@ -54,11 +68,9 @@ impl EventService {
 			client,
 		}
 	}
-	pub fn target(num_peers: usize) -> u16 {
-		let validators_length = num_peers + 1;
-		let target = (2 * ((validators_length - 1) / 3) + 1) as u16;
-		log::info!("Minimal number of nodes that needs to witness Streams is: {}", target);
-		target
+	pub fn target(num_validators: usize) -> u16 {
+		let validators_length = num_validators + 1;
+		(2 * ((validators_length - 1) / 3) + 1) as u16
 	}
 
 	pub async fn handle_client_request(&self, event: H256) -> Result<String, Error> {
@@ -79,7 +91,7 @@ impl EventService {
 		&self,
 		witnessed_event: WitnessedEvent,
 	) -> Result<String, Error> {
-		if self.verify_witnessed_event(&witnessed_event) {
+		if self.verify_witnessed_event(&witnessed_event)? {
 			match self
 				.event_proofs
 				.add_event_proof(&witnessed_event, witnessed_event.pub_key.clone())
@@ -107,14 +119,6 @@ impl EventService {
 		}
 	}
 
-	//add and update the target
-	#[allow(dead_code)]
-	pub fn add_validator(&mut self, validator: Public) {
-		self.validators.push(validator);
-		let target = EventService::target(self.validators.len());
-		self.target = target;
-	}
-
 	pub async fn submit_event_extrinsic(&self, event_id: H256) -> Result<H256, Error> {
 		let best_block_id = BlockId::hash(self.client.info().best_hash);
 		let unsigned_extrinsic = self
@@ -130,6 +134,22 @@ impl EventService {
 			.map_err(|e| Error::Other(e.to_string()))
 	}
 
+	pub async fn update_validators(
+		client: Arc<FullClient>,
+		validators: Arc<Mutex<Vec<Public>>>,
+	) -> Result<bool, Error> {
+		let block_id = BlockId::hash(client.info().best_hash);
+		let authority_ids = client
+			.runtime_api()
+			.authorities(&block_id)
+			.map_err(|e| Error::Other(e.to_string()))?;
+		*validators.lock().map_err(|_| Error::LockFail("ValidatorsList".to_string()))? =
+			authority_ids
+				.iter()
+				.map(|pubkey| Public::from_h256(H256::from_slice(pubkey.as_slice())))
+				.collect();
+		Ok(true)
+	}
 	pub async fn create_witnessed_event(&self, event_id: H256) -> Result<WitnessedEvent, Error> {
 		match self
 			.keyvault
@@ -153,44 +173,41 @@ impl EventService {
 
 	/// verifies whether the received witnessed event was originited by one of the validators
 	/// than proceeds to retreiving the pubkey and the signature and checks the signature
-	fn verify_witnessed_event(&self, witnessed_event: &WitnessedEvent) -> bool {
-		if let Ok(pubkey) = Public::from_slice(witnessed_event.pub_key.as_slice()) {
-			if self.validators.contains(&pubkey) {
-				if let Some(signature) = Signature::from_slice(witnessed_event.signature.as_slice())
-				{
-					pubkey.verify(&witnessed_event.event_id, &signature)
-				} else {
-					log::error!("cant create sr25519 signature from witnessed event");
-					false
-				}
-			} else {
-				log::error!("received a gossip message from a non validator");
-				false
-			}
+	fn verify_witnessed_event(&self, witnessed_event: &WitnessedEvent) -> Result<bool, Error> {
+		let pubkey = Public::from_slice(witnessed_event.pub_key.as_slice()).map_err(|_| {
+			Error::Other("cant retreive sr25519 keys from WitnessedEvent".to_string())
+		})?;
+		if self
+			.validators
+			.lock()
+			.map_err(|_| Error::LockFail("ValidatorsList".to_string()))?
+			.contains(&pubkey)
+		{
+			let signature = Signature::from_slice(witnessed_event.signature.as_slice()).ok_or(
+                Error::Other("cant create sr25519 signature from witnessed event".to_string()))?;
+			Ok(pubkey.verify(&witnessed_event.event_id, &signature))
 		} else {
-			log::error!("cant retreive the sr25519 key from witnessed event");
-			false
-		}
-	}
-	#[allow(dead_code)]
-	pub fn verify_event_validity(&self, event_id: H256) -> Result<bool, Error> {
-		if self.event_proofs.contains(event_id)? {
-			let current_count = self.event_proofs.get_proof_count(event_id)?;
-			if current_count < self.target {
-				Ok(true)
-			} else {
-				Ok(false)
-			}
-		} else {
+			log::error!("received a gossip message from a non validator");
 			Ok(false)
 		}
 	}
-	pub fn verify_events_validity(&self, ids: Vec<H256>) -> Result<Vec<H256>, Error> {
+	pub fn verify_events_validity(
+		client: Arc<FullClient>,
+		event_proofs: Arc<dyn EventProofs>,
+		ids: Vec<H256>,
+	) -> Result<Vec<H256>, Error> {
+		let best_block = BlockId::hash(client.info().best_hash);
+		let authorities_len = client
+			.runtime_api()
+			.authorities(&best_block)
+			.map_err(|e| Error::Other(e.to_string()))?
+			.len();
+		let target = Self::target(authorities_len);
 		let mut unprepared_ids = Vec::new();
 		for id in ids {
-			if self.event_proofs.contains(id)? {
-				let current_count = self.event_proofs.get_proof_count(id)?;
-				if current_count < self.target {
+			if event_proofs.contains(id)? {
+				let current_count = event_proofs.get_proof_count(id)?;
+				if current_count < target {
 					unprepared_ids.push(id);
 				}
 			} else {
@@ -198,5 +215,17 @@ impl EventService {
 			}
 		}
 		Ok(unprepared_ids)
+	}
+	async fn handle_imported_blocks(client: Arc<FullClient>, validators: Arc<Mutex<Vec<Public>>>) {
+		tokio::spawn(async move {
+			loop {
+				client.import_notification_stream().select_next_some().await;
+				if let Err(e) =
+					EventService::update_validators(client.clone(), validators.clone()).await
+				{
+					log::error!("{}", e.to_string());
+				}
+			}
+		});
 	}
 }

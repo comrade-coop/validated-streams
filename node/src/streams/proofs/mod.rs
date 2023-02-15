@@ -1,9 +1,9 @@
 use std::{
 	collections::{hash_map::Entry, HashMap},
-	sync::{Arc, Mutex},
+	sync::Mutex,
 };
 
-use crate::streams::{errors::Error, gossip::WitnessedEvent};
+use crate::streams::{errors::Error, services::events::WitnessedEvent};
 use sp_core::H256;
 
 pub trait EventProofs {
@@ -16,11 +16,11 @@ type ProofsMap = HashMap<H256, HashMap<Vec<u8>, WitnessedEvent>>;
 
 pub struct InMemoryEventProofs {
 	//map event ids to provided senders of event proofs
-	proofs: Arc<Mutex<ProofsMap>>,
+	proofs: Mutex<ProofsMap>,
 }
 impl InMemoryEventProofs {
-	pub fn create() -> Arc<dyn EventProofs + Send + Sync> {
-		Arc::new(InMemoryEventProofs { proofs: Arc::new(Mutex::new(HashMap::new())) })
+	pub fn create() -> InMemoryEventProofs {
+		InMemoryEventProofs { proofs: Mutex::new(HashMap::new()) }
 	}
 }
 impl EventProofs for InMemoryEventProofs {

@@ -1,10 +1,9 @@
 use crate::{
 	service::FullClient,
 	streams::{
-		configs::keyvault::KeyVault,
 		gossip::StreamsGossip,
 		proofs::EventProofs,
-		services::{event_service::EventService, witness_block_import::WitnessBlockImport},
+		services::events::{keyvault::KeyVault, EventService},
 	},
 };
 use futures::channel::mpsc::channel;
@@ -15,7 +14,6 @@ use sp_core::H256;
 use sp_keystore::CryptoStore;
 use sp_runtime::key_types::AURA;
 use std::{
-	any::Any,
 	io::{Error, ErrorKind},
 	sync::Arc,
 	time::Duration,
@@ -64,26 +62,27 @@ impl Streams for ValidatedStreamsNode {
 }
 
 impl ValidatedStreamsNode {
-	pub async fn run<T: Any>(
+	pub async fn run(
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		client: Arc<FullClient>,
 		keystore: Arc<dyn CryptoStore>,
 		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
-		mut block_import: WitnessBlockImport<T>,
 	) {
 		//wait until all keys are created by aura
 		tokio::time::sleep(Duration::from_millis(3000)).await;
 		if let Ok(keyvault) = KeyVault::new(keystore, client.clone(), AURA).await {
 			let (tx, rc) = channel(64);
-			let events_service = Arc::new(EventService::new(
-				KeyVault::validators_pubkeys(client.clone()),
-				event_proofs,
-				tx,
-				keyvault,
-				tx_pool,
-				client,
-			));
-			block_import.event_service = Some(events_service.clone());
+			let events_service = Arc::new(
+				EventService::new(
+					KeyVault::validators_pubkeys(client.clone()),
+					event_proofs,
+					tx,
+					keyvault,
+					tx_pool,
+					client,
+				)
+				.await,
+			);
 			let events_service_clone = events_service.clone();
 			let streams_gossip = StreamsGossip::new().await;
 			streams_gossip.start(rc, events_service_clone).await;

@@ -1,5 +1,6 @@
 use crate::streams::{
-	configs::network_configs::LocalNetworkConfiguration, services::event_service::EventService,
+	configs::LocalNetworkConfiguration,
+	services::events::{EventService, WitnessedEvent},
 };
 use futures::{
 	channel::mpsc::{Receiver, Sender},
@@ -15,19 +16,9 @@ use libp2p::{
 	swarm::SwarmEvent,
 	tcp, tls, Multiaddr, PeerId, Swarm, Transport,
 };
-use serde::{Deserialize, Serialize};
-use sp_core::H256;
 use std::sync::Arc;
 
 pub struct Order(IdentTopic, Vec<u8>);
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct WitnessedEvent {
-	pub signature: Vec<u8>,
-	pub pub_key: Vec<u8>,
-	pub event_id: H256,
-}
-
 pub struct StreamsGossip {
 	pub key: Keypair,
 	pub swarm: Arc<Mutex<Swarm<Gossipsub>>>,

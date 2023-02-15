@@ -20,7 +20,7 @@ impl KeyVault {
 		client: Arc<FullClient>,
 		key_type: KeyTypeId,
 	) -> Result<KeyVault, Error> {
-		let sr25519_keys = keystore.sr25519_public_keys(sp_core::crypto::key_types::AURA).await;
+		let sr25519_keys = keystore.sr25519_public_keys(key_type).await;
 		if let Some(pubkey) = sr25519_keys
 			.into_iter()
 			.find(|key| KeyVault::validators_pubkeys(client.clone()).contains(key))
