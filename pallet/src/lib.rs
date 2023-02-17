@@ -7,6 +7,8 @@
 //! * [validate_event](pallet/struct.Pallet.html#method.validate_event)
 #![cfg_attr(not(feature = "std"), no_std)]
 // Re-export pallet items so that they can be accessed from the crate namespace.
+#[cfg(test)]
+mod tests;
 pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {

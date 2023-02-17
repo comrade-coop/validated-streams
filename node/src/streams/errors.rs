@@ -1,10 +1,11 @@
 use std::{error::Error as E, fmt};
 
 use sp_core::H256;
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Error {
 	AlreadySentProof(H256),
 	LockFail(String),
+	#[allow(dead_code)]
 	BadWitnessedEventSignature(String),
 	SerilizationFailure(String),
 	Other(String),

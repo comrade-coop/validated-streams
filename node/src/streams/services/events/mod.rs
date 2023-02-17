@@ -1,5 +1,4 @@
-use crate::{
-	service::FullClient,
+use crate::{service::FullClient,
 	streams::{
 		errors::Error,
 		gossip::{Order, StreamsGossip},
@@ -25,6 +24,8 @@ use sp_core::{
 	sr25519::{Public, Signature},
 	ByteArray, H256,
 };
+#[cfg(test)]
+pub mod tests;
 use sp_runtime::{app_crypto::RuntimePublic, key_types::AURA, OpaqueExtrinsic};
 use std::sync::{Arc, Mutex};
 pub use tonic::{transport::Server, Request, Response, Status};
@@ -69,8 +70,7 @@ impl EventService {
 		}
 	}
 	pub fn target(num_validators: usize) -> u16 {
-		let validators_length = num_validators + 1;
-		(2 * ((validators_length - 1) / 3) + 1) as u16
+		(2 * ((num_validators - 1) / 3) + 1) as u16
 	}
 
 	pub async fn handle_client_request(&self, event: H256) -> Result<String, Error> {
@@ -91,7 +91,7 @@ impl EventService {
 		&self,
 		witnessed_event: WitnessedEvent,
 	) -> Result<String, Error> {
-		if self.verify_witnessed_event(&witnessed_event)? {
+		if EventService::verify_witnessed_event(&*self.validators.lock().map_err(|_| Error::LockFail("ValidatorsList".to_string()))?,&witnessed_event)? {
 			match self
 				.event_proofs
 				.add_event_proof(&witnessed_event, witnessed_event.pub_key.clone())
@@ -114,8 +114,8 @@ impl EventService {
 				},
 			}
 		} else {
-			log::error!("bad witnessed event signature from peer {:?}", witnessed_event.pub_key);
-			Err(Error::BadWitnessedEventSignature("witnessed_event.pub_key".to_string()))
+			log::error!("witnessed_event not valid (bad signature or origin is not a validator)");
+			Err(Error::Other("bad witnessed_event signature or origin is not a validator".to_string()))
 		}
 	}
 
@@ -173,15 +173,11 @@ impl EventService {
 
 	/// verifies whether the received witnessed event was originited by one of the validators
 	/// than proceeds to retreiving the pubkey and the signature and checks the signature
-	fn verify_witnessed_event(&self, witnessed_event: &WitnessedEvent) -> Result<bool, Error> {
+	fn verify_witnessed_event(validators:&Vec<Public>, witnessed_event: &WitnessedEvent) -> Result<bool, Error> {
 		let pubkey = Public::from_slice(witnessed_event.pub_key.as_slice()).map_err(|_| {
 			Error::Other("cant retreive sr25519 keys from WitnessedEvent".to_string())
 		})?;
-		if self
-			.validators
-			.lock()
-			.map_err(|_| Error::LockFail("ValidatorsList".to_string()))?
-			.contains(&pubkey)
+		if validators.contains(&pubkey)
 		{
 			let signature = Signature::from_slice(witnessed_event.signature.as_slice()).ok_or(
                 Error::Other("cant create sr25519 signature from witnessed event".to_string()))?;
@@ -196,7 +192,7 @@ impl EventService {
 		event_proofs: Arc<dyn EventProofs>,
 		ids: Vec<H256>,
 	) -> Result<Vec<H256>, Error> {
-		let best_block = BlockId::hash(client.info().best_hash);
+		let best_block = BlockId::hash(client.info().finalized_hash);
 		let authorities_len = client
 			.runtime_api()
 			.authorities(&best_block)

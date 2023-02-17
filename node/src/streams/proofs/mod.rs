@@ -2,10 +2,10 @@ use std::{
 	collections::{hash_map::Entry, HashMap},
 	sync::Mutex,
 };
-
+#[cfg(test)]
+pub mod tests;
 use crate::streams::{errors::Error, services::events::WitnessedEvent};
 use sp_core::H256;
-
 pub trait EventProofs {
 	fn contains(&self, event_id: H256) -> Result<bool, Error>;
 	fn add_event_proof(&self, event: &WitnessedEvent, origin: Vec<u8>) -> Result<u16, Error>;
