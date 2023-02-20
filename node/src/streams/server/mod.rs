@@ -34,9 +34,7 @@ pub struct ValidatedStreamsNode {
 
 #[tonic::async_trait]
 impl Streams for ValidatedStreamsNode {
-	//check if the watcher(client) has already submitted the stream
-	//if not create a WitnessedEvent message, add it to the stream proofs and gossip it
-	async fn validate_event(
+    async fn validate_event(
 		&self,
 		request: Request<ValidateEventRequest>,
 	) -> Result<Response<ValidateEventResponse>, Status> {
@@ -62,6 +60,8 @@ impl Streams for ValidatedStreamsNode {
 }
 
 impl ValidatedStreamsNode {
+    /// enables the current node to be a validated streams node by runing the core componenets
+    /// which are the EventService, the StreamsGossip and the gRPC server.
 	pub async fn run(
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		client: Arc<FullClient>,

@@ -17,7 +17,7 @@ use libp2p::{
 	tcp, tls, Multiaddr, PeerId, Swarm, Transport,
 };
 use std::sync::Arc;
-
+/// represents a topic and a serialized message to be sent over the network 
 pub struct Order(IdentTopic, Vec<u8>);
 pub struct StreamsGossip {
 	pub key: Keypair,
@@ -25,6 +25,8 @@ pub struct StreamsGossip {
 }
 
 impl StreamsGossip {
+    /// creates a new StreamsGossip that uses the tcp transport over mplex and tls
+    /// with gossipsub behaviour
 	pub async fn new() -> StreamsGossip {
 		let key = StreamsGossip::create_keys();
 		let transport = StreamsGossip::get_transport(key.clone()).await;
@@ -34,15 +36,15 @@ impl StreamsGossip {
 		let swarm = Arc::new(Mutex::new(StreamsGossip::create_swarm(transport, behavior, peer_id)));
 		StreamsGossip { key, swarm }
 	}
-
+    /// creates ed255519 keypair
 	pub fn create_keys() -> Keypair {
 		identity::Keypair::generate_ed25519()
 	}
-
+    /// retreive the peerid from the given keypair
 	pub fn get_peer_id(key: Keypair) -> PeerId {
 		PeerId::from(key.public())
 	}
-
+    /// create a tcp transport over mplex and tls
 	pub async fn get_transport(key: Keypair) -> Boxed<(PeerId, StreamMuxerBox)> {
 		tcp::async_io::Transport::new(tcp::Config::default())
 			.upgrade(upgrade::Version::V1)
@@ -50,7 +52,7 @@ impl StreamsGossip {
 			.multiplex(mplex::MplexConfig::new())
 			.boxed()
 	}
-
+    /// creates a gossipsub behaviour
 	pub fn get_behavior(key: Keypair) -> Gossipsub {
 		let message_authenticity = MessageAuthenticity::Signed(key);
 		// set default parameters for gossipsub
@@ -58,7 +60,7 @@ impl StreamsGossip {
 		// build a gossipsub network behaviour
 		gossipsub::Gossipsub::new(message_authenticity, gossipsub_config).unwrap()
 	}
-
+    
 	pub fn create_swarm(
 		transport: Boxed<(PeerId, StreamMuxerBox)>,
 		behaviour: Gossipsub,
@@ -83,7 +85,7 @@ impl StreamsGossip {
 	pub async fn subscribe(&self, topic: IdentTopic) {
 		self.swarm.lock().await.behaviour_mut().subscribe(&topic).ok();
 	}
-
+    /// publish a message to the network by sending an order to the swarm via an mpsc channel
 	pub async fn publish(mut tx: Sender<Order>, topic: IdentTopic, message: Vec<u8>) {
 		tx.send(Order(topic, message))
 			.await
@@ -99,8 +101,11 @@ impl StreamsGossip {
 			.expect("failed listening on provided Address");
 		log::info!("Listening on {:?}", addr);
 	}
-
-	pub async fn handle_incoming_messages(
+    /// starts an event loop in another thread that receives diffrent events both from the network
+    /// and events to gossip messages via an mpsc channel, in order to use this function,
+    /// you need to pass it a GossipSub swarm and an mpsc receiver in order to gossip messages and
+    /// an event service for handling WitnessedEvent messages. 
+    async fn handle_incoming_messages(
 		swarm: Arc<Mutex<Swarm<Gossipsub>>>,
 		mut rc: Receiver<Order>,
 		events_service: Arc<EventService>,
@@ -123,14 +128,15 @@ impl StreamsGossip {
 						}
 					}
 					order = rc.select_next_some() =>{
-						match guard.behaviour_mut().publish(order.0, order.1){
-								Ok(id)=>{log::info!("Gossiped msg with id:{:?}",id)},
-								Err(e)=>{log::info!("Failed Gossiping message with Error: {:?}",e)}
-							}
+						if let Err(e)= guard.behaviour_mut().publish(order.0, order.1){
+							log::info!("Failed Gossiping message with Error: {:?}",e);        
 					}
-			}
-		}
-	}
+			    }
+		    }
+	    }
+    }
+    /// start listening for  incoming messages and dial the bootstrap peers from 
+    /// the NetworkConfiguration and subscribes to the WitnessedEvent topic
 	pub async fn start(&self, rc: Receiver<Order>, events_service: Arc<EventService>) {
 		let self_addr = LocalNetworkConfiguration::self_multiaddr();
 		let peers = LocalNetworkConfiguration::peers_multiaddrs(self_addr.clone());

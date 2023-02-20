@@ -61,12 +61,9 @@ pub mod pallet {
 	#[pallet::validate_unsigned]
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
-		fn validate_unsigned(
-			_source: TransactionSource,
-			_call: &Self::Call,
-		) -> TransactionValidity {
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 			ValidTransaction::with_tag_prefix("validated_streams")
-				.and_provides(b"validate_event".to_vec())
+				.and_provides(call.encode())
 				.build()
 		}
 	}

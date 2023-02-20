@@ -7,8 +7,11 @@ pub mod tests;
 use crate::streams::{errors::Error, services::events::WitnessedEvent};
 use sp_core::H256;
 pub trait EventProofs {
+	///cheks whether the event proofs database contains a proof for the given event id
 	fn contains(&self, event_id: H256) -> Result<bool, Error>;
+	/// adds an event proof from the given witnessed event if it has not yet been added
 	fn add_event_proof(&self, event: &WitnessedEvent, origin: Vec<u8>) -> Result<u16, Error>;
+	/// retreive the proof count for the given event id
 	fn get_proof_count(&self, event_id: H256) -> Result<u16, Error>;
 }
 

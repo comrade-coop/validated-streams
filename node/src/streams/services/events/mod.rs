@@ -69,10 +69,13 @@ impl EventService {
 			client,
 		}
 	}
+    /// calcultes the minimum number of validators to witness an event in order for it to be valid
 	pub fn target(num_validators: usize) -> u16 {
 		(2 * ((num_validators - 1) / 3) + 1) as u16
 	}
-
+    /// receives client requests for handling incoming witnessed events, if the event has not been
+    /// witnessed previously it adds it to the EventProofs and gossips the event for other
+    /// validators
 	pub async fn handle_client_request(&self, event: H256) -> Result<String, Error> {
 		let witnessed_event = self.create_witnessed_event(event).await?;
 		let response = self.handle_witnessed_event(witnessed_event.clone()).await?;
@@ -86,7 +89,10 @@ impl EventService {
 		.await;
 		Ok(response)
 	}
-	//verify that source is one of validators
+	/// every incoming WitnessedEvent event should go through this function for processing the
+    /// message outcome, it verifies the WitnessedEvent than it tries to add it to the EventProofs,
+    /// and if its not already added it checks whether it reached the required target or not, if it
+    /// did it submits it to the transaction pool 
 	pub async fn handle_witnessed_event(
 		&self,
 		witnessed_event: WitnessedEvent,
@@ -97,7 +103,6 @@ impl EventService {
 				.add_event_proof(&witnessed_event, witnessed_event.pub_key.clone())
 			{
 				Ok(proof_count) => {
-					log::info!("proof count is at:{}", proof_count);
 					if proof_count == self.target {
 						self.submit_event_extrinsic(witnessed_event.event_id).await?;
 						Ok(format!("Event:{} has been witnessed by a mjority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count))
@@ -118,7 +123,8 @@ impl EventService {
 			Err(Error::Other("bad witnessed_event signature or origin is not a validator".to_string()))
 		}
 	}
-
+    /// create a validated streams unsigned extrinsic with the given event_id and submits it to the
+    /// transaction pool
 	pub async fn submit_event_extrinsic(&self, event_id: H256) -> Result<H256, Error> {
 		let best_block_id = BlockId::hash(self.client.info().best_hash);
 		let unsigned_extrinsic = self
@@ -133,7 +139,7 @@ impl EventService {
 			.await
 			.map_err(|e| Error::Other(e.to_string()))
 	}
-
+    /// updates the list of validators
 	pub async fn update_validators(
 		client: Arc<FullClient>,
 		validators: Arc<Mutex<Vec<Public>>>,
@@ -150,6 +156,7 @@ impl EventService {
 				.collect();
 		Ok(true)
 	}
+    /// creates a signed witnessed event messages
 	pub async fn create_witnessed_event(&self, event_id: H256) -> Result<WitnessedEvent, Error> {
 		match self
 			.keyvault
@@ -187,6 +194,9 @@ impl EventService {
 			Ok(false)
 		}
 	}
+    /// calculates the target from the latest finalized block and checks wether each event in ids
+    /// reaches the target, it returns a result that contains only the events that did Not reach
+    /// the target yet or completely unwitnessed events
 	pub fn verify_events_validity(
 		client: Arc<FullClient>,
 		event_proofs: Arc<dyn EventProofs>,
@@ -212,10 +222,12 @@ impl EventService {
 		}
 		Ok(unprepared_ids)
 	}
+    /// starts a loop in another thread that listens for incoming finalized block and update the
+    /// list of validators after each one
 	async fn handle_imported_blocks(client: Arc<FullClient>, validators: Arc<Mutex<Vec<Public>>>) {
 		tokio::spawn(async move {
 			loop {
-				client.import_notification_stream().select_next_some().await;
+				client.finality_notification_stream().select_next_some().await;
 				if let Err(e) =
 					EventService::update_validators(client.clone(), validators.clone()).await
 				{

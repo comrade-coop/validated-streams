@@ -7,40 +7,43 @@ use sp_core::{sr25519::Public, ByteArray, H256};
 use sp_keystore::CryptoStore;
 use sp_runtime::{app_crypto::CryptoTypePublicPair, KeyTypeId};
 use std::io::Error;
+use futures::StreamExt;
+use sc_client_api::BlockchainEvents;
 pub struct KeyVault {
 	pub keystore: Arc<dyn CryptoStore>,
 	pub keys: CryptoTypePublicPair,
 	pub pubkey: Public,
 }
 impl KeyVault {
-	/// Create a new KeyVault by getting the list of authorities from Aura and retreiving the
-	/// apporiate keys that are used by the current validator
+    /// this blocking method returns only when node has been added as a validator, by listening to
+    /// incoming finalized blocks and checking whether the node has been added in the list of
+    /// authorities or not.
 	pub async fn new(
 		keystore: Arc<dyn CryptoStore>,
 		client: Arc<FullClient>,
 		key_type: KeyTypeId,
 	) -> Result<KeyVault, Error> {
-		let sr25519_keys = keystore.sr25519_public_keys(key_type).await;
-		if let Some(pubkey) = sr25519_keys
+
+        loop {
+            client.finality_notification_stream().select_next_some().await;
+		    let sr25519_keys = keystore.sr25519_public_keys(key_type).await;
+		    if let Some(pubkey) = sr25519_keys
 			.into_iter()
 			.find(|key| KeyVault::validators_pubkeys(client.clone()).contains(key))
-		{
-			// when should one have more than one key for one consensus algorithm?
-			let keys = keystore
+		    {
+                log::info!("node is currently a validator according to the latest finalized block");
+			    let keys = keystore
 				.keys(key_type)
 				.await
 				.unwrap()
 				.get(0)
 				.expect("failed retreiving validator keypair from keystore")
 				.clone();
-			Ok(KeyVault { keystore, keys, pubkey })
-		} else {
-			Err(Error::new(
-				std::io::ErrorKind::NotFound,
-				"Self pubkey was not found in the list of validators".to_string(),
-			))
+			    return Ok(KeyVault { keystore, keys, pubkey });
+			}
 		}
-	}
+    }
+    /// returns a list of sr25519 validators public keys
 	pub fn validators_pubkeys(client: Arc<FullClient>) -> Vec<Public> {
 		let block_id = BlockId::Number(client.chain_info().best_number);
 		let authority_ids = client
