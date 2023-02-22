@@ -175,16 +175,14 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		other: (block_import, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
 
-	task_manager.spawn_handle().spawn_blocking(
-		"gRPC server",
-		None,
-		ValidatedStreamsNode::run(
-			block_import.event_proofs.clone(),
-			client.clone(),
-			keystore_container.keystore().clone(),
-			transaction_pool.clone(),
-		),
-	);
+	ValidatedStreamsNode::start(
+		task_manager.spawn_handle(),
+		block_import.event_proofs.clone(),
+		client.clone(),
+		keystore_container.keystore().clone(),
+		transaction_pool.clone(),
+	)?;
+
 	if let Some(url) = &config.keystore_remote {
 		match remote_keystore(url) {
 			Ok(k) => keystore_container.set_remote_keystore(k),

@@ -9,6 +9,7 @@ use crate::{
 use futures::channel::mpsc::channel;
 use local_ip_address::local_ip;
 use node_runtime::opaque::Block;
+use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
 use sc_transaction_pool::{BasicPool, FullChainApi};
 use sp_core::H256;
 use sp_keystore::CryptoStore;
@@ -34,7 +35,7 @@ pub struct ValidatedStreamsNode {
 
 #[tonic::async_trait]
 impl Streams for ValidatedStreamsNode {
-    async fn validate_event(
+	async fn validate_event(
 		&self,
 		request: Request<ValidateEventRequest>,
 	) -> Result<Response<ValidateEventResponse>, Status> {
@@ -43,8 +44,7 @@ impl Streams for ValidatedStreamsNode {
 			.ok_or_else(|| Status::aborted("Malformed Request, can't retreive Origin address"))?;
 		log::info!("Received a request from {:?}", remote_addr);
 		let event = request.into_inner();
-		//double check that event_id is 32 bytes long otherwise could
-		//risk panicing when creating h256 hash
+		// check that event_id is 32 bytes otherwise H256::from_slice would panic
 		if event.event_id.len() == 32 {
 			Ok(Response::new(ValidateEventResponse {
 				status: self
@@ -60,8 +60,23 @@ impl Streams for ValidatedStreamsNode {
 }
 
 impl ValidatedStreamsNode {
-    /// enables the current node to be a validated streams node by runing the core componenets
-    /// which are the EventService, the StreamsGossip and the gRPC server.
+	/// enables the current node to be a validated streams node by runing the core componenets
+	/// which are the EventService, the StreamsGossip and the gRPC server.
+	pub fn start(
+		spawn_handle: SpawnTaskHandle,
+		event_proofs: Arc<dyn EventProofs + Send + Sync>,
+		client: Arc<FullClient>,
+		keystore: Arc<dyn CryptoStore>,
+		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
+	) -> Result<(), ServiceError> {
+		spawn_handle.spawn_blocking(
+			"gRPC server",
+			None,
+			Self::run(event_proofs, client, keystore, tx_pool),
+		);
+		Ok(())
+	}
+
 	pub async fn run(
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		client: Arc<FullClient>,
@@ -70,39 +85,46 @@ impl ValidatedStreamsNode {
 	) {
 		//wait until all keys are created by aura
 		tokio::time::sleep(Duration::from_millis(3000)).await;
-		if let Ok(keyvault) = KeyVault::new(keystore, client.clone(), AURA).await {
-			let (tx, rc) = channel(64);
-			let events_service = Arc::new(
-				EventService::new(
-					KeyVault::validators_pubkeys(client.clone()),
-					event_proofs,
-					tx,
-					keyvault,
-					tx_pool,
-					client,
-				)
-				.await,
-			);
-			let events_service_clone = events_service.clone();
-			let streams_gossip = StreamsGossip::new().await;
-			streams_gossip.start(rc, events_service_clone).await;
 
-			match tokio::spawn(async move {
-				log::info!("Server could be reached at {}", local_ip().unwrap().to_string());
-				Server::builder()
-					.add_service(StreamsServer::new(ValidatedStreamsNode { events_service }))
-					.serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address"))
-					.await
-			})
-			.await
-			{
-				Ok(_) => (),
-				Err(e) => {
-					panic!("Failed Creating StreamsServer due to Err: {}", e);
-				},
+		let keyvault = {
+			if let Ok(x) = KeyVault::new(keystore, client.clone(), AURA).await {
+				x
+			} else {
+				log::info!("node is not a validator");
+				return
 			}
-		} else {
-			log::info!("node is not a validator");
+		};
+
+		// FIXME
+
+		let (streams_gossip_tx, streams_service_rc) = channel(64);
+		let events_service = Arc::new(
+			EventService::new(
+				KeyVault::validators_pubkeys(client.clone()),
+				event_proofs,
+				streams_gossip_tx,
+				keyvault,
+				tx_pool,
+				client,
+			)
+			.await,
+		);
+		let streams_gossip = StreamsGossip::new().await;
+		streams_gossip.start(streams_service_rc, events_service.clone()).await;
+
+		match tokio::spawn(async move {
+			log::info!("Server could be reached at {}", local_ip().unwrap().to_string());
+			Server::builder()
+				.add_service(StreamsServer::new(ValidatedStreamsNode { events_service }))
+				.serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address"))
+				.await
+		})
+		.await
+		{
+			Ok(_) => (),
+			Err(e) => {
+				panic!("Failed Creating StreamsServer due to Err: {}", e);
+			},
 		}
 	}
 }

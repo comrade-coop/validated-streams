@@ -1,4 +1,5 @@
-use crate::{service::FullClient,
+use crate::{
+	service::FullClient,
 	streams::{
 		errors::Error,
 		gossip::{Order, StreamsGossip},
@@ -69,13 +70,13 @@ impl EventService {
 			client,
 		}
 	}
-    /// calcultes the minimum number of validators to witness an event in order for it to be valid
+	/// calcultes the minimum number of validators to witness an event in order for it to be valid
 	pub fn target(num_validators: usize) -> u16 {
 		(2 * ((num_validators - 1) / 3) + 1) as u16
 	}
-    /// receives client requests for handling incoming witnessed events, if the event has not been
-    /// witnessed previously it adds it to the EventProofs and gossips the event for other
-    /// validators
+	/// receives client requests for handling incoming witnessed events, if the event has not been
+	/// witnessed previously it adds it to the EventProofs and gossips the event for other
+	/// validators
 	pub async fn handle_client_request(&self, event: H256) -> Result<String, Error> {
 		let witnessed_event = self.create_witnessed_event(event).await?;
 		let response = self.handle_witnessed_event(witnessed_event.clone()).await?;
@@ -90,19 +91,25 @@ impl EventService {
 		Ok(response)
 	}
 	/// every incoming WitnessedEvent event should go through this function for processing the
-    /// message outcome, it verifies the WitnessedEvent than it tries to add it to the EventProofs,
-    /// and if its not already added it checks whether it reached the required target or not, if it
-    /// did it submits it to the transaction pool 
+	/// message outcome, it verifies the WitnessedEvent than it tries to add it to the EventProofs,
+	/// and if its not already added it checks whether it reached the required target or not, if it
+	/// did it submits it to the transaction pool
 	pub async fn handle_witnessed_event(
 		&self,
 		witnessed_event: WitnessedEvent,
 	) -> Result<String, Error> {
-		if EventService::verify_witnessed_event(&*self.validators.lock().map_err(|_| Error::LockFail("ValidatorsList".to_string()))?,&witnessed_event)? {
+		if EventService::verify_witnessed_event(
+			&self
+				.validators
+				.lock()
+				.map_err(|_| Error::LockFail("ValidatorsList".to_string()))?,
+			&witnessed_event,
+		)? {
 			match self
 				.event_proofs
 				.add_event_proof(&witnessed_event, witnessed_event.pub_key.clone())
 			{
-				Ok(proof_count) => {
+				Ok(proof_count) =>
 					if proof_count == self.target {
 						self.submit_event_extrinsic(witnessed_event.event_id).await?;
 						Ok(format!("Event:{} has been witnessed by a mjority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count))
@@ -111,8 +118,7 @@ impl EventService {
 							"Event:{} has been added to the event proofs, Current Proof Count:{}",
 							witnessed_event.event_id, proof_count
 						))
-					}
-				},
+					},
 				Err(e) => {
 					log::info!("{}", e);
 					Err(e)
@@ -120,11 +126,13 @@ impl EventService {
 			}
 		} else {
 			log::error!("witnessed_event not valid (bad signature or origin is not a validator)");
-			Err(Error::Other("bad witnessed_event signature or origin is not a validator".to_string()))
+			Err(Error::Other(
+				"bad witnessed_event signature or origin is not a validator".to_string(),
+			))
 		}
 	}
-    /// create a validated streams unsigned extrinsic with the given event_id and submits it to the
-    /// transaction pool
+	/// create a validated streams unsigned extrinsic with the given event_id and submits it to the
+	/// transaction pool
 	pub async fn submit_event_extrinsic(&self, event_id: H256) -> Result<H256, Error> {
 		let best_block_id = BlockId::hash(self.client.info().best_hash);
 		let unsigned_extrinsic = self
@@ -139,7 +147,7 @@ impl EventService {
 			.await
 			.map_err(|e| Error::Other(e.to_string()))
 	}
-    /// updates the list of validators
+	/// updates the list of validators
 	pub async fn update_validators(
 		client: Arc<FullClient>,
 		validators: Arc<Mutex<Vec<Public>>>,
@@ -152,11 +160,11 @@ impl EventService {
 		*validators.lock().map_err(|_| Error::LockFail("ValidatorsList".to_string()))? =
 			authority_ids
 				.iter()
-				.map(|pubkey| Public::from_h256(H256::from_slice(pubkey.as_slice())))
+				.map(|pubkey| Public::from_slice(pubkey.as_slice()).unwrap())
 				.collect();
 		Ok(true)
 	}
-    /// creates a signed witnessed event messages
+	/// creates a signed witnessed event messages
 	pub async fn create_witnessed_event(&self, event_id: H256) -> Result<WitnessedEvent, Error> {
 		match self
 			.keyvault
@@ -180,23 +188,27 @@ impl EventService {
 
 	/// verifies whether the received witnessed event was originited by one of the validators
 	/// than proceeds to retreiving the pubkey and the signature and checks the signature
-	fn verify_witnessed_event(validators:&Vec<Public>, witnessed_event: &WitnessedEvent) -> Result<bool, Error> {
+	fn verify_witnessed_event(
+		validators: &[Public],
+		witnessed_event: &WitnessedEvent,
+	) -> Result<bool, Error> {
 		let pubkey = Public::from_slice(witnessed_event.pub_key.as_slice()).map_err(|_| {
 			Error::Other("cant retreive sr25519 keys from WitnessedEvent".to_string())
 		})?;
-		if validators.contains(&pubkey)
-		{
-			let signature = Signature::from_slice(witnessed_event.signature.as_slice()).ok_or(
-                Error::Other("cant create sr25519 signature from witnessed event".to_string()))?;
+		if validators.contains(&pubkey) {
+			let signature = Signature::from_slice(witnessed_event.signature.as_slice())
+				.ok_or_else(|| {
+					Error::Other("cant create sr25519 signature from witnessed event".to_string())
+				})?;
 			Ok(pubkey.verify(&witnessed_event.event_id, &signature))
 		} else {
 			log::error!("received a gossip message from a non validator");
 			Ok(false)
 		}
 	}
-    /// calculates the target from the latest finalized block and checks wether each event in ids
-    /// reaches the target, it returns a result that contains only the events that did Not reach
-    /// the target yet or completely unwitnessed events
+	/// calculates the target from the latest finalized block and checks wether each event in ids
+	/// reaches the target, it returns a result that contains only the events that did Not reach
+	/// the target yet or completely unwitnessed events
 	pub fn verify_events_validity(
 		client: Arc<FullClient>,
 		event_proofs: Arc<dyn EventProofs>,
@@ -222,8 +234,8 @@ impl EventService {
 		}
 		Ok(unprepared_ids)
 	}
-    /// starts a loop in another thread that listens for incoming finalized block and update the
-    /// list of validators after each one
+	/// starts a loop in another thread that listens for incoming finalized block and update the
+	/// list of validators after each one
 	async fn handle_imported_blocks(client: Arc<FullClient>, validators: Arc<Mutex<Vec<Public>>>) {
 		tokio::spawn(async move {
 			loop {
