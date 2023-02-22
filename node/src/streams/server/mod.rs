@@ -1,12 +1,12 @@
 use crate::{
 	service::FullClient,
 	streams::{
+		configs::LocalNetworkConfiguration,
 		gossip::StreamsGossip,
 		proofs::EventProofs,
 		services::events::{keyvault::KeyVault, EventService},
 	},
 };
-use futures::channel::mpsc::channel;
 use local_ip_address::local_ip;
 use node_runtime::opaque::Block;
 use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
@@ -72,12 +72,13 @@ impl ValidatedStreamsNode {
 		spawn_handle.spawn_blocking(
 			"gRPC server",
 			None,
-			Self::run(event_proofs, client, keystore, tx_pool),
+			Self::run(spawn_handle.clone(), event_proofs, client, keystore, tx_pool),
 		);
 		Ok(())
 	}
 
 	pub async fn run(
+		spawn_handle: SpawnTaskHandle,
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		client: Arc<FullClient>,
 		keystore: Arc<dyn CryptoStore>,
@@ -95,22 +96,26 @@ impl ValidatedStreamsNode {
 			}
 		};
 
-		// FIXME
+		let (streams_gossip, streams_gossip_service) = StreamsGossip::create();
 
-		let (streams_gossip_tx, streams_service_rc) = channel(64);
+		let self_addr = LocalNetworkConfiguration::self_multiaddr();
+		let peers = LocalNetworkConfiguration::peers_multiaddrs(self_addr.clone());
+
 		let events_service = Arc::new(
 			EventService::new(
 				KeyVault::validators_pubkeys(client.clone()),
 				event_proofs,
-				streams_gossip_tx,
+				streams_gossip,
 				keyvault,
 				tx_pool,
 				client,
 			)
 			.await,
 		);
-		let streams_gossip = StreamsGossip::new().await;
-		streams_gossip.start(streams_service_rc, events_service.clone()).await;
+
+		streams_gossip_service
+			.start(spawn_handle, self_addr, peers, events_service.clone())
+			.await;
 
 		match tokio::spawn(async move {
 			log::info!("Server could be reached at {}", local_ip().unwrap().to_string());

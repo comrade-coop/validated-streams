@@ -2,13 +2,14 @@ use crate::{
 	service::FullClient,
 	streams::{
 		errors::Error,
-		gossip::{Order, StreamsGossip},
+		gossip::{StreamsGossip, StreamsGossipHandler},
 		proofs::EventProofs,
 	},
 };
 use sp_consensus_aura::AuraApi;
 pub mod keyvault;
-use futures::{channel::mpsc::Sender, StreamExt};
+use async_trait::async_trait;
+use futures::StreamExt;
 use keyvault::KeyVault;
 use libp2p::gossipsub::IdentTopic;
 use node_runtime::{
@@ -43,16 +44,20 @@ pub struct EventService {
 	target: u16,
 	validators: Arc<Mutex<Vec<Public>>>,
 	event_proofs: Arc<dyn EventProofs + Send + Sync>,
-	order_transmitter: Sender<Order>,
+	streams_gossip: StreamsGossip,
 	keyvault: KeyVault,
 	tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 	client: Arc<FullClient>,
 }
 impl EventService {
+	fn get_witnessed_events_topic() -> IdentTopic {
+		IdentTopic::new("WitnessedEvent")
+	}
+
 	pub async fn new(
 		validators: Vec<Public>,
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
-		order_transmitter: Sender<Order>,
+		streams_gossip: StreamsGossip,
 		keyvault: KeyVault,
 		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 		client: Arc<FullClient>,
@@ -60,15 +65,7 @@ impl EventService {
 		let target = EventService::target(validators.len());
 		let validators = Arc::new(Mutex::new(validators.clone()));
 		EventService::handle_imported_blocks(client.clone(), validators.clone()).await;
-		EventService {
-			target,
-			validators,
-			event_proofs,
-			order_transmitter,
-			keyvault,
-			tx_pool,
-			client,
-		}
+		EventService { target, validators, event_proofs, streams_gossip, keyvault, tx_pool, client }
 	}
 	/// calcultes the minimum number of validators to witness an event in order for it to be valid
 	pub fn target(num_validators: usize) -> u16 {
@@ -82,12 +79,10 @@ impl EventService {
 		let response = self.handle_witnessed_event(witnessed_event.clone()).await?;
 		let serilized_event = bincode::serialize(&witnessed_event)
 			.map_err(|e| Error::SerilizationFailure(e.to_string()))?;
-		StreamsGossip::publish(
-			self.order_transmitter.clone(),
-			IdentTopic::new("WitnessedEvent"),
-			serilized_event,
-		)
-		.await;
+		self.streams_gossip
+			.clone()
+			.publish(Self::get_witnessed_events_topic(), serilized_event)
+			.await;
 		Ok(response)
 	}
 	/// every incoming WitnessedEvent event should go through this function for processing the
@@ -247,5 +242,19 @@ impl EventService {
 				}
 			}
 		});
+	}
+}
+#[async_trait]
+impl StreamsGossipHandler for EventService {
+	fn get_topics() -> Vec<IdentTopic> {
+		vec![Self::get_witnessed_events_topic()]
+	}
+	async fn handle(&self, message_data: Vec<u8>) {
+		match bincode::deserialize::<WitnessedEvent>(message_data.as_slice()) {
+			Ok(witnessed_event) => {
+				self.handle_witnessed_event(witnessed_event).await.ok();
+			},
+			Err(e) => log::error!("failed deserilizing message data due to error:{:?}", e),
+		}
 	}
 }
