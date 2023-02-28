@@ -6,7 +6,6 @@ use crate::{
 		proofs::EventProofs,
 	},
 };
-use sp_consensus_aura::AuraApi;
 use async_trait::async_trait;
 use futures::StreamExt;
 use libp2p::gossipsub::IdentTopic;
@@ -20,12 +19,13 @@ use sc_transaction_pool::{BasicPool, FullChainApi};
 use sc_transaction_pool_api::TransactionSource;
 use serde::{Deserialize, Serialize};
 use sp_api::ProvideRuntimeApi;
+use sp_consensus_aura::AuraApi;
 use sp_core::{
 	sr25519::{Public, Signature},
 	ByteArray, H256,
 };
 use sp_keystore::CryptoStore;
-use sp_runtime::{app_crypto::CryptoTypePublicPair};
+use sp_runtime::app_crypto::CryptoTypePublicPair;
 #[cfg(test)]
 pub mod tests;
 use sp_runtime::{app_crypto::RuntimePublic, key_types::AURA, OpaqueExtrinsic};
@@ -42,7 +42,7 @@ pub struct WitnessedEvent {
 
 #[derive(Clone, Debug)]
 pub struct EventServiceBlockState {
-	pub validators: Vec<CryptoTypePublicPair>
+	pub validators: Vec<CryptoTypePublicPair>,
 }
 impl EventServiceBlockState {
 	// creates a new EventServiceBlockState
@@ -96,7 +96,7 @@ impl EventService {
 		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 		client: Arc<FullClient>,
 	) -> EventService {
-		let block_state = Arc::new(RwLock::new(EventServiceBlockState::new(vec!())));
+		let block_state = Arc::new(RwLock::new(EventServiceBlockState::new(vec![])));
 		Self::handle_imported_blocks(client.clone(), block_state.clone()).await;
 		EventService { block_state, event_proofs, streams_gossip, keystore, tx_pool, client }
 	}
@@ -124,20 +124,24 @@ impl EventService {
 	async fn sign_witnessed_event(&self, event_id: H256) -> Result<WitnessedEvent, Error> {
 		let block_state = self.block_state.read()?.clone();
 
-		let supported_keys = self.keystore.supported_keys(AURA, block_state.validators).await.map_err(|e| Error::Other(e.to_string()))?;
+		let supported_keys = self
+			.keystore
+			.supported_keys(AURA, block_state.validators)
+			.await
+			.map_err(|e| Error::Other(e.to_string()))?;
 		//log::info!("node is currently a validator");
 
-		let signing_pubkey = supported_keys.get(0).ok_or_else(|| Error::Other("Not a validator".to_string()))?;
+		let signing_pubkey = supported_keys
+			.get(0)
+			.ok_or_else(|| Error::Other("Not a validator".to_string()))?;
 
 		if let Some(sig) = self
 			.keystore
 			.sign_with(AURA, &signing_pubkey, event_id.as_bytes())
-			.await.map_err(|e| Error::Other(e.to_string()))? {
-			Ok(WitnessedEvent {
-				signature: sig,
-				pub_key: signing_pubkey.1.to_vec(),
-				event_id,
-			})
+			.await
+			.map_err(|e| Error::Other(e.to_string()))?
+		{
+			Ok(WitnessedEvent { signature: sig, pub_key: signing_pubkey.1.to_vec(), event_id })
 		} else {
 			Err(Error::Other("Failed retriving signature".to_string()))
 		}
@@ -166,15 +170,20 @@ impl EventService {
 
 	/// starts a loop in another thread that listens for incoming finalized block and update the
 	/// list of validators after each one
-	async fn handle_imported_blocks(client: Arc<FullClient>, block_state: Arc<RwLock<EventServiceBlockState>>) {
+	async fn handle_imported_blocks(
+		client: Arc<FullClient>,
+		block_state: Arc<RwLock<EventServiceBlockState>>,
+	) {
 		tokio::spawn(async move {
 			loop {
-				let finality_notification = client.finality_notification_stream().select_next_some().await;
+				let finality_notification =
+					client.finality_notification_stream().select_next_some().await;
 
 				if let Err(e) =
 					Self::get_block_state(client.clone(), BlockId::hash(finality_notification.hash))
-						.map(|public_keys| block_state.write()
-							.map(|mut guard| *guard = public_keys.clone())) {
+						.map(|public_keys| {
+							block_state.write().map(|mut guard| *guard = public_keys.clone())
+						}) {
 					log::error!("{}", e.to_string());
 				}
 			}
@@ -224,9 +233,7 @@ impl EventService {
 		witnessed_event: WitnessedEvent,
 	) -> Result<String, Error> {
 		let (witnessed_event, target) = {
-			let block_state = &self
-			.block_state
-			.read()?;
+			let block_state = &self.block_state.read()?;
 			(block_state.verify_witnessed_event_origin(witnessed_event)?, block_state.target())
 		};
 
@@ -235,7 +242,9 @@ impl EventService {
 			.add_event_proof(&witnessed_event, witnessed_event.pub_key.clone())
 		{
 			Ok(proof_count) =>
-				if proof_count == target { // FIXME: changing the validators can lead to a case where the target changes and never meets the proof count!
+				if proof_count == target {
+					// FIXME: changing the validators can lead to a case where the target changes
+					// and never meets the proof count!
 					self.submit_event_extrinsic(witnessed_event.event_id).await?;
 					Ok(format!("Event:{} has been witnessed by a mjority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count))
 				} else {

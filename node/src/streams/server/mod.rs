@@ -1,22 +1,11 @@
-use crate::{
-	service::FullClient,
-	streams::{
-		configs::LocalNetworkConfiguration,
-		gossip::StreamsGossip,
-		proofs::EventProofs,
-		services::events::EventService,
-	},
-};
+use crate::streams::services::events::EventService;
 use local_ip_address::local_ip;
-use node_runtime::opaque::Block;
-use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
-use sc_transaction_pool::{BasicPool, FullChainApi};
+
 use sp_core::H256;
-use sp_keystore::CryptoStore;
+
 use std::{
 	io::{Error, ErrorKind},
 	sync::Arc,
-	time::Duration,
 };
 pub use tonic::{transport::Server, Request, Response, Status};
 pub use validated_streams::{
@@ -28,12 +17,23 @@ pub mod validated_streams {
 	tonic::include_proto!("validated_streams");
 }
 
-pub struct ValidatedStreamsNode {
+pub struct ValidatedStreamsGrpc {
 	events_service: Arc<EventService>,
 }
 
+impl ValidatedStreamsGrpc {
+	pub async fn run(events_service: Arc<EventService>) -> Result<(), Error> {
+		log::info!("Server could be reached at {}", local_ip().unwrap().to_string());
+		Server::builder()
+			.add_service(StreamsServer::new(ValidatedStreamsGrpc { events_service }))
+			.serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address"))
+			.await
+			.map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
+	}
+}
+
 #[tonic::async_trait]
-impl Streams for ValidatedStreamsNode {
+impl Streams for ValidatedStreamsGrpc {
 	async fn validate_event(
 		&self,
 		request: Request<ValidateEventRequest>,
@@ -54,71 +54,6 @@ impl Streams for ValidatedStreamsNode {
 			}))
 		} else {
 			Err(Error::new(ErrorKind::Other, "invalid event_id sent".to_string()).into())
-		}
-	}
-}
-
-impl ValidatedStreamsNode {
-	/// enables the current node to be a validated streams node by runing the core componenets
-	/// which are the EventService, the StreamsGossip and the gRPC server.
-	pub fn start(
-		spawn_handle: SpawnTaskHandle,
-		event_proofs: Arc<dyn EventProofs + Send + Sync>,
-		client: Arc<FullClient>,
-		keystore: Arc<dyn CryptoStore>,
-		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
-	) -> Result<(), ServiceError> {
-		spawn_handle.spawn_blocking(
-			"gRPC server",
-			None,
-			Self::run(spawn_handle.clone(), event_proofs, client, keystore, tx_pool),
-		);
-		Ok(())
-	}
-
-	pub async fn run(
-		spawn_handle: SpawnTaskHandle,
-		event_proofs: Arc<dyn EventProofs + Send + Sync>,
-		client: Arc<FullClient>,
-		keystore: Arc<dyn CryptoStore>,
-		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
-	) {
-		//wait until all keys are created by aura
-		tokio::time::sleep(Duration::from_millis(3000)).await;
-
-		let (streams_gossip, streams_gossip_service) = StreamsGossip::create();
-
-		let self_addr = LocalNetworkConfiguration::self_multiaddr();
-		let peers = LocalNetworkConfiguration::peers_multiaddrs(self_addr.clone());
-
-		let events_service = Arc::new(
-			EventService::new(
-				event_proofs,
-				streams_gossip,
-				keystore,
-				tx_pool,
-				client,
-			)
-			.await,
-		);
-
-		streams_gossip_service
-			.start(spawn_handle, self_addr, peers, events_service.clone())
-			.await;
-
-		match tokio::spawn(async move {
-			log::info!("Server could be reached at {}", local_ip().unwrap().to_string());
-			Server::builder()
-				.add_service(StreamsServer::new(ValidatedStreamsNode { events_service }))
-				.serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address"))
-				.await
-		})
-		.await
-		{
-			Ok(_) => (),
-			Err(e) => {
-				panic!("Failed Creating StreamsServer due to Err: {}", e);
-			},
 		}
 	}
 }

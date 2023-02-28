@@ -1,7 +1,7 @@
 use super::{EventServiceBlockState, WitnessedEvent};
 use sc_keystore::LocalKeystore;
-use sp_keystore::CryptoStore;
 use sp_core::{sr25519::Public, H256};
+use sp_keystore::CryptoStore;
 use sp_runtime::{app_crypto::CryptoTypePublicPair, key_types::AURA};
 
 #[tokio::test]
@@ -25,7 +25,7 @@ async fn test_verify_events() {
 	//create an invalid signature
 	let mut invalid_sig_event = witnessed_event.clone();
 	invalid_sig_event.signature.push(8);
-	let result =block_state.verify_witnessed_event_origin(invalid_sig_event);
+	let result = block_state.verify_witnessed_event_origin(invalid_sig_event);
 	assert!(result.is_err());
 
 	let mut bad_sig_event = witnessed_event.clone();
