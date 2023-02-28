@@ -24,3 +24,8 @@ impl fmt::Display for Error {
 	}
 }
 impl E for Error {}
+impl<T> From<std::sync::PoisonError<T>> for Error {
+	fn from(_e: std::sync::PoisonError<T>) -> Error {
+		Error::LockFail("PoisonError".to_string())
+	}
+}

@@ -4,7 +4,7 @@ use crate::{
 		configs::LocalNetworkConfiguration,
 		gossip::StreamsGossip,
 		proofs::EventProofs,
-		services::events::{keyvault::KeyVault, EventService},
+		services::events::EventService,
 	},
 };
 use local_ip_address::local_ip;
@@ -13,7 +13,6 @@ use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
 use sc_transaction_pool::{BasicPool, FullChainApi};
 use sp_core::H256;
 use sp_keystore::CryptoStore;
-use sp_runtime::key_types::AURA;
 use std::{
 	io::{Error, ErrorKind},
 	sync::Arc,
@@ -87,15 +86,6 @@ impl ValidatedStreamsNode {
 		//wait until all keys are created by aura
 		tokio::time::sleep(Duration::from_millis(3000)).await;
 
-		let keyvault = {
-			if let Ok(x) = KeyVault::new(keystore, client.clone(), AURA).await {
-				x
-			} else {
-				log::info!("node is not a validator");
-				return
-			}
-		};
-
 		let (streams_gossip, streams_gossip_service) = StreamsGossip::create();
 
 		let self_addr = LocalNetworkConfiguration::self_multiaddr();
@@ -103,10 +93,9 @@ impl ValidatedStreamsNode {
 
 		let events_service = Arc::new(
 			EventService::new(
-				KeyVault::validators_pubkeys(client.clone()),
 				event_proofs,
 				streams_gossip,
-				keyvault,
+				keystore,
 				tx_pool,
 				client,
 			)
