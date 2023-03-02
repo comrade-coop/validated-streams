@@ -67,11 +67,13 @@ fn it_adds_event() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		let event_id = H256::repeat_byte(0);
+		assert_eq!(ValidatedStreams::verify_event(event_id),false);
 		// Dispatch an extrinsic
 		// signature should not matter since it should pass through validate_unsigned.
-		assert_ok!(ValidatedStreams::validate_event(Origin::root(), event_id));
+		assert_ok!(ValidatedStreams::validate_event(Origin::none(), event_id));
 		assert_eq!(ValidatedStreams::get_all_events(), vec![event_id]);
-		System::assert_last_event(
+		assert_eq!(ValidatedStreams::verify_event(event_id),true);
+        System::assert_last_event(
 			pallet_validated_streams::Event::ValidatedEvent { event_id }.into(),
 		);
 		//double check the first block events

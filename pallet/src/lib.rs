@@ -44,10 +44,9 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Used to validate an event.
-		/// It Check that the extrinsic was signed and get the signer.
-		/// It then checks if the event has already been validated.
+		/// Checks if the event has already been validated.
 		/// If so, it raise an `AlreadyValidated` event.
-		/// If not, it inserts the event and its details into the storage and raise a
+		/// If not, it inserts the event and the current block into the storage and raise a
 		/// `ValidatedEvent` event.
 		#[pallet::weight(0)]
 		pub fn validate_event(_origin: OriginFor<T>, event_id: T::Hash) -> DispatchResult {
@@ -79,6 +78,10 @@ pub mod pallet {
 				.map(|(k, _)| k)
 				.collect()
 		}
+        /// verify whether an event is valid or not
+        pub fn verify_event(event_id:T::Hash) -> bool{
+            Streams::<T>::contains_key(event_id)
+        }
 	}
 	sp_api::decl_runtime_apis! {
 	/// Get extrinsic ids from a vector of extrinsics

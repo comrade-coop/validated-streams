@@ -22,6 +22,7 @@ impl LocalNetworkConfiguration {
 			.parse()
 			.expect("failed getting self multi address")
 	}
+    /// All validators multi Addresses
 	pub fn validators_multiaddrs() -> Vec<Multiaddr> {
 		vec![
 			"/ip4/172.19.0.2/tcp/10000".parse().expect("Erroneous Multiaddr"),
@@ -30,6 +31,7 @@ impl LocalNetworkConfiguration {
 			"/ip4/172.19.0.5/tcp/10000".parse().expect("Erroneous Multiaddr"),
 		]
 	}
+    /// returns all peers_multiaddrs (filter validators_multiaddrs by removing self_multiaddr)
 	pub fn peers_multiaddrs(self_addr: Multiaddr) -> Vec<Multiaddr> {
 		LocalNetworkConfiguration::validators_multiaddrs()
 			.into_iter()
