@@ -5,44 +5,44 @@ services:
     tty: true
     container_name: validator1
     build: .
-    image: stream_node
+    image: comradecoop/validated-streams
     ports:
       - "5556:5555"
-    command: --alice 
+    command: --alice
   validator2:
     stdin_open: true
     tty: true
     container_name: validator2
     build: .
-    image: stream_node
+    image: comradecoop/validated-streams
     ports:
       - "5557:5555"
-    command: --bob 
+    command: --bob
   validator3:
     stdin_open: true
     tty: true
     container_name: validator3
     build: .
-    image: stream_node
+    image: comradecoop/validated-streams
     ports:
       - "5558:5555"
-    command: --charlie 
+    command: --charlie
   validator4:
     stdin_open: true
     tty: true
     container_name: validator4
     build: .
-    image: stream_node
+    image: comradecoop/validated-streams
     ports:
       - "5559:5555"
-    command: --dave 
+    command: --dave
   syncnode:
     stdin_open: true
     tty: true
     container_name: syncnode
     build: .
-    image: stream_node
+    image: comradecoop/validated-streams
     ports:
       - "9944:9944"
-    command: --eve "--ws-port 9944" --unsafe-ws-external 
+    command: --eve "--ws-port 9944" --unsafe-ws-external
 
