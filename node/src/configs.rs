@@ -1,6 +1,10 @@
+//! Configurations used by the Validated Streams node
+
 use libp2p::Multiaddr;
 use local_ip_address::local_ip;
 
+/// Network configuration for the local testnet
+// TODO: Make configurable or use sc_config::network
 pub struct DebugLocalNetworkConfiguration {}
 impl DebugLocalNetworkConfiguration {
 	/*
@@ -16,6 +20,7 @@ impl DebugLocalNetworkConfiguration {
 		]
 	}
 	*/
+	/// Returns the multiaddr gossip should listen at
 	pub fn self_multiaddr() -> Multiaddr {
 		format!("/ip4/{}/tcp/10000", local_ip().expect("failed getting local ip"))
 			.parse()

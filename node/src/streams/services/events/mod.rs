@@ -1,3 +1,5 @@
+//! Service which handles incoming events from the trusted client and other nodes
+
 use crate::{
 	service::FullClient,
 	streams::{
@@ -32,12 +34,13 @@ use std::sync::{Arc, RwLock};
 pub use tonic::{transport::Server, Request, Response, Status};
 const TX_SOURCE: TransactionSource = TransactionSource::Local;
 
+/// Internal struct holding the latest block state in the EventService
 #[derive(Clone, Debug)]
-pub struct EventServiceBlockState {
+struct EventServiceBlockState {
 	pub validators: Vec<CryptoTypePublicPair>,
 }
 impl EventServiceBlockState {
-	// creates a new EventServiceBlockState
+	/// creates a new EventServiceBlockState
 	pub fn new(validators: Vec<CryptoTypePublicPair>) -> Self {
 		Self { validators }
 	}
@@ -72,6 +75,9 @@ impl EventServiceBlockState {
 	}
 }
 
+/// A service which handles incoming events from the trusted client and other nodes.
+/// It maintains the proofs that enter [EventProofs] storage, handles incomming gossip,
+/// and submits extrinsics for proofs that we have collected the necessary signatures for.
 pub struct EventService {
 	block_state: Arc<RwLock<EventServiceBlockState>>,
 	event_proofs: Arc<dyn EventProofs + Send + Sync>,
@@ -81,6 +87,7 @@ pub struct EventService {
 	client: Arc<FullClient>,
 }
 impl EventService {
+	/// Creates a new EventService
 	pub async fn new(
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		streams_gossip: StreamsGossip,

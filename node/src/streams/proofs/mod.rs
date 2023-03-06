@@ -1,3 +1,5 @@
+//! Validated streams event proof types and storage
+
 use crate::streams::errors::Error;
 use serde::{Deserialize, Serialize};
 use sp_core::H256;
@@ -14,15 +16,16 @@ pub mod tests;
 /// [super::services::events].
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WitnessedEvent {
+	/// The signature of the event
 	pub signature: Vec<u8>,
+	/// The public key used to produce the signature
 	pub pub_key: Vec<u8>,
+	/// The id/hash of the event being witnessed
 	pub event_id: H256,
 }
 
 /// Storage for Event proofs
 pub trait EventProofs {
-	///cheks whether the event proofs database contains a proof for the given event id
-	fn contains(&self, event_id: H256) -> Result<bool, Error>;
 	/// adds an event proof from the given witnessed event if it has not yet been added
 	fn add_event_proof(&self, event: &WitnessedEvent, origin: Vec<u8>) -> Result<u16, Error>;
 	/// retreive the proof count for the given event id
@@ -31,11 +34,13 @@ pub trait EventProofs {
 
 type ProofsMap = HashMap<H256, HashMap<Vec<u8>, WitnessedEvent>>;
 
+/// An in-memory store of event proofs.
 pub struct InMemoryEventProofs {
-	//map event ids to provided senders of event proofs
+	// maps event ids to provided senders of event proofs
 	proofs: Mutex<ProofsMap>,
 }
 impl InMemoryEventProofs {
+	/// Create a new [InMemoryEventProofs] instance
 	pub fn create() -> InMemoryEventProofs {
 		InMemoryEventProofs { proofs: Mutex::new(HashMap::new()) }
 	}
@@ -68,10 +73,6 @@ impl EventProofs for InMemoryEventProofs {
 				Err(Error::AlreadySentProof(event_id))
 			},
 		}
-	}
-	fn contains(&self, event_id: H256) -> Result<bool, Error> {
-		let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
-		Ok(proofs.contains_key(&event_id))
 	}
 	fn get_proof_count(&self, event_id: H256) -> Result<u16, Error> {
 		let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;

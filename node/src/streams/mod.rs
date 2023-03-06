@@ -1,3 +1,5 @@
+//! Implementation of the validated streams protocol
+
 pub mod errors;
 pub mod gossip;
 pub mod node;

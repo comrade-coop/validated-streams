@@ -1,3 +1,5 @@
+//! Block import which waits for all events to be witnessed before finalizing a block.
+
 use crate::{
 	service::FullClient,
 	streams::{proofs::EventProofs, services::events::EventService},
@@ -11,11 +13,25 @@ use sp_blockchain::well_known_cache_keys;
 use sp_consensus::Error as ConsensusError;
 use sp_runtime::generic::BlockId;
 use std::{collections::HashMap, sync::Arc};
+
+/// Wrapper around a [sc_consensus::BlockImport] which waits for all events to be witnessed in an
+/// [EventProofs] instance before forwarding the block to the next import -- in effect preventing
+/// the finalization for blocks that lack sufficient signatures from the gossip.
 #[derive(Clone)]
 pub struct WitnessBlockImport<I> {
-	pub parent_block_import: I,
-	pub client: Arc<FullClient>,
-	pub event_proofs: Arc<dyn EventProofs + Send + Sync>,
+	parent_block_import: I,
+	client: Arc<FullClient>,
+	event_proofs: Arc<dyn EventProofs + Send + Sync>,
+}
+impl<I> WitnessBlockImport<I> {
+	/// Create a new [WitnessBlockImport]
+	pub fn new(
+		parent_block_import: I,
+		client: Arc<FullClient>,
+		event_proofs: Arc<dyn EventProofs + Send + Sync>,
+	) -> Self {
+		Self { parent_block_import, client, event_proofs }
+	}
 }
 #[async_trait::async_trait]
 impl<I: sc_consensus::BlockImport<Block>> sc_consensus::BlockImport<Block> for WitnessBlockImport<I>

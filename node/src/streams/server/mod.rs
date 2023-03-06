@@ -1,3 +1,5 @@
+//! A GRPC server for submitting event hashes from a trusted client.
+
 use crate::streams::services::events::EventService;
 use local_ip_address::local_ip;
 
@@ -7,26 +9,30 @@ use std::{
 	io::{Error, ErrorKind},
 	sync::Arc,
 };
-pub use tonic::{transport::Server, Request, Response, Status};
-pub use validated_streams::{
+use tonic::{transport::Server, Request, Response, Status};
+use validated_streams_proto::{
 	streams_server::{Streams, StreamsServer},
 	ValidateEventRequest, ValidateEventResponse,
 };
 
-pub mod validated_streams {
+/// The GRPC/protobuf module implemented by the GRPC server
+pub mod validated_streams_proto {
+	#![allow(missing_docs)]
 	tonic::include_proto!("validated_streams");
 }
 
+/// Implements a GRPC server for submitting event hashes from the trusted client.
+/// See <https://github.com/comrade-coop/validated-streams/blob/master/proto/streams.proto>) for the protobuf file and associated documentation.
 pub struct ValidatedStreamsGrpc {
 	events_service: Arc<EventService>,
 }
-
 impl ValidatedStreamsGrpc {
+	/// Run the GRPC server.
 	pub async fn run(events_service: Arc<EventService>) -> Result<(), Error> {
 		log::info!("Server could be reached at {}", local_ip().unwrap().to_string());
 		Server::builder()
 			.add_service(StreamsServer::new(ValidatedStreamsGrpc { events_service }))
-			.serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address"))
+			.serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address")) // TODO: Make configurable
 			.await
 			.map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
 	}

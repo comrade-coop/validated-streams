@@ -1,5 +1,5 @@
 use super::{StreamsGossip, StreamsGossipHandler};
-use crate::streams::{configs::LocalNetworkConfiguration, services::events::WitnessedEvent};
+use crate::streams::proofs::WitnessedEvent;
 use async_trait::async_trait;
 use libp2p::{gossipsub::IdentTopic, Multiaddr};
 use sc_service::TaskManager;
@@ -27,7 +27,7 @@ impl StreamsGossipHandler for MockGossipHandler {
 }
 /// test receiving messages from other peers by creating a mock service that listens on a diffrent
 /// Multiaddr and test that messages sent from self should not be received
-/// which means the length of messages should be 1
+/// which means the length of messages should be 1 (because the StreamsGossipHandler would be )
 #[tokio::test]
 pub async fn test_self_message() {
 	let (mut streams_gossip, service) = StreamsGossip::create();
@@ -36,8 +36,8 @@ pub async fn test_self_message() {
 	let task_manager = TaskManager::new(tokio_handle, None).unwrap();
 	let spawn_handle = task_manager.spawn_handle();
 	let peer_spawn_handle = task_manager.spawn_handle();
-	let self_addr = LocalNetworkConfiguration::self_multiaddr();
-	let peer_mock_addr: Multiaddr = "/ip4/127.0.0.1/tcp/10001".to_string().parse().unwrap();
+	let self_addr: Multiaddr = "/ip4/127.0.0.1/tcp/10001".to_string().parse().unwrap();
+	let peer_mock_addr: Multiaddr = "/ip4/127.0.0.1/tcp/10002".to_string().parse().unwrap();
 	let mock_handler = Arc::new(MockGossipHandler { messages: Mutex::new(Vec::new()) });
 	let witnessed_event = create_witnessed_event();
 	//connections to self should be rejected

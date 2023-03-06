@@ -1,9 +1,6 @@
 use sp_core::H256;
 
-use crate::streams::{
-	proofs::{EventProofs, InMemoryEventProofs},
-	services::events::WitnessedEvent,
-};
+use crate::streams::proofs::{EventProofs, InMemoryEventProofs, WitnessedEvent};
 #[test]
 fn test_add_event_proof() {
 	let event_id = H256::repeat_byte(0);
@@ -16,22 +13,6 @@ fn test_add_event_proof() {
 
 	let result = proofs.add_event_proof(&witnessed_event, origin.clone());
 	assert!(result.is_err());
-}
-
-#[test]
-fn test_contains() {
-	let event_id = H256::repeat_byte(0);
-	let proofs = InMemoryEventProofs::create();
-
-	let result = proofs.contains(event_id);
-	assert_eq!(result, Ok(false));
-
-	let witnessed_event = create_witnessed_event(event_id);
-	let origin = b"alice".to_vec();
-	let _ = proofs.add_event_proof(&witnessed_event, origin.clone());
-
-	let result = proofs.contains(event_id);
-	assert_eq!(result, Ok(true));
 }
 
 #[test]

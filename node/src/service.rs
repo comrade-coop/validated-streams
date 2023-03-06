@@ -1,6 +1,7 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 use crate::streams::{
-	node::ValidatedStreamsNode, proofs::InMemoryEventProofs,
+	node::ValidatedStreamsNode,
+	proofs::{EventProofs, InMemoryEventProofs},
 	services::witness_block_import::WitnessBlockImport,
 };
 use node_runtime::{self, opaque::Block, RuntimeApi};
@@ -9,12 +10,12 @@ use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
-//use sc_network_gossip::GossipEngine;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-// Our native executor instance.
+
+/// Our native executor instance.
 pub struct ExecutorDispatch;
 
 impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
@@ -52,10 +53,12 @@ type FullPartialComponentsOther = (
 	WitnessBlockImport<
 		sc_finality_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 	>,
+	Arc<dyn EventProofs + Send + Sync>,
 	sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
 );
 
+/// Build the services a client is composed of, but don't run it yet
 pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, ServiceError> {
 	if config.keystore_remote.is_some() {
 		return Err(ServiceError::Other("Remote Keystores are not supported.".into()))
@@ -110,11 +113,8 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 	)?;
 
 	let event_proofs = Arc::new(InMemoryEventProofs::create());
-	let witness_block_import = WitnessBlockImport {
-		parent_block_import: grandpa_block_import.clone(),
-		client: client.clone(),
-		event_proofs,
-	};
+	let witness_block_import =
+		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
 
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
@@ -151,7 +151,7 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (witness_block_import, grandpa_link, telemetry),
+		other: (witness_block_import, event_proofs, grandpa_link, telemetry),
 	})
 }
 
@@ -172,12 +172,12 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		mut keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, grandpa_link, mut telemetry),
+		other: (block_import, event_proofs, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
 
 	ValidatedStreamsNode::start(
 		task_manager.spawn_handle(),
-		block_import.event_proofs.clone(),
+		event_proofs,
 		client.clone(),
 		keystore_container.keystore().clone(),
 		transaction_pool.clone(),

@@ -1,27 +1,26 @@
-syntax="proto3";
+syntax = "proto3";
 package ValidatedStreams;
 
-service Streams
-{
-		rpc ValidateEvent (ValidateEventRequest) returns (ValidateEventResponse);
-		//rpc WitnessedEvent(WitnessedEventRequest) returns (WitnessedEventResponse);
+service Streams {
+  /// Submit an event to the chain. Call that from the trusted client to get an event from the oracle validated by the network. Note that the event would be validated only if the other trusted clients submit the same event id.
+  /// An event is an extrinsic that could be included in the block and executed by the validated-streams pallet
+  rpc ValidateEvent(ValidateEventRequest) returns (ValidateEventResponse);
+
+  //rpc WitnessedEvent(WitnessedEventRequest) returns (WitnessedEventResponse);
 }
-// a stream is an extrinsic that could be included in the block and executed by the validated-streams pallet
-message ValidateEventRequest
-{
-		bytes event_id =1;
+
+message ValidateEventRequest {
+  // Event ID. A _hash_ (or similar) of exactly 32 bytes length. If you need to send larger messages, hash them first (using something like IPFS), and then send that.
+  bytes event_id = 1;
 }
-message ValidateEventResponse
-{
-		string status =1;
+message ValidateEventResponse {
+  string status = 1;
 }
-message WitnessedEventRequest
-{
-		bytes signature = 1;
-		string pub_key = 2;
-		ValidateEventRequest event= 3;
+message WitnessedEventRequest {
+  bytes signature = 1;
+  string pub_key = 2;
+  ValidateEventRequest event = 3;
 }
-message WitnessedEventResponse
-{
-		string reply = 1;
+message WitnessedEventResponse {
+  string reply = 1;
 }

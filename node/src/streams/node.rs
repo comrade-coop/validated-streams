@@ -1,3 +1,5 @@
+//! Helpers for starting up a validated streams node
+
 use crate::{
 	configs::DebugLocalNetworkConfiguration,
 	service::FullClient,
@@ -13,10 +15,11 @@ use sc_transaction_pool::{BasicPool, FullChainApi};
 use sp_keystore::CryptoStore;
 use std::sync::Arc;
 
+/// A helper for starting all the components needed to run a validated streams node
 pub struct ValidatedStreamsNode {}
 impl ValidatedStreamsNode {
-	/// enables the current node to be a validated streams node by runing the core componenets
-	/// which are the EventService, the StreamsGossip and the gRPC server.
+	/// Starts the gossip, event service, and the gRPC server for the current validated streams
+	/// node.
 	pub fn start(
 		spawn_handle: SpawnTaskHandle,
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,

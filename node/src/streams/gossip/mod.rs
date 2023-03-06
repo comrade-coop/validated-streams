@@ -1,3 +1,5 @@
+//! A module for gossiping messages with peers, internally using libp2p's gossipsub and swarm.
+
 use async_trait::async_trait;
 use futures::{
 	channel::mpsc::{channel, Receiver, Sender},
@@ -19,6 +21,7 @@ use sc_service::SpawnTaskHandle;
 use std::sync::Arc;
 #[cfg(test)]
 pub mod tests;
+
 /// Represents an internal message passed between the public StreamsGossip interface and the
 /// internal StreamsGossipService handler
 enum StreamsGossipOrder {
@@ -26,18 +29,42 @@ enum StreamsGossipOrder {
 	DialPeers(Vec<Multiaddr>),
 }
 
-/// The interface to the gossip network
+/// A struct which can be used to send messages to a libp2p pubsub gossip network.
+/// Cloning it reuses the same swarm and gossip network.
+/// # Example Usage
+/// ```
+/// # use node::streams::gossip::{StreamsGossip, StreamsGossipHandler};
+/// # use std::sync::Arc;
+/// # use async_trait::async_trait;
+/// use libp2p::gossipsub::IdentTopic;
+/// struct ExampleHandler {}
+/// #[async_trait]
+/// impl StreamsGossipHandler for ExampleHandler {
+/// 	fn get_topics() -> Vec<IdentTopic> { vec!(IdentTopic::new("some_topic")) }
+/// 	async fn handle(&self, message: Vec<u8>) {
+/// 		println!("Received message! {:?}", message);
+/// 	}
+/// }
+/// # async fn async_stuff() { // Only doctest compilation, as actual usage blocks forever
+/// let (gossip, service) = StreamsGossip::create();
+/// # let spawn_handle = sc_service::TaskManager::new(tokio::runtime::Handle::current(), None).unwrap().spawn_handle();
+/// service.start(spawn_handle, "/ip4/0.0.0.0/tcp/10000".parse().unwrap(), vec!(), Arc::new(ExampleHandler {})).await;
+/// // Later...
+/// gossip.clone().publish(IdentTopic::new("some_topic"), vec!(0, 1, 2, 3)).await;
+/// # }
+/// ```
 #[derive(Clone)]
 pub struct StreamsGossip {
 	tx: Sender<StreamsGossipOrder>,
 }
 
-/// The service maintaining the swarm and handling events of a StreamsGossip.
+/// A struct used to start the local gossip peer that handles events of a StreamsGossip.
 #[must_use]
 pub struct StreamsGossipService {
 	rc: Receiver<StreamsGossipOrder>,
 }
 
+/// A handler for events received by a StreamsGossip
 #[async_trait]
 pub trait StreamsGossipHandler {
 	/// Returns the topics this StreamsGossipHandler is interested in. Note that changes in the
