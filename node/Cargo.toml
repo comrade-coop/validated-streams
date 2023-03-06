@@ -23,7 +23,7 @@ async-trait = "0.1.58"
 hex = "0.4.3"
 subxt = "0.24.0"
 futures = "0.3.13"
-clap = { version = "3.1.18", features = ["derive"] }
+clap = { version = "3.2.23", features = ["derive"] }
 log = "0.4.17"
 libp2p = { version = "0.50.0", features = [
     "gossipsub","tcp", "dns", "async-std", "websocket","tls", "noise", "mplex", "yamux"
