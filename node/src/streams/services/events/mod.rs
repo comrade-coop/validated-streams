@@ -3,7 +3,7 @@ use crate::{
 	streams::{
 		errors::Error,
 		gossip::{StreamsGossip, StreamsGossipHandler},
-		proofs::EventProofs,
+		proofs::{EventProofs, WitnessedEvent},
 	},
 };
 use async_trait::async_trait;
@@ -17,7 +17,6 @@ use node_runtime::{
 use sc_client_api::{BlockchainEvents, HeaderBackend};
 use sc_transaction_pool::{BasicPool, FullChainApi};
 use sc_transaction_pool_api::TransactionSource;
-use serde::{Deserialize, Serialize};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::AuraApi;
 use sp_core::{
@@ -32,13 +31,6 @@ use sp_runtime::{app_crypto::RuntimePublic, key_types::AURA, OpaqueExtrinsic};
 use std::sync::{Arc, RwLock};
 pub use tonic::{transport::Server, Request, Response, Status};
 const TX_SOURCE: TransactionSource = TransactionSource::Local;
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct WitnessedEvent {
-	pub signature: Vec<u8>,
-	pub pub_key: Vec<u8>,
-	pub event_id: H256,
-}
 
 #[derive(Clone, Debug)]
 pub struct EventServiceBlockState {

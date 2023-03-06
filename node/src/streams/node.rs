@@ -1,11 +1,11 @@
 use crate::{
+	configs::DebugLocalNetworkConfiguration,
 	service::FullClient,
 	streams::{
-		configs::LocalNetworkConfiguration, gossip::StreamsGossip, proofs::EventProofs,
-		server::ValidatedStreamsGrpc, services::events::EventService,
+		gossip::StreamsGossip, proofs::EventProofs, server::ValidatedStreamsGrpc,
+		services::events::EventService,
 	},
 };
-
 use node_runtime::opaque::Block;
 use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
 use sc_transaction_pool::{BasicPool, FullChainApi};
@@ -27,8 +27,8 @@ impl ValidatedStreamsNode {
 		let (streams_gossip, streams_gossip_service) = StreamsGossip::create();
 
 		spawn_handle.clone().spawn_blocking("Event service", None, async move {
-			let self_addr = LocalNetworkConfiguration::self_multiaddr();
-			let peers = LocalNetworkConfiguration::peers_multiaddrs(self_addr.clone());
+			let self_addr = DebugLocalNetworkConfiguration::self_multiaddr();
+			let peers = DebugLocalNetworkConfiguration::peers_multiaddrs(self_addr.clone());
 
 			let events_service = Arc::new(
 				EventService::new(event_proofs, streams_gossip, keystore, tx_pool, client).await,

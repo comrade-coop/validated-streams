@@ -1,11 +1,25 @@
+use crate::streams::errors::Error;
+use serde::{Deserialize, Serialize};
+use sp_core::H256;
 use std::{
 	collections::{hash_map::Entry, HashMap},
 	sync::Mutex,
 };
+
 #[cfg(test)]
 pub mod tests;
-use crate::streams::{errors::Error, services::events::WitnessedEvent};
-use sp_core::H256;
+
+/// Represents an event that has been witnessed along with its signature
+/// Signatures do not have a defined cryptosystem, but are assumed to be sr25519 signatures by
+/// [super::services::events].
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WitnessedEvent {
+	pub signature: Vec<u8>,
+	pub pub_key: Vec<u8>,
+	pub event_id: H256,
+}
+
+/// Storage for Event proofs
 pub trait EventProofs {
 	///cheks whether the event proofs database contains a proof for the given event id
 	fn contains(&self, event_id: H256) -> Result<bool, Error>;

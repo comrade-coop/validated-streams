@@ -6,6 +6,7 @@ mod service;
 mod benchmarking;
 mod cli;
 mod command;
+mod configs;
 mod rpc;
 mod streams;
 fn main() -> Result<(), sc_cli::Error> {

@@ -1,14 +1,12 @@
 use libp2p::Multiaddr;
 use local_ip_address::local_ip;
-pub struct LocalNetworkConfiguration {
-	pub port: u16,
-}
-impl LocalNetworkConfiguration {
-	#[allow(dead_code)]
+
+pub struct DebugLocalNetworkConfiguration {}
+impl DebugLocalNetworkConfiguration {
+	/*
 	fn get_self_address(&self) -> String {
 		format!("{}:{}", local_ip().unwrap(), &self.port)
 	}
-	#[allow(dead_code)]
 	fn get_peers_addresses(&self) -> Vec<String> {
 		vec![
 			format!("http://172.19.0.2:{}", &self.port),
@@ -17,25 +15,20 @@ impl LocalNetworkConfiguration {
 			format!("http://172.19.0.5:{}", &self.port),
 		]
 	}
+	*/
 	pub fn self_multiaddr() -> Multiaddr {
 		format!("/ip4/{}/tcp/10000", local_ip().expect("failed getting local ip"))
 			.parse()
 			.expect("failed getting self multi address")
 	}
-    /// All validators multi Addresses
-	pub fn validators_multiaddrs() -> Vec<Multiaddr> {
-		vec![
+	/// Returns all the multiaddrs of peers (filters validators by removing self)
+	pub fn peers_multiaddrs(self_addr: Multiaddr) -> Vec<Multiaddr> {
+		let validators_multiaddrs = vec![
 			"/ip4/172.19.0.2/tcp/10000".parse().expect("Erroneous Multiaddr"),
 			"/ip4/172.19.0.3/tcp/10000".parse().expect("Erroneous Multiaddr"),
 			"/ip4/172.19.0.4/tcp/10000".parse().expect("Erroneous Multiaddr"),
 			"/ip4/172.19.0.5/tcp/10000".parse().expect("Erroneous Multiaddr"),
-		]
-	}
-    /// returns all peers_multiaddrs (filter validators_multiaddrs by removing self_multiaddr)
-	pub fn peers_multiaddrs(self_addr: Multiaddr) -> Vec<Multiaddr> {
-		LocalNetworkConfiguration::validators_multiaddrs()
-			.into_iter()
-			.filter(|peer| *peer != self_addr)
-			.collect()
+		];
+		validators_multiaddrs.into_iter().filter(|peer| *peer != self_addr).collect()
 	}
 }

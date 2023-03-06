@@ -1,4 +1,5 @@
-use super::{EventServiceBlockState, WitnessedEvent};
+use super::EventServiceBlockState;
+use crate::streams::proofs::WitnessedEvent;
 use sc_keystore::LocalKeystore;
 use sp_core::{sr25519::Public, H256};
 use sp_keystore::CryptoStore;
