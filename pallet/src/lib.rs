@@ -85,7 +85,7 @@ pub mod pallet {
 	}
 	sp_api::decl_runtime_apis! {
 		/// Get extrinsic ids from a vector of extrinsics
-		/// that should be used to quickly retreive all the event ids (hashes) given a vector of extrinsics
+		/// that should be used to quickly retrieve all the event ids (hashes) given a vector of extrinsics
 		/// currently used to inspect the proposed block event ids and whether they are witnessed offchain or not
 		pub trait ExtrinsicDetails<T> where T:Extrinsic + Decode{
 			#[allow(clippy::ptr_arg)]

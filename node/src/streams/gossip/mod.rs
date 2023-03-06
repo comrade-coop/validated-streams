@@ -144,7 +144,7 @@ impl StreamsGossipService {
 		}
 	}
 
-	/// Handles an incomming channel order
+	/// Handles an incoming channel order
 	async fn handle_incoming_order(swarm: &mut Swarm<Gossipsub>, order: StreamsGossipOrder) {
 		match order {
 			StreamsGossipOrder::SendMessage(topic, message) => {
@@ -158,7 +158,7 @@ impl StreamsGossipService {
 		}
 	}
 
-	/// Handles an incomming swarm event, passing message data to the handler
+	/// Handles an incoming swarm event, passing message data to the handler
 	async fn handle_incoming_event<H: StreamsGossipHandler + Send>(
 		_swarm: &mut Swarm<Gossipsub>,
 		event: SwarmEvent<GossipsubEvent, GossipsubHandlerError>,
@@ -185,7 +185,7 @@ impl StreamsGossipService {
 			// SwarmEvent::OutgoingConnectionError { peer_id, error } => log::info!("outgoing connection error with:{:?} with error {:?}",peer_id,error),
 			// SwarmEvent::BannedPeer { peer_id, endpoint:_} => log::info!("Bannned peer :{}",peer_id),
 			// SwarmEvent::ExpiredListenAddr { listener_id, address } => log::info!("Expired listen addr:{:?} and address {:?}",listener_id,address),
-			// SwarmEvent::ListenerClosed { listener_id, addresses, reason } => log::info!("listner closed:{:?} {:?} with reason {:?}",listener_id,addresses,reason),
+			// SwarmEvent::ListenerClosed { listener_id, addresses, reason } => log::info!("listener closed:{:?} {:?} with reason {:?}",listener_id,addresses,reason),
 			// SwarmEvent::ListenerError { listener_id, error } => log::info!("listener error:{:?} with error {:?}",listener_id,error),
 			// SwarmEvent::Dialing(_) => log::info!("dialing"),
 		}

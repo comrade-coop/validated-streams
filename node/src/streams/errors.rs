@@ -2,7 +2,7 @@
 use sp_core::H256;
 use std::{error::Error as E, fmt};
 
-/// An Error that has occured during Validated Streams operation
+/// An Error that has occurred during Validated Streams operation
 #[derive(Debug, PartialEq)]
 pub enum Error {
 	/// A peer has already sent us a proof for the included event id.

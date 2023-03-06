@@ -46,18 +46,18 @@ impl EventServiceBlockState {
 	}
 
 	/// verifies whether the received witnessed event was originited by one of the validators
-	/// than proceeds to retreiving the pubkey and the signature and checks the signature
+	/// than proceeds to retrieving the pubkey and the signature and checks the signature
 	pub fn verify_witnessed_event_origin(
 		&self,
 		witnessed_event: WitnessedEvent,
 	) -> Result<WitnessedEvent, Error> {
 		let pubkey = Public::from_slice(&witnessed_event.pub_key.as_slice()).map_err(|_| {
-			Error::Other("cant retreive sr25519 keys from WitnessedEvent".to_string())
+			Error::Other("can't retrieve sr25519 keys from WitnessedEvent".to_string())
 		})?;
 		if self.validators.contains(&CryptoTypePublicPair::from(pubkey)) {
 			let signature = Signature::from_slice(&witnessed_event.signature.as_slice())
 				.ok_or_else(|| {
-					Error::Other("cant create sr25519 signature from witnessed event".to_string())
+					Error::Other("can't create sr25519 signature from witnessed event".to_string())
 				})?;
 			if pubkey.verify(&witnessed_event.event_id, &signature) {
 				Ok(witnessed_event)
@@ -76,7 +76,7 @@ impl EventServiceBlockState {
 }
 
 /// A service which handles incoming events from the trusted client and other nodes.
-/// It maintains the proofs that enter [EventProofs] storage, handles incomming gossip,
+/// It maintains the proofs that enter [EventProofs] storage, handles incoming gossip,
 /// and submits extrinsics for proofs that we have collected the necessary signatures for.
 pub struct EventService {
 	block_state: Arc<RwLock<EventServiceBlockState>>,
@@ -142,11 +142,11 @@ impl EventService {
 		{
 			Ok(WitnessedEvent { signature: sig, pub_key: signing_pubkey.1.to_vec(), event_id })
 		} else {
-			Err(Error::Other("Failed retriving signature".to_string()))
+			Err(Error::Other("Failed retrieving signature".to_string()))
 		}
 	}
 
-	/// calculates the target from the latest finalized block and checks wether each event in ids
+	/// calculates the target from the latest finalized block and checks whether each event in ids
 	/// reaches the target, it returns a result that contains only the events that did Not reach
 	/// the target yet or completely unwitnessed events
 	pub fn verify_events_validity(

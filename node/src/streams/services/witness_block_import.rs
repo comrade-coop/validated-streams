@@ -77,7 +77,7 @@ where
 			) {
 				Ok(unprepared_ids) =>
 					if !unprepared_ids.is_empty() {
-						log::info!("Block should be deffered as it contains unwitnessed events");
+						log::info!("Block should be deferred as it contains unwitnessed events");
 					} else {
 						log::info!("All block events have been witnessed:{:?}", extrinsic_ids);
 					},

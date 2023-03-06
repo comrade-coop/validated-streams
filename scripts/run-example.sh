@@ -30,7 +30,7 @@ elif [ "$COMMAND" = "start" ]; then
   #base64 encoded hash for 256 zeroes
   #hash_value="ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQ="
   for i in {1..10000}; do
-    # create a random hash everytime
+    # create a random hash every time
     hash_value=$(openssl rand -base64 32)
     req='{
       "event_id": "'"$hash_value"'"

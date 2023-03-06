@@ -25,7 +25,7 @@ impl StreamsGossipHandler for MockGossipHandler {
 		}
 	}
 }
-/// test receiving messages from other peers by creating a mock service that listens on a diffrent
+/// test receiving messages from other peers by creating a mock service that listens on a different
 /// Multiaddr and test that messages sent from self should not be received
 /// which means the length of messages should be 1 (because the StreamsGossipHandler would be )
 #[tokio::test]

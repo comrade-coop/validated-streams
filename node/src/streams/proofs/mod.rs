@@ -28,7 +28,7 @@ pub struct WitnessedEvent {
 pub trait EventProofs {
 	/// adds an event proof from the given witnessed event if it has not yet been added
 	fn add_event_proof(&self, event: &WitnessedEvent, origin: Vec<u8>) -> Result<u16, Error>;
-	/// retreive the proof count for the given event id
+	/// retrieve the proof count for the given event id
 	fn get_proof_count(&self, event_id: H256) -> Result<u16, Error>;
 }
 
@@ -79,7 +79,7 @@ impl EventProofs for InMemoryEventProofs {
 		if proofs.contains_key(&event_id) {
 			let count = proofs
 				.get(&event_id)
-				.ok_or_else(|| Error::Other("Could not retreive event count".to_string()))?
+				.ok_or_else(|| Error::Other("Could not retrieve event count".to_string()))?
 				.len() as u16;
 			Ok(count)
 		} else {
