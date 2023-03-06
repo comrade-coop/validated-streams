@@ -8,7 +8,7 @@ use libp2p::{
 	core::{muxing::StreamMuxerBox, transport::Boxed, upgrade},
 	gossipsub::{
 		self, error::GossipsubHandlerError, Gossipsub, GossipsubEvent, IdentTopic,
-		MessageAuthenticity, 
+		MessageAuthenticity,
 	},
 	identity::{self, Keypair},
 	mplex,
@@ -131,36 +131,38 @@ impl StreamsGossipService {
 		}
 	}
 
-    /// Handles an incomming swarm event, passing message data to the handler
-    async fn handle_incoming_event<H: StreamsGossipHandler + Send>(
-        _swarm: &mut Swarm<Gossipsub>,
-        event: SwarmEvent<GossipsubEvent, GossipsubHandlerError>,
-        handler: &H,
-        ) {
-        match event {
-            SwarmEvent::NewListenAddr { address, .. } => log::info!("Listening on {:?}", address),
-            SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id, topic}) => {log::info!("{:?} subscribed to topic {:?}",peer_id,topic );},
-            SwarmEvent::Behaviour(GossipsubEvent::Message {
-                propagation_source: _,
-                message_id: _,
-                message,
-            }) => {
-                handler.handle(message.data).await;
-            },
-            _ =>{}
-            // SwarmEvent::Behaviour(GossipsubEvent::Unsubscribed {peer_id, topic}) =>log::info!("peer {:?} unsibscribed from topic{:?}",peer_id,topic),
-            // SwarmEvent::Behaviour(GossipsubEvent::GossipsubNotSupported{peer_id}) =>log::info!("GossipsubNotSupported {:?}",peer_id),
-            // SwarmEvent::ConnectionClosed { peer_id, endpoint:_, num_established:_, cause } => log::info!("connection closed with :{} with cause{:?}",peer_id,cause),
-            // SwarmEvent::IncomingConnection { local_addr, send_back_addr } => log::info!("incoming connection :{} {}",local_addr,send_back_addr),
-            // SwarmEvent::IncomingConnectionError { local_addr, send_back_addr:_, error } => log::info!("incoming connection error:{:?} with error{:?}",local_addr,error),
-            // SwarmEvent::OutgoingConnectionError { peer_id, error } => log::info!("outgoing connection error with:{:?} with error {:?}",peer_id,error),
-            // SwarmEvent::BannedPeer { peer_id, endpoint:_} => log::info!("Bannned peer :{}",peer_id),
-            // SwarmEvent::ExpiredListenAddr { listener_id, address } => log::info!("Expired listen addr:{:?} and address {:?}",listener_id,address),
-            // SwarmEvent::ListenerClosed { listener_id, addresses, reason } => log::info!("listner closed:{:?} {:?} with reason {:?}",listener_id,addresses,reason),
-            // SwarmEvent::ListenerError { listener_id, error } => log::info!("listener error:{:?} with error {:?}",listener_id,error),
-            // SwarmEvent::Dialing(_) => log::info!("dialing"),
-        }
-    }
+	/// Handles an incomming swarm event, passing message data to the handler
+	async fn handle_incoming_event<H: StreamsGossipHandler + Send>(
+		_swarm: &mut Swarm<Gossipsub>,
+		event: SwarmEvent<GossipsubEvent, GossipsubHandlerError>,
+		handler: &H,
+	) {
+		match event {
+			SwarmEvent::NewListenAddr { address, .. } => log::info!("Listening on {:?}", address),
+			SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id, topic}) => {
+				log::info!("{:?} subscribed to topic {:?}",peer_id, topic);
+			},
+			SwarmEvent::Behaviour(GossipsubEvent::Message {
+				propagation_source: _,
+				message_id: _,
+				message,
+			}) => {
+				handler.handle(message.data).await;
+			},
+			_ => {}
+			// SwarmEvent::Behaviour(GossipsubEvent::Unsubscribed {peer_id, topic}) =>log::info!("peer {:?} unsibscribed from topic{:?}",peer_id,topic),
+			// SwarmEvent::Behaviour(GossipsubEvent::GossipsubNotSupported{peer_id}) =>log::info!("GossipsubNotSupported {:?}",peer_id),
+			// SwarmEvent::ConnectionClosed { peer_id, endpoint:_, num_established:_, cause } => log::info!("connection closed with :{} with cause{:?}",peer_id,cause),
+			// SwarmEvent::IncomingConnection { local_addr, send_back_addr } => log::info!("incoming connection :{} {}",local_addr,send_back_addr),
+			// SwarmEvent::IncomingConnectionError { local_addr, send_back_addr:_, error } => log::info!("incoming connection error:{:?} with error{:?}",local_addr,error),
+			// SwarmEvent::OutgoingConnectionError { peer_id, error } => log::info!("outgoing connection error with:{:?} with error {:?}",peer_id,error),
+			// SwarmEvent::BannedPeer { peer_id, endpoint:_} => log::info!("Bannned peer :{}",peer_id),
+			// SwarmEvent::ExpiredListenAddr { listener_id, address } => log::info!("Expired listen addr:{:?} and address {:?}",listener_id,address),
+			// SwarmEvent::ListenerClosed { listener_id, addresses, reason } => log::info!("listner closed:{:?} {:?} with reason {:?}",listener_id,addresses,reason),
+			// SwarmEvent::ListenerError { listener_id, error } => log::info!("listener error:{:?} with error {:?}",listener_id,error),
+			// SwarmEvent::Dialing(_) => log::info!("dialing"),
+		}
+	}
 
 	/// Connects to a slice of peers
 	fn dial_peers(swarm: &mut Swarm<Gossipsub>, peers: &[Multiaddr]) {

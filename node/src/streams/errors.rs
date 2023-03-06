@@ -15,10 +15,12 @@ impl fmt::Display for Error {
 		match self {
 			Error::AlreadySentProof(h) => write!(f, "Already sent proof for event_id {:?}", h),
 			Error::LockFail(r) => write!(f, "failed locking ressource {}", r),
-			Error::BadWitnessedEventSignature(source) =>
-				write!(f, "received  bad witnessed event signature from {}", source),
-			Error::SerilizationFailure(reason) =>
-				write!(f, "serialization failed due to {}", reason),
+			Error::BadWitnessedEventSignature(source) => {
+				write!(f, "received  bad witnessed event signature from {}", source)
+			},
+			Error::SerilizationFailure(reason) => {
+				write!(f, "serialization failed due to {}", reason)
+			},
 			Error::Other(reason) => write!(f, "{}", reason),
 		}
 	}

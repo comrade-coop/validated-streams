@@ -241,7 +241,7 @@ impl EventService {
 			.event_proofs
 			.add_event_proof(&witnessed_event, witnessed_event.pub_key.clone())
 		{
-			Ok(proof_count) =>
+			Ok(proof_count) => {
 				if proof_count == target {
 					// FIXME: changing the validators can lead to a case where the target changes
 					// and never meets the proof count!
@@ -252,7 +252,8 @@ impl EventService {
 						"Event:{} has been added to the event proofs, Current Proof Count:{}",
 						witnessed_event.event_id, proof_count
 					))
-				},
+				}
+			},
 			Err(e) => {
 				log::info!("{}", e);
 				Err(e)

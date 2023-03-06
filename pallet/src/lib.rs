@@ -78,15 +78,15 @@ pub mod pallet {
 				.map(|(k, _)| k)
 				.collect()
 		}
-        /// verify whether an event is valid or not
-        pub fn verify_event(event_id:T::Hash) -> bool{
-            Streams::<T>::contains_key(event_id)
-        }
+		/// verify whether an event is valid or not
+		pub fn verify_event(event_id: T::Hash) -> bool {
+			Streams::<T>::contains_key(event_id)
+		}
 	}
 	sp_api::decl_runtime_apis! {
-	/// Get extrinsic ids from a vector of extrinsics
-	/// that should be used to quickly retreive all the event ids (hashes) given a vector of extrinsics
-	/// currently used to inspect the proposed block event ids and whether they are witnessed offchain or not
+		/// Get extrinsic ids from a vector of extrinsics
+		/// that should be used to quickly retreive all the event ids (hashes) given a vector of extrinsics
+		/// currently used to inspect the proposed block event ids and whether they are witnessed offchain or not
 		pub trait ExtrinsicDetails<T> where T:Extrinsic + Decode{
 			#[allow(clippy::ptr_arg)]
 			fn get_extrinsic_ids(extrinsics: &Vec<Block::Extrinsic>) -> Vec<H256>;
