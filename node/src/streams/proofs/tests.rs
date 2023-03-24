@@ -11,7 +11,7 @@ fn test_add_event_proof() {
 	let result = proofs.add_event_proof(&witnessed_event, origin.clone());
 	assert!(result.is_ok());
 
-	let result = proofs.add_event_proof(&witnessed_event, origin.clone());
+	let result = proofs.add_event_proof(&witnessed_event, origin);
 	assert!(result.is_err());
 }
 
@@ -25,7 +25,7 @@ fn test_get_proof_count() {
 
 	let witnessed_event = create_witnessed_event(event_id);
 	let origin = b"alice".to_vec();
-	let _ = proofs.add_event_proof(&witnessed_event, origin.clone());
+	let _ = proofs.add_event_proof(&witnessed_event, origin);
 
 	let result = proofs.get_proof_count(event_id);
 	assert_eq!(result, Ok(1));

@@ -51,11 +51,11 @@ impl EventServiceBlockState {
 		&self,
 		witnessed_event: WitnessedEvent,
 	) -> Result<WitnessedEvent, Error> {
-		let pubkey = Public::from_slice(&witnessed_event.pub_key.as_slice()).map_err(|_| {
+		let pubkey = Public::from_slice(witnessed_event.pub_key.as_slice()).map_err(|_| {
 			Error::Other("can't retrieve sr25519 keys from WitnessedEvent".to_string())
 		})?;
 		if self.validators.contains(&CryptoTypePublicPair::from(pubkey)) {
-			let signature = Signature::from_slice(&witnessed_event.signature.as_slice())
+			let signature = Signature::from_slice(witnessed_event.signature.as_slice())
 				.ok_or_else(|| {
 					Error::Other("can't create sr25519 signature from witnessed event".to_string())
 				})?;
@@ -136,7 +136,7 @@ impl EventService {
 
 		if let Some(sig) = self
 			.keystore
-			.sign_with(AURA, &signing_pubkey, event_id.as_bytes())
+			.sign_with(AURA, signing_pubkey, event_id.as_bytes())
 			.await
 			.map_err(|e| Error::Other(e.to_string()))?
 		{
@@ -199,7 +199,7 @@ impl EventService {
 			.authorities(&block_id)
 			.map_err(|e| Error::Other(e.to_string()))?
 			.iter()
-			.map(|pubkey| CryptoTypePublicPair::from(pubkey))
+			.map(CryptoTypePublicPair::from)
 			.collect();
 
 		Ok(EventServiceBlockState::new(public_keys))

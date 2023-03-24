@@ -11,7 +11,7 @@ async fn test_verify_events() {
 	let keystore = LocalKeystore::in_memory();
 	let event_id = H256::repeat_byte(0);
 	let key = keystore.sr25519_generate_new(AURA, None).await.unwrap();
-	let witnessed_event = create_witnessed_event(event_id, &keystore, key.clone()).await;
+	let witnessed_event = create_witnessed_event(event_id, &keystore, key).await;
 	let validators_list = vec![CryptoTypePublicPair::from(key)];
 	let block_state = EventServiceBlockState::new(validators_list);
 
@@ -41,7 +41,7 @@ async fn test_verify_events() {
 
 	//receive an event from a non-validator
 	let no_validators_block_state = EventServiceBlockState::new(vec![]);
-	let result = no_validators_block_state.verify_witnessed_event_origin(witnessed_event.clone());
+	let result = no_validators_block_state.verify_witnessed_event_origin(witnessed_event);
 	assert!(result.is_err());
 }
 
