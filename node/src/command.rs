@@ -2,6 +2,7 @@ use crate::{
 	benchmarking::{inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder},
 	chain_spec,
 	cli::{Cli, Subcommand},
+	configs::DebugLocalNetworkConfiguration,
 	service,
 };
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
@@ -182,9 +183,19 @@ pub fn run() -> sc_cli::Result<()> {
 			runner.sync_run(|config| cmd.run::<Block>(&config))
 		},
 		None => {
-			let runner = cli.create_runner(&cli.run)?;
+			let runner = cli.create_runner(&cli.run.base)?;
 			runner.run_node_until_exit(|config| async move {
-				service::new_full(config).map_err(sc_cli::Error::Service)
+				if cli.run.peers_multiaddr.is_empty(){
+					service::new_full(
+						config,
+						cli.run.grpc_port,
+						DebugLocalNetworkConfiguration::peers_multiaddrs(),
+					)
+					.map_err(sc_cli::Error::Service)
+				} else {
+					service::new_full(config, cli.run.grpc_port, cli.run.peers_multiaddr)
+						.map_err(sc_cli::Error::Service)
+				}
 			})
 		},
 	}

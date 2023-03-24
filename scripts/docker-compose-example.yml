@@ -7,7 +7,7 @@ services:
     build: ..
     image: comradecoop/validated-streams
     ports:
-      - "5556:5555"
+      - "5556:6000"
     command: --alice
     networks:
      mynetwork:
@@ -19,7 +19,7 @@ services:
     build: ..
     image: comradecoop/validated-streams
     ports:
-      - "5557:5555"
+      - "5557:6000"
     command: --bob
     networks:
       mynetwork:
@@ -31,7 +31,7 @@ services:
     build: ..
     image: comradecoop/validated-streams
     ports:
-      - "5558:5555"
+      - "5558:6000"
     command: --charlie
     networks:
       mynetwork:
@@ -43,7 +43,7 @@ services:
     build: ..
     image: comradecoop/validated-streams
     ports:
-      - "5559:5555"
+      - "5559:6000"
     command: --dave
     networks:
       mynetwork:

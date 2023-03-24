@@ -4,6 +4,7 @@ use crate::streams::{
 	proofs::{EventProofs, InMemoryEventProofs},
 	services::witness_block_import::WitnessBlockImport,
 };
+use libp2p::Multiaddr;
 use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{BlockBackend, ExecutorProvider};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
@@ -163,7 +164,11 @@ fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
 }
 
 /// Builds a new service for a full client.
-pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> {
+pub fn new_full(
+	mut config: Configuration,
+	grpc_port: u16,
+	peers_multiaddr: Vec<Multiaddr>,
+) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -181,6 +186,8 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		client.clone(),
 		keystore_container.keystore().clone(),
 		transaction_pool.clone(),
+		grpc_port,
+		peers_multiaddr,
 	)?;
 
 	if let Some(url) = &config.keystore_remote {

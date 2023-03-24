@@ -28,11 +28,15 @@ pub struct ValidatedStreamsGrpc {
 }
 impl ValidatedStreamsGrpc {
 	/// Run the GRPC server.
-	pub async fn run(events_service: Arc<EventService>) -> Result<(), Error> {
+	pub async fn run(events_service: Arc<EventService>, grpc_port: u16) -> Result<(), Error> {
 		log::info!("Server could be reached at {}", local_ip().unwrap().to_string());
 		Server::builder()
 			.add_service(StreamsServer::new(ValidatedStreamsGrpc { events_service }))
-			.serve("[::0]:5555".parse().expect("Failed parsing gRPC server Address")) // TODO: Make configurable
+			.serve(
+				format!("[::0]:{}", grpc_port)
+					.parse()
+					.expect("Failed parsing gRPC server Address"),
+			)
 			.await
 			.map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
 	}
