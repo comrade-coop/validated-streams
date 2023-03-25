@@ -3,6 +3,8 @@ use crate::streams::proofs::WitnessedEvent;
 use async_trait::async_trait;
 use libp2p::{gossipsub::IdentTopic, Multiaddr};
 use sc_service::TaskManager;
+use sp_core::sr25519::Public;
+use sp_runtime::app_crypto::CryptoTypePublicPair;
 use std::{
 	sync::{Arc, Mutex},
 	time::Duration,
@@ -78,5 +80,9 @@ pub async fn test_self_message() {
 	assert_eq!(mock_handler.messages.lock().unwrap().get(0).unwrap(), &witnessed_event);
 }
 fn create_witnessed_event() -> WitnessedEvent {
-	WitnessedEvent { event_id: sp_core::H256::repeat_byte(0), pub_key: vec![], signature: vec![] }
+	WitnessedEvent {
+		event_id: sp_core::H256::repeat_byte(0),
+		pub_key: CryptoTypePublicPair::from(Public::from_h256(sp_core::H256::repeat_byte(0))),
+		signature: vec![],
+	}
 }

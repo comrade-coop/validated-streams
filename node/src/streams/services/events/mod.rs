@@ -51,10 +51,11 @@ impl EventServiceBlockState {
 		&self,
 		witnessed_event: WitnessedEvent,
 	) -> Result<WitnessedEvent, Error> {
-		let pubkey = Public::from_slice(witnessed_event.pub_key.as_slice()).map_err(|_| {
-			Error::Other("can't retrieve sr25519 keys from WitnessedEvent".to_string())
-		})?;
-		if self.validators.contains(&CryptoTypePublicPair::from(pubkey)) {
+		if self.validators.contains(&witnessed_event.pub_key) {
+			let pubkey =
+				Public::from_slice(witnessed_event.pub_key.1.as_slice()).map_err(|_| {
+					Error::Other("can't retrieve sr25519 keys from WitnessedEvent".to_string())
+				})?;
 			let signature = Signature::from_slice(witnessed_event.signature.as_slice())
 				.ok_or_else(|| {
 					Error::Other("can't create sr25519 signature from witnessed event".to_string())
@@ -140,7 +141,7 @@ impl EventService {
 			.await
 			.map_err(|e| Error::Other(e.to_string()))?
 		{
-			Ok(WitnessedEvent { signature: sig, pub_key: signing_pubkey.1.to_vec(), event_id })
+			Ok(WitnessedEvent { signature: sig, pub_key: signing_pubkey.clone(), event_id })
 		} else {
 			Err(Error::Other("Failed retrieving signature".to_string()))
 		}
@@ -154,9 +155,10 @@ impl EventService {
 		event_proofs: Arc<dyn EventProofs>,
 		ids: Vec<H256>,
 	) -> Result<Vec<H256>, Error> {
-		let best_block = BlockId::hash(client.info().finalized_hash);
-		let block_state = Self::get_block_state(client, best_block)?;
+		let block_state =
+			Self::get_block_state(client.clone(), BlockId::hash(client.info().finalized_hash))?;
 		let target = block_state.target();
+		event_proofs.purge_stale_signatures(&block_state.validators, &ids)?;
 		let mut unprepared_ids = Vec::new();
 		for id in ids {
 			let current_count = event_proofs.get_proof_count(id)?;
@@ -240,19 +242,29 @@ impl EventService {
 			.event_proofs
 			.add_event_proof(&witnessed_event, witnessed_event.pub_key.clone())
 		{
-			Ok(proof_count) => {
+			Ok(proof_count) =>
 				if proof_count == target {
-					// FIXME: changing the validators can lead to a case where the target changes
-					// and never meets the proof count!
-					self.submit_event_extrinsic(witnessed_event.event_id).await?;
-					Ok(format!("Event:{} has been witnessed by a mjority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count))
+					// avoid purging stale signatures everytime an event gets added, just check it
+                    // only when proof count is updated
+					let proof_count = self.event_proofs.purge_stale_signature(
+						&self.block_state.read()?.validators,
+						witnessed_event.event_id,
+					)?;
+					if proof_count >= target {
+						self.submit_event_extrinsic(witnessed_event.event_id).await?;
+						Ok(format!("Event:{} has been witnessed by a mjority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count))
+					} else {
+						Ok(format!(
+							"Event:{} has been added to the event proofs, Current Proof Count:{}",
+							witnessed_event.event_id, proof_count
+						))
+					}
 				} else {
 					Ok(format!(
 						"Event:{} has been added to the event proofs, Current Proof Count:{}",
 						witnessed_event.event_id, proof_count
 					))
-				}
-			},
+				},
 			Err(e) => {
 				log::info!("{}", e);
 				Err(e)

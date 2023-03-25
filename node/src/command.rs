@@ -185,7 +185,7 @@ pub fn run() -> sc_cli::Result<()> {
 		None => {
 			let runner = cli.create_runner(&cli.run.base)?;
 			runner.run_node_until_exit(|config| async move {
-				if cli.run.peers_multiaddr.is_empty(){
+				if cli.run.peers_multiaddr.is_empty() {
 					service::new_full(
 						config,
 						cli.run.grpc_port,

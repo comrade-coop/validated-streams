@@ -35,7 +35,7 @@ async fn test_verify_events() {
 	assert!(result.is_err());
 
 	let mut invalid_key_event = witnessed_event.clone();
-	invalid_key_event.pub_key = vec![];
+	invalid_key_event.pub_key = CryptoTypePublicPair::from(Public::from_h256(H256::repeat_byte(0)));
 	let result = block_state.verify_witnessed_event_origin(invalid_key_event);
 	assert!(result.is_err());
 
@@ -55,5 +55,5 @@ async fn create_witnessed_event(
 		.await
 		.unwrap()
 		.unwrap();
-	WitnessedEvent { event_id, pub_key: key.clone().to_vec(), signature }
+	WitnessedEvent { event_id, pub_key: CryptoTypePublicPair::from(key), signature }
 }
