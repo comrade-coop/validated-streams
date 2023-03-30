@@ -82,6 +82,7 @@ tonic-build = "0.8"
 
 [features]
 default = []
+on-chain-proofs =[]
 runtime-benchmarks = ["node-runtime/runtime-benchmarks"]
 # Enable features that allow the runtime to be tried and debugged. Name might be subject to change
 # in the near future.

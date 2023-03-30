@@ -6,12 +6,13 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use frame_support::{BoundedBTreeMap, BoundedVec};
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H256};
+use sp_core::{crypto::KeyTypeId, sr25519::Public, OpaqueMetadata, H256};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify},
@@ -269,6 +270,7 @@ impl pallet_sudo::Config for Runtime {
 /// Configure validated streams pallet
 impl pallet_validated_streams::Config for Runtime {
 	type Event = Event;
+	type SignatureLength = ConstU32<64>;
 }
 
 //impl pallet_authorship::Config for Runtime {
@@ -402,26 +404,26 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_validated_streams::ExtrinsicDetails<Block,UncheckedExtrinsic> for Runtime
+	impl pallet_validated_streams::ExtrinsicDetails<Block,UncheckedExtrinsic,Runtime> for Runtime
 	{
 		fn get_extrinsic_ids(extrinsics:&Vec<<Block as BlockT>::Extrinsic>) -> Vec<H256>
 		{
 			let mut ids = Vec::new();
 			for extrinsic in extrinsics.iter()
 			{
-				if let Call::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event{event_id:call_data}) = &extrinsic.function
+				if let Call::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event{event_id:call_data,proofs:_}) = &extrinsic.function
 				{
 					ids.push(*call_data);
 				}
 			}
 			ids
 		}
-		fn create_unsigned_extrinsic(event_id:H256) -> UncheckedExtrinsic
+		fn create_unsigned_extrinsic(event_id:H256,_event_proofs: Option<BoundedBTreeMap<Public,BoundedVec<u8,<Runtime as pallet_validated_streams::Config>::SignatureLength>,<Runtime as pallet_aura::Config>::MaxAuthorities>>) -> UncheckedExtrinsic
 		{
 			UncheckedExtrinsic
 			{
 				signature:None,
-				function:pallet_validated_streams::Call::<Runtime>::validate_event { event_id }.into(),
+				function:pallet_validated_streams::Call::<Runtime>::validate_event { event_id , proofs: _event_proofs}.into(),
 			}
 		}
 	}

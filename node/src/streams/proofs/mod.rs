@@ -35,6 +35,12 @@ pub trait EventProofs {
 	) -> Result<u16, Error>;
 	/// retrieve the proof count for the given event id
 	fn get_proof_count(&self, event_id: H256) -> Result<u16, Error>;
+	/// returns a `HashMap` containing the public keys and their corresponding signatures for the
+	/// given event id
+	fn proofs(
+		&self,
+		event_id: &H256,
+	) -> Result<HashMap<CryptoTypePublicPair, WitnessedEvent>, Error>;
 	/// remove stale signatures from events observed by previous validators based on the
 	/// updated list of validators.
 	fn purge_stale_signatures(
@@ -105,7 +111,21 @@ impl EventProofs for InMemoryEventProofs {
 			Ok(0)
 		}
 	}
-
+	fn proofs(
+		&self,
+		event_id: &H256,
+	) -> Result<HashMap<CryptoTypePublicPair, WitnessedEvent>, Error> {
+		let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
+		if proofs.contains_key(&event_id) {
+			let map = proofs
+				.get(event_id)
+				.ok_or_else(|| Error::Other("Could not retrieve event proofs".to_string()))?
+				.clone();
+			Ok(map)
+		} else {
+			Err(Error::Other("Event not found".to_string()))
+		}
+	}
 	fn purge_stale_signatures(
 		&self,
 		validators: &[CryptoTypePublicPair],

@@ -26,11 +26,14 @@ use sp_core::{
 	ByteArray, H256,
 };
 use sp_keystore::CryptoStore;
-use sp_runtime::app_crypto::CryptoTypePublicPair;
+use sp_runtime::{app_crypto::CryptoTypePublicPair, BoundedBTreeMap, BoundedVec};
 #[cfg(test)]
 pub mod tests;
 use sp_runtime::{app_crypto::RuntimePublic, key_types::AURA, OpaqueExtrinsic};
-use std::sync::{Arc, RwLock};
+use std::{
+	collections::HashMap,
+	sync::{Arc, RwLock},
+};
 pub use tonic::{transport::Server, Request, Response, Status};
 const TX_SOURCE: TransactionSource = TransactionSource::Local;
 
@@ -245,13 +248,20 @@ impl EventService {
 			Ok(proof_count) =>
 				if proof_count == target {
 					// avoid purging stale signatures everytime an event gets added, just check it
-                    // only when proof count is updated
+					// only when proof count is updated
 					let proof_count = self.event_proofs.purge_stale_signature(
 						&self.block_state.read()?.validators,
 						witnessed_event.event_id,
 					)?;
 					if proof_count >= target {
-						self.submit_event_extrinsic(witnessed_event.event_id).await?;
+						#[cfg(not(feature = "on-chain-proofs"))]
+						self.submit_event_extrinsic(witnessed_event.event_id, None).await?;
+						#[cfg(feature = "on-chain-proofs")]
+						self.submit_event_extrinsic(
+							witnessed_event.event_id,
+							Some(self.event_proofs.proofs(&witnessed_event.event_id)?),
+						)
+						.await?;
 						Ok(format!("Event:{} has been witnessed by a mjority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count))
 					} else {
 						Ok(format!(
@@ -273,12 +283,30 @@ impl EventService {
 	}
 	/// create a validated streams unsigned extrinsic with the given event_id and submits it to the
 	/// transaction pool
-	async fn submit_event_extrinsic(&self, event_id: H256) -> Result<H256, Error> {
+	async fn submit_event_extrinsic(
+		&self,
+		event_id: H256,
+		event_proofs: Option<HashMap<CryptoTypePublicPair, WitnessedEvent>>,
+	) -> Result<H256, Error> {
+		let proofs = {
+			if let Some(mut event_proofs) = event_proofs {
+				let proofs =
+					event_proofs.iter_mut().fold(BoundedBTreeMap::new(), |mut proofs, (k, v)| {
+						let pubkey = Public::from_slice(k.1.as_slice()).unwrap();
+						let signature: BoundedVec<_, _> = v.signature.clone().try_into().unwrap();
+						proofs.try_insert(pubkey, signature).unwrap();
+						proofs
+					});
+				Some(proofs)
+			} else {
+				None
+			}
+		};
 		let best_block_id = BlockId::hash(self.client.info().best_hash);
 		let unsigned_extrinsic = self
 			.client
 			.runtime_api()
-			.create_unsigned_extrinsic(&best_block_id, event_id)
+			.create_unsigned_extrinsic(&best_block_id, event_id, proofs)
 			.map_err(|e| Error::Other(e.to_string()))?;
 		let opaque_extrinsic = OpaqueExtrinsic::from(unsigned_extrinsic);
 		self.tx_pool
