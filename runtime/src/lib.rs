@@ -271,6 +271,11 @@ impl pallet_sudo::Config for Runtime {
 impl pallet_validated_streams::Config for Runtime {
 	type Event = Event;
 	type SignatureLength = ConstU32<64>;
+    type VSAuthorityId = AuraId;
+    type VSMaxAuthorities = ConstU32<32>;
+    fn authorities() -> BoundedVec<Self::VSAuthorityId,Self::VSMaxAuthorities> {
+        Aura::authorities()
+    }
 }
 
 //impl pallet_authorship::Config for Runtime {
@@ -418,7 +423,7 @@ impl_runtime_apis! {
 			}
 			ids
 		}
-		fn create_unsigned_extrinsic(event_id:H256,_event_proofs: Option<BoundedBTreeMap<Public,BoundedVec<u8,<Runtime as pallet_validated_streams::Config>::SignatureLength>,<Runtime as pallet_aura::Config>::MaxAuthorities>>) -> UncheckedExtrinsic
+		fn create_unsigned_extrinsic(event_id:H256,_event_proofs: Option<BoundedBTreeMap<Public,BoundedVec<u8,<Runtime as pallet_validated_streams::Config>::SignatureLength>,<Runtime as pallet_validated_streams::Config>::VSMaxAuthorities>>) -> UncheckedExtrinsic
 		{
 			UncheckedExtrinsic
 			{

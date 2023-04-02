@@ -23,7 +23,6 @@ pub mod pallet {
 	use sp_core::sr25519::Signature;
 	use sp_core::{sr25519::Public, H256};
 	pub use sp_runtime::traits::Extrinsic;
-	#[cfg(feature = "on-chain-proofs")]
 	use sp_runtime::{app_crypto::RuntimePublic, RuntimeAppPublic};
 	use sp_std::vec::Vec;
 	#[pallet::pallet]
@@ -31,10 +30,18 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_aura::Config {
+	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		#[pallet::constant]
 		type SignatureLength: Get<u32>;
+		type VSAuthorityId: Member
+			+ Parameter
+			+ RuntimeAppPublic
+			+ MaybeSerializeDeserialize
+			+ MaxEncodedLen;
+		#[pallet::constant]
+		type VSMaxAuthorities: Get<u32>;
+        fn authorities() -> BoundedVec<Self::VSAuthorityId,Self::VSMaxAuthorities>; 
 	}
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -62,7 +69,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::Hash,
-		BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::MaxAuthorities>,
+		BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::VSMaxAuthorities>,
 	>;
 
 	#[pallet::call]
@@ -78,7 +85,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			event_id: T::Hash,
 			proofs: Option<
-				BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::MaxAuthorities>,
+				BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::VSMaxAuthorities>,
 			>,
 		) -> DispatchResult {
 			// indirection because pallet::call does not support cfg feature macro yet
@@ -91,7 +98,7 @@ pub mod pallet {
 			_origin: OriginFor<T>,
 			event_id: T::Hash,
 			_proofs: Option<
-				BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::MaxAuthorities>,
+				BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::VSMaxAuthorities>,
 			>,
 		) -> DispatchResult {
 			let current_block = <frame_system::Pallet<T>>::block_number();
@@ -105,10 +112,10 @@ pub mod pallet {
 			_origin: OriginFor<T>,
 			event_id: T::Hash,
 			event_proofs: Option<
-				BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::MaxAuthorities>,
+				BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::VSMaxAuthorities>,
 			>,
 		) -> DispatchResult {
-			let authorities: Vec<Public> = pallet_aura::Pallet::<T>::authorities()
+			let authorities: Vec<Public> = T::authorities()
 				.into_iter()
 				.map(|id| Public::from_h256(H256::from_slice(id.to_raw_vec().as_slice())))
 				.collect();
@@ -168,7 +175,7 @@ pub mod pallet {
 		pub trait ExtrinsicDetails<T,R> where T:Extrinsic + Decode, R:Config{
 			#[allow(clippy::ptr_arg)]
 			fn get_extrinsic_ids(extrinsics: &Vec<Block::Extrinsic>) -> Vec<H256>;
-			fn create_unsigned_extrinsic(event_id:H256,event_proofs:Option<BoundedBTreeMap<Public,BoundedVec<u8,R::SignatureLength>,R::MaxAuthorities>>)-> T;
+			fn create_unsigned_extrinsic(event_id:H256,event_proofs:Option<BoundedBTreeMap<Public,BoundedVec<u8,R::SignatureLength>,R::VSMaxAuthorities>>)-> T;
 		}
 	}
 }
