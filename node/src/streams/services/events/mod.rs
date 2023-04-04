@@ -241,10 +241,7 @@ impl EventService {
 			(block_state.verify_witnessed_event_origin(witnessed_event)?, block_state.target())
 		};
 
-		match self
-			.event_proofs
-			.add_event_proof(&witnessed_event, witnessed_event.pub_key.clone())
-		{
+		match self.event_proofs.add_event_proof(&witnessed_event) {
 			Ok(proof_count) =>
 				if proof_count == target {
 					// avoid purging stale signatures everytime an event gets added, just check it
@@ -286,14 +283,14 @@ impl EventService {
 	async fn submit_event_extrinsic(
 		&self,
 		event_id: H256,
-		event_proofs: Option<HashMap<CryptoTypePublicPair, WitnessedEvent>>,
+		event_proofs: Option<HashMap<CryptoTypePublicPair, Vec<u8>>>,
 	) -> Result<H256, Error> {
 		let proofs = {
 			if let Some(mut event_proofs) = event_proofs {
 				let proofs =
 					event_proofs.iter_mut().fold(BoundedBTreeMap::new(), |mut proofs, (k, v)| {
 						let pubkey = Public::from_slice(k.1.as_slice()).unwrap();
-						let signature: BoundedVec<_, _> = v.signature.clone().try_into().unwrap();
+						let signature: BoundedVec<_, _> = v.clone().try_into().unwrap();
 						proofs.try_insert(pubkey, signature).unwrap();
 						proofs
 					});
