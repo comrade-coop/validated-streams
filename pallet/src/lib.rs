@@ -22,8 +22,10 @@ pub mod pallet {
 	#[cfg(feature = "on-chain-proofs")]
 	use sp_core::sr25519::Signature;
 	use sp_core::{sr25519::Public, H256};
+	#[cfg(feature = "on-chain-proofs")]
+	use sp_runtime::app_crypto::RuntimePublic;
 	pub use sp_runtime::traits::Extrinsic;
-	use sp_runtime::{app_crypto::RuntimePublic, RuntimeAppPublic};
+	use sp_runtime::RuntimeAppPublic;
 	use sp_std::vec::Vec;
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -41,7 +43,7 @@ pub mod pallet {
 			+ MaxEncodedLen;
 		#[pallet::constant]
 		type VSMaxAuthorities: Get<u32>;
-        fn authorities() -> BoundedVec<Self::VSAuthorityId,Self::VSMaxAuthorities>; 
+		fn authorities() -> BoundedVec<Self::VSAuthorityId, Self::VSMaxAuthorities>;
 	}
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]

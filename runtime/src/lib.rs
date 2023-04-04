@@ -271,11 +271,11 @@ impl pallet_sudo::Config for Runtime {
 impl pallet_validated_streams::Config for Runtime {
 	type Event = Event;
 	type SignatureLength = ConstU32<64>;
-    type VSAuthorityId = AuraId;
-    type VSMaxAuthorities = ConstU32<32>;
-    fn authorities() -> BoundedVec<Self::VSAuthorityId,Self::VSMaxAuthorities> {
-        Aura::authorities()
-    }
+	type VSAuthorityId = AuraId;
+	type VSMaxAuthorities = ConstU32<32>;
+	fn authorities() -> BoundedVec<Self::VSAuthorityId, Self::VSMaxAuthorities> {
+		Aura::authorities()
+	}
 }
 
 //impl pallet_authorship::Config for Runtime {
