@@ -9,6 +9,9 @@ pub struct RunCmd {
 	#[clap(long, multiple_values = true)]
 	/// multiaddresses of the boot nodes
 	pub peers_multiaddr: Vec<Multiaddr>,
+	#[clap(long, default_value = "/tmp/ProofStore")]
+	/// path for the event proofs database
+	pub proofs_path: String,
 }
 
 fn validate_port(p: &str) -> Result<u16, String> {

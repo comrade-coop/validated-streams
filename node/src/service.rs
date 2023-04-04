@@ -1,7 +1,7 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 use crate::streams::{
 	node::ValidatedStreamsNode,
-	proofs::{EventProofs, InMemoryEventProofs},
+	proofs::{EventProofs, ProofStore},
 	services::witness_block_import::WitnessBlockImport,
 };
 use libp2p::Multiaddr;
@@ -60,7 +60,10 @@ type FullPartialComponentsOther = (
 );
 
 /// Build the services a client is composed of, but don't run it yet
-pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, ServiceError> {
+pub fn new_partial(
+	config: &Configuration,
+	proofs_path: String,
+) -> Result<FullPartialComponents, ServiceError> {
 	if config.keystore_remote.is_some() {
 		return Err(ServiceError::Other("Remote Keystores are not supported.".into()))
 	}
@@ -113,7 +116,7 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let event_proofs = Arc::new(InMemoryEventProofs::create());
+	let event_proofs = Arc::new(ProofStore::create(&proofs_path));
 	let witness_block_import =
 		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
 
@@ -168,6 +171,7 @@ pub fn new_full(
 	mut config: Configuration,
 	grpc_port: u16,
 	peers_multiaddr: Vec<Multiaddr>,
+	proofs_path: String,
 ) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
 		client,
@@ -178,7 +182,7 @@ pub fn new_full(
 		select_chain,
 		transaction_pool,
 		other: (block_import, event_proofs, grandpa_link, mut telemetry),
-	} = new_partial(&config)?;
+	} = new_partial(&config, proofs_path)?;
 
 	ValidatedStreamsNode::start(
 		task_manager.spawn_handle(),
