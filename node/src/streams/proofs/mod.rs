@@ -29,11 +29,18 @@ pub struct WitnessedEvent {
 pub trait EventProofs {
 	/// adds an event proof from the given witnessed event if it has not yet been added
 	fn add_event_proof(&self, event: &WitnessedEvent) -> Result<u16, Error>;
+	/// adds all the event proofs
+	fn add_events_proofs(&self, proofs: ProofsMap) -> Result<(), Error>;
 	/// retrieve the proof count for the given event id
 	fn get_proof_count(&self, event_id: H256) -> Result<u16, Error>;
 	/// returns a `HashMap` containing the public keys and their corresponding signatures for the
 	/// given event id
-	fn proofs(&self, event_id: &H256) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error>;
+	fn get_event_proofs(
+		&self,
+		event_id: &H256,
+	) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error>;
+	/// returns [ProofsMap] for the given events
+	fn get_events_proofs(&self, events: &[H256]) -> Result<ProofsMap, Error>;
 	/// remove stale signatures from events observed by previous validators based on the
 	/// updated list of validators.
 	fn purge_stale_signatures(
@@ -49,8 +56,8 @@ pub trait EventProofs {
 		event_id: H256,
 	) -> Result<u16, Error>;
 }
-
-type ProofsMap = HashMap<H256, HashMap<CryptoTypePublicPair, Vec<u8>>>;
+/// map event ids to their proofs
+pub type ProofsMap = HashMap<H256, HashMap<CryptoTypePublicPair, Vec<u8>>>;
 
 /// An in-memory store of event proofs.
 pub struct InMemoryEventProofs {
@@ -89,6 +96,9 @@ impl EventProofs for InMemoryEventProofs {
 			},
 		}
 	}
+	fn add_events_proofs(&self, _proofs: ProofsMap) -> Result<(), Error> {
+		todo!()
+	}
 	fn get_proof_count(&self, event_id: H256) -> Result<u16, Error> {
 		let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
 		if proofs.contains_key(&event_id) {
@@ -101,7 +111,10 @@ impl EventProofs for InMemoryEventProofs {
 			Ok(0)
 		}
 	}
-	fn proofs(&self, event_id: &H256) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error> {
+	fn get_event_proofs(
+		&self,
+		event_id: &H256,
+	) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error> {
 		let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
 		if proofs.contains_key(&event_id) {
 			let map = proofs
@@ -113,6 +126,10 @@ impl EventProofs for InMemoryEventProofs {
 			Err(Error::Other("Event not found".to_string()))
 		}
 	}
+	fn get_events_proofs(&self, _events: &[H256]) -> Result<ProofsMap, Error> {
+		Ok(ProofsMap::new())
+	}
+
 	fn purge_stale_signatures(
 		&self,
 		validators: &[CryptoTypePublicPair],
@@ -132,6 +149,7 @@ impl EventProofs for InMemoryEventProofs {
 		}
 		Ok(())
 	}
+
 	fn purge_stale_signature(
 		&self,
 		validators: &[CryptoTypePublicPair],
@@ -211,6 +229,13 @@ impl EventProofs for ProofStore {
 		)
 	}
 
+	fn add_events_proofs(&self, proofs: ProofsMap) -> Result<(), Error> {
+		for (event, proof) in proofs {
+			self.insert_proofs(&event, proof)?;
+		}
+		Ok(())
+	}
+
 	fn get_proof_count(&self, event_id: H256) -> Result<u16, Error> {
 		if let Some(proofs) = self.get_proofs(&event_id) {
 			Ok(proofs.len() as u16)
@@ -218,13 +243,27 @@ impl EventProofs for ProofStore {
 			Ok(0)
 		}
 	}
-
-	fn proofs(&self, event_id: &H256) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error> {
+	fn get_event_proofs(
+		&self,
+		event_id: &H256,
+	) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error> {
 		if let Some(proofs) = self.get_proofs(event_id) {
 			Ok(proofs)
 		} else {
 			Err(Error::Other("Event not found".to_string()))
 		}
+	}
+
+	fn get_events_proofs(&self, events: &[H256]) -> Result<ProofsMap, Error> {
+		let mut proofs_map = ProofsMap::new();
+		for event in events {
+			if let Some(proofs) = self.get_proofs(event) {
+				proofs_map.insert(event.clone(), proofs);
+			} else {
+				return Err(Error::Other("Event not found".to_string()))
+			}
+		}
+		Ok(proofs_map)
 	}
 
 	fn purge_stale_signatures(
@@ -236,8 +275,6 @@ impl EventProofs for ProofStore {
 			if let Some(mut proofs) = self.get_proofs(event_id) {
 				proofs.retain(|k, _| validators.contains(k));
 				self.update_proofs(event_id, &proofs)?;
-			} else {
-				return Err(Error::Other("Event not found".to_string()))
 			}
 		}
 		Ok(())

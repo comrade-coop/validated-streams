@@ -155,7 +155,7 @@ impl EventService {
 	/// the target yet or completely unwitnessed events
 	pub fn verify_events_validity(
 		client: Arc<FullClient>,
-		event_proofs: Arc<dyn EventProofs>,
+		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		ids: Vec<H256>,
 	) -> Result<Vec<H256>, Error> {
 		let block_state =
@@ -256,7 +256,7 @@ impl EventService {
 						#[cfg(feature = "on-chain-proofs")]
 						self.submit_event_extrinsic(
 							witnessed_event.event_id,
-							Some(self.event_proofs.proofs(&witnessed_event.event_id)?),
+							Some(self.event_proofs.get_event_proofs(&witnessed_event.event_id)?),
 						)
 						.await?;
 						Ok(format!("Event:{} has been witnessed by a mjority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count))

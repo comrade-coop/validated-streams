@@ -48,10 +48,6 @@ impl Streams for ValidatedStreamsGrpc {
 		&self,
 		request: Request<ValidateEventRequest>,
 	) -> Result<Response<ValidateEventResponse>, Status> {
-		let remote_addr = request
-			.remote_addr()
-			.ok_or_else(|| Status::aborted("Malformed Request, can't retrieve Origin address"))?;
-		log::info!("Received a request from {:?}", remote_addr);
 		let event = request.into_inner();
 		// check that event_id is 32 bytes otherwise H256::from_slice would panic
 		if event.event_id.len() == 32 {

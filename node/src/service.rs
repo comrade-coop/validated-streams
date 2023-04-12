@@ -2,7 +2,7 @@
 use crate::streams::{
 	node::ValidatedStreamsNode,
 	proofs::{EventProofs, ProofStore},
-	services::witness_block_import::WitnessBlockImport,
+	services::witness_block_import::{DefferedBlocks, WitnessBlockImport},
 };
 use libp2p::Multiaddr;
 use node_runtime::{self, opaque::Block, RuntimeApi};
@@ -14,7 +14,8 @@ use sc_keystore::LocalKeystore;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use tokio::sync::Mutex;
 
 /// Our native executor instance.
 pub struct ExecutorDispatch;
@@ -57,6 +58,7 @@ type FullPartialComponentsOther = (
 	Arc<dyn EventProofs + Send + Sync>,
 	sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
+	Arc<DefferedBlocks>,
 );
 
 /// Build the services a client is composed of, but don't run it yet
@@ -116,9 +118,17 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
+	let deffered_blocks = Arc::new(DefferedBlocks {
+		inner: Arc::new(Mutex::new(HashMap::new())),
+		network_service: Arc::new(Mutex::new(None)),
+	});
 	let event_proofs = Arc::new(ProofStore::create(&proofs_path));
-	let witness_block_import =
-		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
+	let witness_block_import = WitnessBlockImport::new(
+		grandpa_block_import.clone(),
+		client.clone(),
+		event_proofs.clone(),
+		deffered_blocks.clone(),
+	);
 
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
@@ -146,7 +156,6 @@ pub fn new_partial(
 			check_for_equivocation: Default::default(),
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		})?;
-
 	Ok(sc_service::PartialComponents {
 		client,
 		backend,
@@ -155,7 +164,7 @@ pub fn new_partial(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (witness_block_import, event_proofs, grandpa_link, telemetry),
+		other: (witness_block_import, event_proofs, grandpa_link, telemetry, deffered_blocks),
 	})
 }
 
@@ -181,12 +190,12 @@ pub fn new_full(
 		mut keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, event_proofs, grandpa_link, mut telemetry),
+		other: (block_import, event_proofs, grandpa_link, mut telemetry, deffered_blocks),
 	} = new_partial(&config, proofs_path)?;
 
 	ValidatedStreamsNode::start(
 		task_manager.spawn_handle(),
-		event_proofs,
+		event_proofs.clone(),
 		client.clone(),
 		keystore_container.keystore().clone(),
 		transaction_pool.clone(),
@@ -229,7 +238,6 @@ pub fn new_full(
 			block_announce_validator_builder: None,
 			warp_sync: Some(warp_sync),
 		})?;
-
 	if config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(
 			&config,
@@ -238,7 +246,17 @@ pub fn new_full(
 			network.clone(),
 		);
 	}
-
+	task_manager.spawn_handle().spawn(
+		"dht event handler",
+		None,
+		DefferedBlocks::handle_dht_events(
+			deffered_blocks.network_service.clone(),
+			deffered_blocks.inner.clone(),
+			network.clone(),
+			client.clone(),
+			event_proofs.clone(),
+		),
+	);
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks: Option<()> = None;
