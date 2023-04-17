@@ -1,8 +1,9 @@
 use crate as pallet_validated_streams;
 use frame_support::{
 	assert_err, assert_ok,
-	traits::{ConstU16, ConstU64},
+	traits::{ConstU16, ConstU64, ConstU32},
 };
+use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
@@ -53,6 +54,16 @@ impl system::Config for Test {
 
 impl pallet_validated_streams::Config for Test {
 	type Event = Event;
+
+type SignatureLength= ConstU32<64>;
+
+type VSAuthorityId =AuraId; 
+
+type VSMaxAuthorities= ConstU32<32>;
+
+fn authorities() -> frame_support::BoundedVec<Self::VSAuthorityId,Self::VSMaxAuthorities>  {
+        todo!()
+    }
 }
 
 // Build genesis storage according to the mock runtime.
@@ -70,7 +81,7 @@ fn it_adds_event() {
 		assert_eq!(ValidatedStreams::verify_event(event_id), false);
 		// Dispatch an extrinsic
 		// signature should not matter since it should pass through validate_unsigned.
-		assert_ok!(ValidatedStreams::validate_event(Origin::none(), event_id));
+		assert_ok!(ValidatedStreams::validate_event(Origin::none(), event_id,None));
 		assert_eq!(ValidatedStreams::get_all_events(), vec![event_id]);
 		assert_eq!(ValidatedStreams::verify_event(event_id), true);
 		System::assert_last_event(
@@ -80,7 +91,7 @@ fn it_adds_event() {
 		assert_eq!(ValidatedStreams::get_block_events(1), vec![event_id]);
 		//dispatch an extrinsic with an already validated event
 		assert_err!(
-			ValidatedStreams::validate_event(Origin::root(), event_id),
+			ValidatedStreams::validate_event(Origin::root(), event_id,None),
 			pallet_validated_streams::Error::<Test>::AlreadyValidated
 		);
 	})
