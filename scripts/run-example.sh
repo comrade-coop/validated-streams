@@ -25,7 +25,6 @@ elif [ "$COMMAND" = "start" ]; then
     "localhost:5556"
     "localhost:5557"
     "localhost:5558"
-    "localhost:5559"
   )
   #base64 encoded hash for 256 zeroes
   #hash_value="ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQ="

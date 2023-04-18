@@ -100,17 +100,17 @@ impl DefferedBlocks {
 							Self::verify_proofs(&proofs, &unwitnessed_events, client.clone())
 						{
 							if result {
-								log::info!("All event proofs have been received");
+								log::info!("💡 Retreived all event proofs of block {}",desrialized_key);
 								event_proofs.add_events_proofs(proofs).ok();
 								inner.remove(&desrialized_key);
 							}
 						}
 					} else {
-						log::info!("failed deserializing proofs");
+						log::error!("failed deserializing proofs");
 					}
 				}
 			} else {
-				log::info!("bad block key length");
+				log::error!("bad block key length");
 			}
 		}
 	}
@@ -143,21 +143,21 @@ impl DefferedBlocks {
 					let signature = Signature::from_slice(sig.as_slice())
 						.ok_or(Error::Other("bad signature".to_string()))?;
 					let pubkey = Public::from_slice(key.1.as_slice()).map_err(|_| {
-						log::info!("bad public key provided for proof");
+						log::error!("bad public key provided for proof");
 						Error::Other("bad public key".to_string())
 					})?;
 					if !pubkey.verify(&event, &signature) {
-						log::info!("received faulty signature");
+						log::error!("received faulty signature");
 						return Ok(false)
 					}
 					proof_count += 1;
 				}
 				if proof_count < target {
-					log::info!("Not Enough Proofs for event {:?}", event);
+					log::error!("Not Enough Proofs for event {:?}", event);
 					return Ok(false)
 				}
 			} else {
-				log::info!("didn't receive proof for event {:?}", event);
+				log::error!("didn't receive proof for event {:?}", event);
 				return Ok(false)
 			}
 		}
@@ -167,7 +167,9 @@ impl DefferedBlocks {
 		let key = KademliaKey::new(&block_hash.as_bytes());
 		let mut inner = self.inner.lock().await;
 		if let Some(dht) = &*self.network_service.lock().await {
-			inner.insert(block_hash, unwitnessed_events.into());
+			if let None = inner.insert(block_hash, unwitnessed_events.into()){
+                log::info!("⏭️  Deffered Block {} containing {} unwitnessed events", block_hash, unwitnessed_events.len());
+            }
 			dht.get_value(&key);
 			log::info!("request sent to the dht to retreive proofs")
 		} else {
@@ -202,14 +204,11 @@ where
 		&mut self,
 		block: BlockCheckParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
-		let parent_result = self.parent_block_import.check_block(block).await;
-		match parent_result {
-			Ok(result) => {
-				info!("👌Block Checked");
-				return Ok(result)
-			},
-			Err(e) => return Err(ConsensusError::ClientImport(format!("{}", e))),
-		}
+			return self
+				.parent_block_import
+				.check_block(block)
+				.await
+				.map_err(|e| ConsensusError::ClientImport(format!("{}", e)))
 	}
 
 	async fn import_block(
@@ -232,13 +231,11 @@ where
 			) {
 				Ok(unwitnessed_ids) =>
 					if !unwitnessed_ids.is_empty() {
-						log::info!("Block should be deferred as it contains unwitnessed events");
 						self.deffered_blocks
 							.deffer_block(block.header.hash(), &unwitnessed_ids)
 							.await;
-						return Err(ConsensusError::ClientImport(format!("block deffered")))
+						return Err(ConsensusError::ClientImport(format!("block contains unwitnessed events")))
 					} else {
-						log::info!("All block events have been witnessed:{:?}", event_ids);
 						let block_hash = block.header.hash();
 						let parent_result =
 							self.parent_block_import.import_block(block, cache).await;
@@ -246,6 +243,7 @@ where
 							Ok(result) => {
 								let dht = self.deffered_blocks.network_service.clone();
 								self.provide_block_proofs(dht, block_hash, &event_ids).await;
+                                log::info!("📥 Block {} Imported", block_hash);
 								return Ok(result)
 							},
 							Err(e) => return Err(ConsensusError::ClientImport(format!("{}", e))),
