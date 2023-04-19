@@ -9,7 +9,6 @@ use crate::{
 	},
 };
 use futures::StreamExt;
-use log::info;
 use node_runtime::{self, opaque::Block, pallet_validated_streams::ExtrinsicDetails};
 use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult};
 pub use sc_executor::NativeElseWasmExecutor;
@@ -52,7 +51,7 @@ pub struct DefferedBlocks {
 }
 impl DefferedBlocks {
 	/// handles incoming dht events and set the network service
-    /// for all instances of the witness block import
+	/// for all instances of the witness block import
 	pub async fn handle_dht_events(
 		dht: Arc<Mutex<Option<Arc<NetworkService<Block, H256>>>>>,
 		inner_blocks: Arc<Mutex<HashMap<H256, Vec<H256>>>>,
@@ -100,7 +99,10 @@ impl DefferedBlocks {
 							Self::verify_proofs(&proofs, &unwitnessed_events, client.clone())
 						{
 							if result {
-								log::info!("💡 Retreived all event proofs of block {}",desrialized_key);
+								log::info!(
+									"💡 Retreived all event proofs of block {}",
+									desrialized_key
+								);
 								event_proofs.add_events_proofs(proofs).ok();
 								inner.remove(&desrialized_key);
 							}
@@ -167,9 +169,13 @@ impl DefferedBlocks {
 		let key = KademliaKey::new(&block_hash.as_bytes());
 		let mut inner = self.inner.lock().await;
 		if let Some(dht) = &*self.network_service.lock().await {
-			if let None = inner.insert(block_hash, unwitnessed_events.into()){
-                log::info!("⏭️  Deffered Block {} containing {} unwitnessed events", block_hash, unwitnessed_events.len());
-            }
+			if let None = inner.insert(block_hash, unwitnessed_events.into()) {
+				log::info!(
+					"⏭️  Deffered Block {} containing {} unwitnessed events",
+					block_hash,
+					unwitnessed_events.len()
+				);
+			}
 			dht.get_value(&key);
 			log::info!("request sent to the dht to retreive proofs")
 		} else {
@@ -204,11 +210,11 @@ where
 		&mut self,
 		block: BlockCheckParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
-			return self
-				.parent_block_import
-				.check_block(block)
-				.await
-				.map_err(|e| ConsensusError::ClientImport(format!("{}", e)))
+		return self
+			.parent_block_import
+			.check_block(block)
+			.await
+			.map_err(|e| ConsensusError::ClientImport(format!("{}", e)))
 	}
 
 	async fn import_block(
@@ -234,7 +240,9 @@ where
 						self.deffered_blocks
 							.deffer_block(block.header.hash(), &unwitnessed_ids)
 							.await;
-						return Err(ConsensusError::ClientImport(format!("block contains unwitnessed events")))
+						return Err(ConsensusError::ClientImport(format!(
+							"block contains unwitnessed events"
+						)))
 					} else {
 						let block_hash = block.header.hash();
 						let parent_result =
@@ -243,7 +251,7 @@ where
 							Ok(result) => {
 								let dht = self.deffered_blocks.network_service.clone();
 								self.provide_block_proofs(dht, block_hash, &event_ids).await;
-                                log::info!("📥 Block {} Imported", block_hash);
+								log::info!("📥 Block {} Imported", block_hash);
 								return Ok(result)
 							},
 							Err(e) => return Err(ConsensusError::ClientImport(format!("{}", e))),

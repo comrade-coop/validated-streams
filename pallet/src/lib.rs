@@ -9,6 +9,10 @@
 // Re-export pallet items so that they can be accessed from the crate namespace.
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+pub mod mock;
+
 pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
@@ -149,6 +153,7 @@ pub mod pallet {
 		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 			ValidTransaction::with_tag_prefix("validated_streams")
 				.and_provides(call.encode())
+				.propagate(false)
 				.build()
 		}
 	}
@@ -178,6 +183,7 @@ pub mod pallet {
 			#[allow(clippy::ptr_arg)]
 			fn get_extrinsic_ids(extrinsics: &Vec<Block::Extrinsic>) -> Vec<H256>;
 			fn create_unsigned_extrinsic(event_id:H256,event_proofs:Option<BoundedBTreeMap<Public,BoundedVec<u8,R::SignatureLength>,R::VSMaxAuthorities>>)-> T;
+			fn verify_extrinsic(extrinsic: Block::Extrinsic)-> bool;
 		}
 	}
 }

@@ -431,6 +431,16 @@ impl_runtime_apis! {
 				function:pallet_validated_streams::Call::<Runtime>::validate_event { event_id , proofs: _event_proofs}.into(),
 			}
 		}
+		fn verify_extrinsic(extrinsic: <Block as BlockT>::Extrinsic)-> bool
+		{
+				if let Call::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event{event_id:_,proofs:_}) = &extrinsic.function
+				{
+					false
+				}else
+				{
+					true
+				}
+		}
 	}
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
 		fn slot_duration() -> sp_consensus_aura::SlotDuration {

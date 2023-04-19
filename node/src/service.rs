@@ -1,6 +1,7 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 use crate::streams::{
 	node::ValidatedStreamsNode,
+	pool::NetworkTxPool,
 	proofs::{EventProofs, ProofStore},
 	services::witness_block_import::{DefferedBlocks, WitnessBlockImport},
 };
@@ -232,7 +233,7 @@ pub fn new_full(
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
-			transaction_pool: transaction_pool.clone(),
+			transaction_pool: Arc::new(NetworkTxPool(transaction_pool.clone(), client.clone())),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			block_announce_validator_builder: None,
