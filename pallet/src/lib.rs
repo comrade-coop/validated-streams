@@ -62,6 +62,7 @@ pub mod pallet {
 		BadSignature,
 		InvalidProof,
 		NoProofs,
+        NotEnoughProofs,
 		UnrecognizedAuthority,
 	}
 
@@ -132,58 +133,76 @@ pub mod pallet {
 						return Err(Error::<T>::UnrecognizedAuthority.into())
 					}
 				}
-				for (key, sig) in &proofs {
-					if let Some(signature) = Signature::from_slice(sig.as_slice()) {
-						ensure!(key.verify(&event_id, &signature), Error::<T>::InvalidProof);
-					} else {
-						return Err(Error::<T>::BadSignature.into())
-					}
-				}
-				OnStreams::<T>::insert(event_id, proofs);
-				Self::deposit_event(Event::ValidatedEvent { event_id });
-				Ok(())
-			} else {
-				Err(Error::<T>::NoProofs.into())
-			}
-		}
-	}
-	#[pallet::validate_unsigned]
-	impl<T: Config> ValidateUnsigned for Pallet<T> {
-		type Call = Call<T>;
-		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-			ValidTransaction::with_tag_prefix("validated_streams")
-				.and_provides(call.encode())
-				.propagate(false)
-				.build()
-		}
-	}
-	#[cfg(not(feature = "on-chain-proofs"))]
-	impl<T: Config> Pallet<T> {
-		/// This function is used to get all events from the Streams StorageMap.
-		pub fn get_all_events() -> Vec<T::Hash> {
-			Streams::<T>::iter().map(|(k, _)| k).collect()
-		}
-		/// This function is used to get all events of a specific block.
-		pub fn get_block_events(block_number: T::BlockNumber) -> Vec<T::Hash> {
-			Streams::<T>::iter()
-				.filter(|(_, bn)| *bn == block_number)
-				.map(|(k, _)| k)
-				.collect()
-		}
-		/// verify whether an event is valid or not
-		pub fn verify_event(event_id: T::Hash) -> bool {
-			Streams::<T>::contains_key(event_id)
-		}
-	}
-	sp_api::decl_runtime_apis! {
-		/// Get extrinsic ids from a vector of extrinsics
-		/// that should be used to quickly retrieve all the event ids (hashes) given a vector of extrinsics
-		/// currently used to inspect the proposed block event ids and whether they are witnessed offchain or not
-		pub trait ExtrinsicDetails<T,R> where T:Extrinsic + Decode, R:Config{
-			#[allow(clippy::ptr_arg)]
-			fn get_extrinsic_ids(extrinsics: &Vec<Block::Extrinsic>) -> Vec<H256>;
-			fn create_unsigned_extrinsic(event_id:H256,event_proofs:Option<BoundedBTreeMap<Public,BoundedVec<u8,R::SignatureLength>,R::VSMaxAuthorities>>)-> T;
-			fn verify_extrinsic(extrinsic: Block::Extrinsic)-> bool;
-		}
-	}
+
+                let target = (2 * ((authorities.len() - 1) / 3) + 1) as u16;
+                let mut proof_count =0;
+                for (key, sig) in &proofs {
+                    if let Some(signature) = Signature::from_slice(sig.as_slice()) {
+                        ensure!(key.verify(&event_id, &signature), Error::<T>::InvalidProof);
+                        proof_count+=1;
+                    } else {
+                        return Err(Error::<T>::BadSignature.into())
+                    }
+                }
+                if proof_count < target{
+                    return Err(Error::<T>::NotEnoughProofs.into());
+                }
+                OnStreams::<T>::insert(event_id, proofs);
+                Self::deposit_event(Event::ValidatedEvent { event_id });
+                Ok(())
+            } else {
+                Err(Error::<T>::NoProofs.into())
+            }
+        }
+    }
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T> {
+        type Call = Call<T>;
+        fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            ValidTransaction::with_tag_prefix("validated_streams")
+                .and_provides(call.encode())
+                .propagate(false)
+                .build()
+        }
+    }
+    #[cfg(not(feature = "on-chain-proofs"))]
+    impl<T: Config> Pallet<T> {
+        /// This function is used to get all events from the Streams StorageMap.
+        pub fn get_all_events() -> Vec<T::Hash> {
+            Streams::<T>::iter().map(|(k, _)| k).collect()
+        }
+        /// This function is used to get all events of a specific block.
+        pub fn get_block_events(block_number: T::BlockNumber) -> Vec<T::Hash> {
+            Streams::<T>::iter()
+                .filter(|(_, bn)| *bn == block_number)
+                .map(|(k, _)| k)
+                .collect()
+        }
+        /// verify whether an event is valid or not
+        pub fn verify_event(event_id: T::Hash) -> bool {
+            Streams::<T>::contains_key(event_id)
+        }
+    }
+    #[cfg(feature = "on-chain-proofs")]
+    impl<T: Config> Pallet<T> {
+        /// This function is used to get all events from the Streams StorageMap.
+        pub fn get_all_events() -> Vec<T::Hash> {
+            OnStreams::<T>::iter().map(|(k, _)| k).collect()
+        }
+        /// verify whether an event is valid or not
+        pub fn verify_event(event_id: T::Hash) -> bool {
+            OnStreams::<T>::contains_key(event_id)
+        }
+    }
+    sp_api::decl_runtime_apis! {
+        /// Get extrinsic ids from a vector of extrinsics
+        /// that should be used to quickly retrieve all the event ids (hashes) given a vector of extrinsics
+        /// currently used to inspect the proposed block event ids and whether they are witnessed offchain or not
+        pub trait ExtrinsicDetails<T,R> where T:Extrinsic + Decode, R:Config{
+            #[allow(clippy::ptr_arg)]
+            fn get_extrinsic_ids(extrinsics: &Vec<Block::Extrinsic>) -> Vec<H256>;
+            fn create_unsigned_extrinsic(event_id:H256,event_proofs:Option<BoundedBTreeMap<Public,BoundedVec<u8,R::SignatureLength>,R::VSMaxAuthorities>>)-> T;
+            fn verify_extrinsic(extrinsic: Block::Extrinsic)-> bool;
+        }
+    }
 }
