@@ -302,7 +302,6 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
 		ValidatedStreams: pallet_validated_streams,
-		//AuthorShip: pallet_authorship,
 	}
 );
 
