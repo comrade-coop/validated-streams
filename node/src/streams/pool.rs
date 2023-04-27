@@ -17,7 +17,8 @@ use sp_api::{BlockId, ProvideRuntimeApi};
 use sp_core::H256;
 use sp_runtime::{traits::Block as BlockT, OpaqueExtrinsic};
 use std::{collections::HashMap, sync::Arc};
-/// A transaction pool that wraps BasicPool and rejects all gossiped validate_event transactions from peers
+/// A transaction pool that wraps BasicPool and rejects all gossiped validate_event transactions
+/// from peers
 pub struct NetworkTxPool(
 	pub Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 	pub Arc<FullClient>,
