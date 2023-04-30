@@ -1,5 +1,5 @@
 //! module for custom transaction pools
-use crate::service::FullClient;
+use crate::configs::FullClient;
 use codec::{Decode, Encode};
 use futures::FutureExt;
 use node_runtime::{opaque::Block, pallet_validated_streams::ExtrinsicDetails};

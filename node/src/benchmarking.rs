@@ -20,7 +20,7 @@
 //!
 //! Should only be used for benchmarking as it may break in other contexts.
 
-use crate::service::FullClient;
+use vstreams::configs::FullClient;
 
 use node_runtime as runtime;
 use runtime::{AccountId, Balance, BalancesCall, SystemCall};

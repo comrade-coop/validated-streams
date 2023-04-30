@@ -1,6 +1,6 @@
 //! Validated streams event proof types and storage
 
-use crate::streams::errors::Error;
+use crate::errors::Error;
 use serde::{Deserialize, Serialize};
 use sp_core::H256;
 use sp_runtime::app_crypto::CryptoTypePublicPair;

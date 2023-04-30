@@ -2,9 +2,10 @@ use crate::{
 	benchmarking::{inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder},
 	chain_spec,
 	cli::{Cli, Subcommand},
-	configs::DebugLocalNetworkConfiguration,
 	service,
 };
+use vstreams::configs::DebugLocalNetworkConfiguration;
+use vstreams::configs::ExecutorDispatch;
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use node_runtime::{Block, EXISTENTIAL_DEPOSIT};
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
@@ -124,7 +125,7 @@ pub fn run() -> sc_cli::Result<()> {
 							)
 						}
 
-						cmd.run::<Block, service::ExecutorDispatch>(config)
+						cmd.run::<Block, ExecutorDispatch>(config)
 					},
 					BenchmarkCmd::Block(cmd) => {
 						let PartialComponents { client, .. } =
@@ -176,7 +177,7 @@ pub fn run() -> sc_cli::Result<()> {
 				let task_manager =
 					sc_service::TaskManager::new(config.tokio_handle.clone(), registry)
 						.map_err(|e| sc_cli::Error::Service(sc_service::Error::Prometheus(e)))?;
-				Ok((cmd.run::<Block, service::ExecutorDispatch>(config), task_manager))
+				Ok((cmd.run::<Block, ExecutorDispatch>(config), task_manager))
 			})
 		},
 		#[cfg(not(feature = "try-runtime"))]

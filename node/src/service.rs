@@ -1,5 +1,5 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
-use crate::streams::{
+use vstreams::{
 	node::ValidatedStreamsNode,
 	pool::NetworkTxPool,
 	proofs::{EventProofs, ProofStore},
@@ -17,29 +17,8 @@ use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
-
-/// Our native executor instance.
-pub struct ExecutorDispatch;
-
-impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
-	/// Only enable the benchmarking host functions when we actually want to benchmark.
-	#[cfg(feature = "runtime-benchmarks")]
-	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
-	/// Otherwise we only use the default Substrate host functions.
-	#[cfg(not(feature = "runtime-benchmarks"))]
-	type ExtendHostFunctions = ();
-
-	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-		node_runtime::api::dispatch(method, data)
-	}
-
-	fn native_version() -> sc_executor::NativeVersion {
-		node_runtime::native_version()
-	}
-}
-
-pub(crate) type FullClient =
-	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
+use vstreams::configs::ExecutorDispatch;
+use vstreams::configs::FullClient;
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 

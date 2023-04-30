@@ -1,12 +1,9 @@
 //! Block import which waits for all events to be witnessed before finalizing a block.
 
-use crate::{
-	service::FullClient,
-	streams::{
-		errors::Error,
+use crate::configs::FullClient;
+use crate::{errors::Error,
 		proofs::{EventProofs, ProofsMap},
 		services::events::EventService,
-	},
 };
 use futures::StreamExt;
 use node_runtime::{self, opaque::Block, pallet_validated_streams::ExtrinsicDetails};

@@ -1,13 +1,11 @@
 //! Helpers for starting up a validated streams node
 
 use crate::{
-	configs::DebugLocalNetworkConfiguration,
-	service::FullClient,
-	streams::{
-		gossip::StreamsGossip, proofs::EventProofs, server::ValidatedStreamsGrpc,
-		services::events::EventService,
-	},
+    configs::DebugLocalNetworkConfiguration,
+    gossip::StreamsGossip, proofs::EventProofs, server::ValidatedStreamsGrpc,
+    services::events::EventService,
 };
+use crate::configs::FullClient;
 use libp2p::Multiaddr;
 use node_runtime::opaque::Block;
 use sc_service::{error::Error as ServiceError, SpawnTaskHandle};

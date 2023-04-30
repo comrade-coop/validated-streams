@@ -1,6 +1,6 @@
 //! A GRPC server for submitting event hashes from a trusted client.
 
-use crate::streams::services::events::EventService;
+use crate::services::events::EventService;
 use local_ip_address::local_ip;
 
 use sp_core::H256;

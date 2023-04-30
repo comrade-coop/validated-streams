@@ -1,20 +1,18 @@
 //! Service which handles incoming events from the trusted client and other nodes
 
 use crate::{
-	service::FullClient,
-	streams::{
-		errors::Error,
-		gossip::{StreamsGossip, StreamsGossipHandler},
-		proofs::{EventProofs, WitnessedEvent},
-	},
+    errors::Error,
+    gossip::{StreamsGossip, StreamsGossipHandler},
+    proofs::{EventProofs, WitnessedEvent},
 };
+use crate::configs::FullClient;
 use async_trait::async_trait;
 use futures::StreamExt;
 use libp2p::gossipsub::IdentTopic;
 use node_runtime::{
-	self,
-	opaque::{Block, BlockId},
-	pallet_validated_streams::ExtrinsicDetails,
+    self,
+    opaque::{Block, BlockId},
+    pallet_validated_streams::ExtrinsicDetails,
 };
 use sc_client_api::{BlockchainEvents, HeaderBackend};
 use sc_transaction_pool::{BasicPool, FullChainApi};
@@ -22,8 +20,8 @@ use sc_transaction_pool_api::TransactionSource;
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::AuraApi;
 use sp_core::{
-	sr25519::{Public, Signature},
-	ByteArray, H256,
+    sr25519::{Public, Signature},
+    ByteArray, H256,
 };
 use sp_keystore::CryptoStore;
 use sp_runtime::{app_crypto::CryptoTypePublicPair, BoundedBTreeMap, BoundedVec};
@@ -31,8 +29,8 @@ use sp_runtime::{app_crypto::CryptoTypePublicPair, BoundedBTreeMap, BoundedVec};
 pub mod tests;
 use sp_runtime::{app_crypto::RuntimePublic, key_types::AURA, OpaqueExtrinsic};
 use std::{
-	collections::HashMap,
-	sync::{Arc, RwLock},
+    collections::HashMap,
+    sync::{Arc, RwLock},
 };
 pub use tonic::{transport::Server, Request, Response, Status};
 const TX_SOURCE: TransactionSource = TransactionSource::Local;

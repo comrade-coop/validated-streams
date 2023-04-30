@@ -3,6 +3,7 @@ members = [
     "node",
     "pallet",
     "runtime",
+	"vstreams"
 ]
 [profile.release]
 panic = "unwind"

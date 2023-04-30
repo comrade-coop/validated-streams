@@ -4892,6 +4892,7 @@ dependencies = [
  "tonic",
  "tonic-build",
  "try-runtime-cli",
+ "vstreams",
 ]
 
 [[package]]
@@ -10663,6 +10664,46 @@ name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
+name = "vstreams"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bincode",
+ "clap",
+ "ctrlc",
+ "futures",
+ "hex",
+ "libp2p 0.50.0",
+ "local-ip-address",
+ "log",
+ "node-runtime",
+ "parity-scale-codec",
+ "prost 0.11.0",
+ "sc-client-api 4.0.0-dev",
+ "sc-consensus 0.10.0-dev",
+ "sc-executor 0.10.0-dev",
+ "sc-network",
+ "sc-network-common 0.10.0-dev",
+ "sc-network-transactions",
+ "sc-service",
+ "sc-transaction-pool",
+ "sc-transaction-pool-api 4.0.0-dev",
+ "serde",
+ "sled",
+ "sp-api 4.0.0-dev",
+ "sp-blockchain 4.0.0-dev",
+ "sp-consensus 0.10.0-dev",
+ "sp-consensus-aura",
+ "sp-core 6.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
+ "sp-keystore 0.12.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
+ "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.28)",
+ "subxt",
+ "tokio",
+ "tonic",
+ "tonic-build",
+]
 
 [[package]]
 name = "waker-fn"
