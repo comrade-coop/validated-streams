@@ -3,8 +3,10 @@ use vstreams::{
 	node::ValidatedStreamsNode,
 	pool::NetworkTxPool,
 	proofs::{EventProofs, ProofStore},
-	services::witness_block_import::{DefferedBlocks, WitnessBlockImport},
+	services::witness_block_import::WitnessBlockImport,
 };
+#[cfg(not(feature = "on-chain-proofs"))]
+use vstreams::services::witness_block_import::BlockManager;
 use libp2p::Multiaddr;
 use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{BlockBackend, ExecutorProvider};
@@ -15,8 +17,7 @@ use sc_keystore::LocalKeystore;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-use std::{collections::HashMap, sync::Arc, time::Duration};
-use tokio::sync::Mutex;
+use std::{sync::Arc, time::Duration};
 use vstreams::configs::ExecutorDispatch;
 use vstreams::configs::FullClient;
 type FullBackend = sc_service::TFullBackend<Block>;
@@ -38,7 +39,6 @@ type FullPartialComponentsOther = (
 	Arc<dyn EventProofs + Send + Sync>,
 	sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
-	Arc<DefferedBlocks>,
 );
 
 /// Build the services a client is composed of, but don't run it yet
@@ -98,16 +98,15 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let deffered_blocks = Arc::new(DefferedBlocks {
-		inner: Arc::new(Mutex::new(HashMap::new())),
-		network_service: Arc::new(Mutex::new(None)),
-	});
 	let event_proofs = Arc::new(ProofStore::create(&proofs_path));
-	let witness_block_import = WitnessBlockImport::new(
+	
+    #[cfg(feature = "on-chain-proofs")]
+    let witness_block_import = WitnessBlockImport::new(grandpa_block_import.clone());
+    #[cfg(not(feature = "on-chain-proofs"))]
+    let witness_block_import = WitnessBlockImport::new(
 		grandpa_block_import.clone(),
 		client.clone(),
 		event_proofs.clone(),
-		deffered_blocks.clone(),
 	);
 
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
@@ -144,7 +143,7 @@ pub fn new_partial(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (witness_block_import, event_proofs, grandpa_link, telemetry, deffered_blocks),
+		other: (witness_block_import, event_proofs, grandpa_link, telemetry),
 	})
 }
 
@@ -170,7 +169,7 @@ pub fn new_full(
 		mut keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, event_proofs, grandpa_link, mut telemetry, deffered_blocks),
+		other: (block_import, event_proofs, grandpa_link, mut telemetry),
 	} = new_partial(&config, proofs_path)?;
 
 	ValidatedStreamsNode::start(
@@ -226,12 +225,13 @@ pub fn new_full(
 			network.clone(),
 		);
 	}
+    #[cfg(not(feature = "on-chain-proofs"))]
 	task_manager.spawn_handle().spawn(
 		"dht event handler",
 		None,
-		DefferedBlocks::handle_dht_events(
-			deffered_blocks.network_service.clone(),
-			deffered_blocks.inner.clone(),
+		BlockManager::handle_dht_events(
+			block_import.block_manager.network_service.clone(),
+			block_import.block_manager.deffered_blocks.clone(),
 			network.clone(),
 			client.clone(),
 			event_proofs.clone(),
