@@ -70,7 +70,13 @@ impl DefferedBlocks {
 								event_proofs.clone(),
 							)
 							.await,
-						_ => {},
+						DhtEvent::ValueNotFound(key)=> {
+                            log::info!("block key not found in dht");
+				            let desrialized_key = H256::from_slice(key.to_vec().as_slice());
+                            inner.lock().await.remove(&desrialized_key);
+                                
+                        },
+                        _ =>{},
 					},
 					_ => {},
 				}
