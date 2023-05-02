@@ -9405,6 +9405,7 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sc-executor",
+ "sc-keystore",
  "sc-network",
  "sc-network-common",
  "sc-service",

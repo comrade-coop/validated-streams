@@ -1,5 +1,5 @@
 use super::{StreamsGossip, StreamsGossipHandler};
-use crate::streams::proofs::WitnessedEvent;
+use crate::proofs::WitnessedEvent;
 use async_trait::async_trait;
 use libp2p::{gossipsub::IdentTopic, Multiaddr};
 use sc_service::TaskManager;

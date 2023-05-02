@@ -1,4 +1,4 @@
-use crate::streams::proofs::{EventProofs, InMemoryEventProofs, ProofStore, WitnessedEvent};
+use crate::proofs::{EventProofs, InMemoryEventProofs, ProofStore, WitnessedEvent};
 use sp_core::{sr25519::Public, H256};
 use sp_runtime::app_crypto::CryptoTypePublicPair;
 
