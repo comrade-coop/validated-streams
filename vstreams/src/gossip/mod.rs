@@ -33,7 +33,7 @@ enum StreamsGossipOrder {
 /// Cloning it reuses the same swarm and gossip network.
 /// # Example Usage
 /// ```
-/// # use node::streams::gossip::{StreamsGossip, StreamsGossipHandler};
+/// # use crate::vstreams::gossip::{StreamsGossip, StreamsGossipHandler};
 /// # use std::sync::Arc;
 /// # use async_trait::async_trait;
 /// use libp2p::gossipsub::IdentTopic;
