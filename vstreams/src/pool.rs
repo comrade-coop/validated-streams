@@ -29,7 +29,7 @@ impl TransactionPool<H256, Block> for NetworkTxPool {
 			.ready()
 			.filter(|t| t.is_propagable())
 			.map(|t| {
-				let hash = t.hash().clone();
+				let hash = *t.hash();
 				let ex = t.data().clone();
 				(hash, ex)
 			})
@@ -144,7 +144,7 @@ impl ConfigPool for NetworkTxPool {
 	> {
 		let client_clone = self.1.clone();
 		let pool = self.0.clone();
-		let at_clone = at.clone();
+		let at_clone = *at;
 		async move {
 			match Self::check_extrinsics(client_clone, &xts).await {
 				Ok(_) => pool.submit_at(&at_clone, source, xts).await,
@@ -162,7 +162,7 @@ impl ConfigPool for NetworkTxPool {
 	) -> sc_transaction_pool_api::PoolFuture<sc_transaction_pool_api::TxHash<Self>, Self::Error> {
 		let client_clone = self.1.clone();
 		let pool = self.0.clone();
-		let at_clone = at.clone();
+		let at_clone = *at;
 		async move {
 			match Self::check_extrinsics(client_clone, &vec![xt.clone()]).await {
 				Ok(_) => pool.submit_one(&at_clone, source, xt).await,
@@ -183,7 +183,7 @@ impl ConfigPool for NetworkTxPool {
 	> {
 		let client_clone = self.1.clone();
 		let pool = self.0.clone();
-		let at_clone = at.clone();
+		let at_clone = *at;
 		async move {
 			match Self::check_extrinsics(client_clone, &vec![xt.clone()]).await {
 				Ok(_) => pool.submit_and_watch(&at_clone, source, xt).await,

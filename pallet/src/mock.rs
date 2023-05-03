@@ -15,7 +15,7 @@ use sp_runtime::{
 use std::sync::Mutex;
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
-pub static KEYSTORE: Lazy<LocalKeystore> = Lazy::new(|| LocalKeystore::in_memory());
+pub static KEYSTORE: Lazy<LocalKeystore> = Lazy::new(LocalKeystore::in_memory);
 pub static PAIRS: Mutex<Vec<CryptoTypePublicPair>> = Mutex::new(Vec::new());
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(

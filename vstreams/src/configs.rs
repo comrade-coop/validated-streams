@@ -2,7 +2,7 @@
 
 use libp2p::Multiaddr;
 use local_ip_address::local_ip;
-use node_runtime::{self, opaque::Block, RuntimeApi}; 
+use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_executor::NativeElseWasmExecutor;
 
 /// Our native executor instance.

@@ -46,6 +46,9 @@ node-runtime = { version = "0.1.0", path = "../runtime" }
 [build-dependencies]
 tonic-build = "0.8"
 
+[dev-dependencies]
+sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.28" }
+
 [features]
 default = []
 on-chain-proofs =[]

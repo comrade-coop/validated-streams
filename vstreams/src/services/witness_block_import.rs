@@ -1,9 +1,10 @@
 //! Block import which waits for all events to be witnessed before finalizing a block.
 #![allow(unused_imports)]
-use crate::configs::FullClient;
-use crate::{errors::Error,
-		proofs::{EventProofs, ProofsMap},
-		services::events::EventService,
+use crate::{
+	configs::FullClient,
+	errors::Error,
+	proofs::{EventProofs, ProofsMap},
+	services::events::EventService,
 };
 use futures::StreamExt;
 use node_runtime::{self, opaque::Block, pallet_validated_streams::ExtrinsicDetails};
@@ -34,14 +35,14 @@ where
 	I: BlockImport<Block>,
 {
 	parent_block_import: I,
-    #[cfg(not(feature = "on-chain-proofs"))]
-    pub block_manager: Arc<BlockManager>
+	#[cfg(not(feature = "on-chain-proofs"))]
+	pub block_manager: Arc<BlockManager>,
 }
-/// conatiner and manager of deffered blocks
+/// conatiner and manager of deferred blocks
 #[cfg(not(feature = "on-chain-proofs"))]
 pub struct BlockManager {
-	/// list of deffered block and their corresponding unwitnessed_event
-	pub deffered_blocks: Arc<Mutex<HashMap<H256, Vec<H256>>>>,
+	/// list of deferred block and their corresponding unwitnessed_event
+	pub deferred_blocks: Arc<Mutex<HashMap<H256, Vec<H256>>>>,
 	/// provides access to the distributed hash table across all instances of the witness block
 	/// import
 	pub network_service: Arc<Mutex<Option<Arc<NetworkService<Block, H256>>>>>,
@@ -49,7 +50,7 @@ pub struct BlockManager {
 	event_proofs: Arc<dyn EventProofs + Send + Sync>,
 }
 #[cfg(not(feature = "on-chain-proofs"))]
-impl BlockManager{
+impl BlockManager {
 	/// handles incoming dht events and set the network service
 	/// for all instances of the witness block import
 	pub async fn handle_dht_events(
@@ -63,8 +64,8 @@ impl BlockManager{
 		let inner = inner_blocks.clone();
 		tokio::spawn(async move {
 			while let Some(event) = network_service.event_stream("event_proofs").next().await {
-				match event {
-					Event::Dht(e) => match e {
+				if let Event::Dht(e) = event {
+					match e {
 						DhtEvent::ValueFound(values) =>
 							Self::handle_found_proofs(
 								values,
@@ -73,26 +74,25 @@ impl BlockManager{
 								event_proofs.clone(),
 							)
 							.await,
-						DhtEvent::ValueNotFound(key)=> {
-                            log::info!("block key not found in dht");
-				            let desrialized_key = H256::from_slice(key.to_vec().as_slice());
-                            inner.lock().await.remove(&desrialized_key);
-                        },
-                        _ =>{},
-					},
-					_ => {},
+						DhtEvent::ValueNotFound(key) => {
+							log::info!("block key not found in dht");
+							let desrialized_key = H256::from_slice(key.to_vec().as_slice());
+							inner.lock().await.remove(&desrialized_key);
+						},
+						_ => {},
+					}
 				}
 			}
 		});
 	}
 	async fn handle_found_proofs(
 		values: Vec<(KademliaKey, Vec<u8>)>,
-		deffered_blocks: Arc<Mutex<HashMap<H256, Vec<H256>>>>,
+		deferred_blocks: Arc<Mutex<HashMap<H256, Vec<H256>>>>,
 		client: Arc<FullClient>,
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 	) {
 		for value in values {
-			let mut inner = deffered_blocks.lock().await;
+			let mut inner = deferred_blocks.lock().await;
 			let (key, value) = value;
 			let key_vec = key.to_vec();
 			if key_vec.len() == 32 {
@@ -101,7 +101,7 @@ impl BlockManager{
 					if let Ok(proofs) = bincode::deserialize::<ProofsMap>(&value) {
 						let unwitnessed_events = inner.get(&desrialized_key).unwrap();
 						if let Ok(result) =
-							Self::verify_proofs(&proofs, &unwitnessed_events, client.clone())
+							Self::verify_proofs(&proofs, unwitnessed_events, client.clone())
 						{
 							if result {
 								log::info!(
@@ -111,9 +111,9 @@ impl BlockManager{
 								event_proofs.add_events_proofs(proofs).ok();
 								inner.remove(&desrialized_key);
 							}
-						}else{
-								inner.remove(&desrialized_key);
-                        }
+						} else {
+							inner.remove(&desrialized_key);
+						}
 					} else {
 						log::error!("failed deserializing proofs");
 					}
@@ -170,13 +170,13 @@ impl BlockManager{
 				return Ok(false)
 			}
 		}
-		return Ok(true)
+		Ok(true)
 	}
 	async fn deffer_block(&self, block_hash: H256, unwitnessed_events: &[H256]) {
 		let key = KademliaKey::new(&block_hash.as_bytes());
-		let mut inner = self.deffered_blocks.lock().await;
+		let mut inner = self.deferred_blocks.lock().await;
 		if let Some(dht) = &*self.network_service.lock().await {
-			if let None = inner.insert(block_hash, unwitnessed_events.into()) {
+			if inner.insert(block_hash, unwitnessed_events.into()).is_none() {
 				log::info!(
 					"⏭️  Deffered Block {} containing {} unwitnessed events",
 					block_hash,
@@ -193,36 +193,34 @@ impl BlockManager{
 
 impl<I> WitnessBlockImport<I>
 where
-I: BlockImport<Block>,
+	I: BlockImport<Block>,
 {
-    #[cfg(feature = "on-chain-proofs")]
-    pub fn new(
-        parent_block_import: I,
-        ) -> Self {
-        return Self { parent_block_import};
-    }
-    #[cfg(not(feature = "on-chain-proofs"))]
-    pub fn new(
-        parent_block_import: I,
-        client: Arc<FullClient>,
-        event_proofs: Arc<dyn EventProofs + Send + Sync>,
-        ) -> Self {
-        let block_manager = Arc::new(BlockManager {
-            deffered_blocks: Arc::new(Mutex::new(HashMap::new())),
-            network_service: Arc::new(Mutex::new(None)),
-            client,
-            event_proofs
-        });
-        return Self { parent_block_import, block_manager};
-    }
+	#[cfg(feature = "on-chain-proofs")]
+	pub fn new(parent_block_import: I) -> Self {
+		Self { parent_block_import }
+	}
+	#[cfg(not(feature = "on-chain-proofs"))]
+	pub fn new(
+		parent_block_import: I,
+		client: Arc<FullClient>,
+		event_proofs: Arc<dyn EventProofs + Send + Sync>,
+	) -> Self {
+		let block_manager = Arc::new(BlockManager {
+			deferred_blocks: Arc::new(Mutex::new(HashMap::new())),
+			network_service: Arc::new(Mutex::new(None)),
+			client,
+			event_proofs,
+		});
+		Self { parent_block_import, block_manager }
+	}
 }
 #[async_trait::async_trait]
 impl<I: sc_consensus::BlockImport<Block>> sc_consensus::BlockImport<Block> for WitnessBlockImport<I>
 where
-I: Send + Sync,
+	I: Send + Sync,
 {
-    type Error = ConsensusError;
-    type Transaction = I::Transaction;
+	type Error = ConsensusError;
+	type Transaction = I::Transaction;
 
 	async fn check_block(
 		&mut self,
@@ -235,19 +233,19 @@ I: Send + Sync,
 			.map_err(|e| ConsensusError::ClientImport(format!("{}", e)))
 	}
 
-    #[cfg(feature = "on-chain-proofs")]
+	#[cfg(feature = "on-chain-proofs")]
 	async fn import_block(
 		&mut self,
-		block: BlockImportParams<Block,Self::Transaction>,
+		block: BlockImportParams<Block, Self::Transaction>,
 		cache: HashMap<well_known_cache_keys::Id, Vec<u8>>,
 	) -> Result<ImportResult, Self::Error> {
 		return self
 			.parent_block_import
-			.import_block(block,cache)
+			.import_block(block, cache)
 			.await
 			.map_err(|e| ConsensusError::ClientImport(format!("{}", e)))
 	}
-    #[cfg(not(feature = "on-chain-proofs"))]
+	#[cfg(not(feature = "on-chain-proofs"))]
 	async fn import_block(
 		&mut self,
 		block: BlockImportParams<Block, Self::Transaction>,
@@ -255,7 +253,8 @@ I: Send + Sync,
 	) -> Result<ImportResult, Self::Error> {
 		if let Some(block_extrinsics) = &block.body {
 			let block_id = BlockId::Number(self.block_manager.client.chain_info().best_number);
-			let event_ids = self.block_manager
+			let event_ids = self
+				.block_manager
 				.client
 				.runtime_api()
 				.get_extrinsic_ids(&block_id, block_extrinsics)
@@ -271,9 +270,7 @@ I: Send + Sync,
 						self.block_manager
 							.deffer_block(block.header.hash(), &unwitnessed_ids)
 							.await;
-						return Err(ConsensusError::ClientImport(format!(
-							"block contains unwitnessed events"
-						)))
+						return Err(ConsensusError::ClientImport("block contains unwitnessed events".to_string()))
 					} else {
 						let block_hash = block.header.hash();
 						let parent_result =
@@ -306,7 +303,7 @@ impl<I> WitnessBlockImport<I>
 where
 	I: sc_consensus::BlockImport<Block> + Sync,
 {
-    #[cfg(not(feature = "on-chain-proofs"))]
+	#[cfg(not(feature = "on-chain-proofs"))]
 	async fn provide_block_proofs(
 		&self,
 		network_service: Arc<Mutex<Option<Arc<NetworkService<Block, H256>>>>>,
@@ -314,17 +311,14 @@ where
 		event_ids: &[H256],
 	) {
 		if let Some(dht) = &*network_service.lock().await {
-			match self.block_manager.event_proofs.get_events_proofs(event_ids) {
-				Ok(proofs) => {
-					let key = KademliaKey::new(&block_hash.as_bytes());
-					match bincode::serialize(&proofs) {
-						Ok(value) => {
-							dht.put_value(key.clone(), value);
-						},
-						Err(e) => log::error!("cant serialize proofs:{}", e),
-					}
-				},
-				Err(_) => {},
+			if let Ok(proofs) = self.block_manager.event_proofs.get_events_proofs(event_ids) {
+				let key = KademliaKey::new(&block_hash.as_bytes());
+				match bincode::serialize(&proofs) {
+					Ok(value) => {
+						dht.put_value(key, value);
+					},
+					Err(e) => log::error!("cant serialize proofs:{}", e),
+				}
 			}
 		} else {
 			log::error!("cant provide block proofs, dht currently unavailable");

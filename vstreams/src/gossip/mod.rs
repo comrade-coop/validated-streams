@@ -33,17 +33,17 @@ enum StreamsGossipOrder {
 /// Cloning it reuses the same swarm and gossip network.
 /// # Example Usage
 /// ```
-/// # use crate::vstreams::gossip::{StreamsGossip, StreamsGossipHandler};
+/// # use vstreams::gossip::{StreamsGossip, StreamsGossipHandler};
 /// # use std::sync::Arc;
 /// # use async_trait::async_trait;
 /// use libp2p::gossipsub::IdentTopic;
 /// struct ExampleHandler {}
 /// #[async_trait]
 /// impl StreamsGossipHandler for ExampleHandler {
-/// 	fn get_topics() -> Vec<IdentTopic> { vec!(IdentTopic::new("some_topic")) }
-/// 	async fn handle(&self, message: Vec<u8>) {
-/// 		println!("Received message! {:?}", message);
-/// 	}
+///     fn get_topics() -> Vec<IdentTopic> { vec!(IdentTopic::new("some_topic")) }
+///     async fn handle(&self, message: Vec<u8>) {
+///         println!("Received message! {:?}", message);
+///     }
 /// }
 /// # async fn async_stuff() { // Only doctest compilation, as actual usage blocks forever
 /// let (gossip, service) = StreamsGossip::create();

@@ -51,16 +51,16 @@ fn test_remove_stale_events() {
 	let _ = proofs.add_event_proof(&witnessed_event);
 	let _ = in_mem_proofs.add_event_proof(&witnessed_event);
 
-	assert!(proofs.purge_stale_signatures(&vec![origin.clone()], &vec![event_id]).is_ok());
-	assert!(in_mem_proofs.purge_stale_signatures(&vec![origin], &vec![event_id]).is_ok());
+	assert!(proofs.purge_stale_signatures(&[origin.clone()], &[event_id]).is_ok());
+	assert!(in_mem_proofs.purge_stale_signatures(&[origin], &[event_id]).is_ok());
 	assert_eq!(proofs.get_proof_count(event_id), Ok(1));
 	assert_eq!(in_mem_proofs.get_proof_count(event_id), Ok(1));
 
 	let mock_new_validator_list =
 		vec![CryptoTypePublicPair::from(Public::from_h256(H256::repeat_byte(2)))];
-	assert!(proofs.purge_stale_signatures(&mock_new_validator_list, &vec![event_id]).is_ok());
+	assert!(proofs.purge_stale_signatures(&mock_new_validator_list, &[event_id]).is_ok());
 	assert!(in_mem_proofs
-		.purge_stale_signatures(&mock_new_validator_list, &vec![event_id])
+		.purge_stale_signatures(&mock_new_validator_list, &[event_id])
 		.is_ok());
 	assert_eq!(proofs.get_proof_count(event_id), Ok(0));
 	assert_eq!(in_mem_proofs.get_proof_count(event_id), Ok(0));

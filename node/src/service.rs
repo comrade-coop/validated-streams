@@ -1,12 +1,4 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
-use vstreams::{
-	node::ValidatedStreamsNode,
-	pool::NetworkTxPool,
-	proofs::{EventProofs, ProofStore},
-	services::witness_block_import::WitnessBlockImport,
-};
-#[cfg(not(feature = "on-chain-proofs"))]
-use vstreams::services::witness_block_import::BlockManager;
 use libp2p::Multiaddr;
 use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{BlockBackend, ExecutorProvider};
@@ -18,8 +10,15 @@ use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-use vstreams::configs::ExecutorDispatch;
-use vstreams::configs::FullClient;
+#[cfg(not(feature = "on-chain-proofs"))]
+use vstreams::services::witness_block_import::BlockManager;
+use vstreams::{
+	configs::{ExecutorDispatch, FullClient},
+	node::ValidatedStreamsNode,
+	pool::NetworkTxPool,
+	proofs::{EventProofs, ProofStore},
+	services::witness_block_import::WitnessBlockImport,
+};
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
@@ -99,15 +98,12 @@ pub fn new_partial(
 	)?;
 
 	let event_proofs = Arc::new(ProofStore::create(&proofs_path));
-	
-    #[cfg(feature = "on-chain-proofs")]
-    let witness_block_import = WitnessBlockImport::new(grandpa_block_import.clone());
-    #[cfg(not(feature = "on-chain-proofs"))]
-    let witness_block_import = WitnessBlockImport::new(
-		grandpa_block_import.clone(),
-		client.clone(),
-		event_proofs.clone(),
-	);
+
+	#[cfg(feature = "on-chain-proofs")]
+	let witness_block_import = WitnessBlockImport::new(grandpa_block_import.clone());
+	#[cfg(not(feature = "on-chain-proofs"))]
+	let witness_block_import =
+		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
 
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
@@ -225,13 +221,13 @@ pub fn new_full(
 			network.clone(),
 		);
 	}
-    #[cfg(not(feature = "on-chain-proofs"))]
+	#[cfg(not(feature = "on-chain-proofs"))]
 	task_manager.spawn_handle().spawn(
 		"dht event handler",
 		None,
 		BlockManager::handle_dht_events(
 			block_import.block_manager.network_service.clone(),
-			block_import.block_manager.deffered_blocks.clone(),
+			block_import.block_manager.deferred_blocks.clone(),
 			network.clone(),
 			client.clone(),
 			event_proofs.clone(),

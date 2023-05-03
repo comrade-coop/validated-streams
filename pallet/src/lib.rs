@@ -69,6 +69,9 @@ pub mod pallet {
 		UnrecognizedAuthority,
 	}
 
+	type ProofSignature<T> = BoundedVec<u8, <T as Config>::SignatureLength>;
+	type ProofsMap<T> = BoundedBTreeMap<Public, ProofSignature<T>, <T as Config>::VSMaxAuthorities>;
+
 	#[cfg(not(feature = "on-chain-proofs"))]
 	#[pallet::storage]
 	pub(super) type Streams<T: Config> = StorageMap<_, Blake2_128Concat, T::Hash, T::BlockNumber>;
@@ -79,7 +82,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::Hash,
-		BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::VSMaxAuthorities>,
+		ProofsMap<T>,
 	>;
 
 	#[pallet::call]
@@ -94,9 +97,7 @@ pub mod pallet {
 		pub fn validate_event(
 			origin: OriginFor<T>,
 			event_id: T::Hash,
-			proofs: Option<
-				BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::VSMaxAuthorities>,
-			>,
+			proofs: Option<ProofsMap<T>>,
 		) -> DispatchResult {
 			// indirection because pallet::call does not support cfg feature macro yet
 			Pallet::<T>::validate_event_impl(origin, event_id, proofs)
@@ -107,9 +108,7 @@ pub mod pallet {
 		pub fn validate_event_impl(
 			_origin: OriginFor<T>,
 			event_id: T::Hash,
-			_proofs: Option<
-				BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::VSMaxAuthorities>,
-			>,
+			_proofs: Option<ProofsMap<T>>,
 		) -> DispatchResult {
 			let current_block = <frame_system::Pallet<T>>::block_number();
 			ensure!(!Streams::<T>::contains_key(event_id), Error::<T>::AlreadyValidated);
@@ -121,9 +120,7 @@ pub mod pallet {
 		pub fn validate_event_impl(
 			_origin: OriginFor<T>,
 			event_id: T::Hash,
-			event_proofs: Option<
-				BoundedBTreeMap<Public, BoundedVec<u8, T::SignatureLength>, T::VSMaxAuthorities>,
-			>,
+			event_proofs: Option<ProofsMap<T>>,
 		) -> DispatchResult {
 			let authorities: Vec<Public> = T::authorities()
 				.into_iter()
@@ -199,13 +196,21 @@ pub mod pallet {
 	}
 	sp_api::decl_runtime_apis! {
 		/// Get extrinsic ids from a vector of extrinsics
-		/// that should be used to quickly retrieve all the event ids (hashes) given a vector of extrinsics
-		/// currently used to inspect the proposed block event ids and whether they are witnessed offchain or not
-		pub trait ExtrinsicDetails<T,R> where T:Extrinsic + Decode, R:Config{
+		/// that should be used to quickly retrieve all the event ids (hashes) given a vector of
+		/// extrinsics currently used to inspect the proposed block event ids and whether they are
+		/// witnessed offchain or not
+		pub trait ExtrinsicDetails<T, R>
+		where
+			T: Extrinsic + Decode,
+			R: Config,
+		{
 			#[allow(clippy::ptr_arg)]
 			fn get_extrinsic_ids(extrinsics: &Vec<Block::Extrinsic>) -> Vec<H256>;
-			fn create_unsigned_extrinsic(event_id:H256,event_proofs:Option<BoundedBTreeMap<Public,BoundedVec<u8,R::SignatureLength>,R::VSMaxAuthorities>>)-> T;
-			fn verify_extrinsic(extrinsic: Block::Extrinsic)-> bool;
+			fn create_unsigned_extrinsic(
+				event_id: H256,
+				event_proofs: Option<ProofsMap<R>>,
+			) -> T;
+			fn verify_extrinsic(extrinsic: Block::Extrinsic) -> bool; // TODO: Clarify returned value semantics
 		}
 	}
 }

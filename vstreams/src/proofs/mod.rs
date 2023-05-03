@@ -116,7 +116,7 @@ impl EventProofs for InMemoryEventProofs {
 		event_id: &H256,
 	) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error> {
 		let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
-		if proofs.contains_key(&event_id) {
+		if proofs.contains_key(event_id) {
 			let map = proofs
 				.get(event_id)
 				.ok_or_else(|| Error::Other("Could not retrieve event proofs".to_string()))?
@@ -187,10 +187,10 @@ impl ProofStore {
 		proofs: HashMap<CryptoTypePublicPair, Vec<u8>>,
 	) -> Result<u16, Error> {
 		let mut witnesses: HashMap<CryptoTypePublicPair, Vec<u8>> =
-			if let Some(existing_witnesses) = self.get_proofs(&event_id) {
-				for (key, _) in &proofs {
+			if let Some(existing_witnesses) = self.get_proofs(event_id) {
+				for key in proofs.keys() {
 					if existing_witnesses.contains_key(key) {
-						return Err(Error::AlreadySentProof(event_id.clone()))
+						return Err(Error::AlreadySentProof(*event_id))
 					}
 				}
 				existing_witnesses
@@ -258,9 +258,9 @@ impl EventProofs for ProofStore {
 		let mut proofs_map = ProofsMap::new();
 		for event in events {
 			if let Some(proofs) = self.get_proofs(event) {
-				proofs_map.insert(event.clone(), proofs);
+				proofs_map.insert(*event, proofs);
 			} else {
-				return Err(Error::Other("Event not found".to_string()))
+				Err(Error::Other("Event not found".to_string()))?
 			}
 		}
 		Ok(proofs_map)
@@ -290,7 +290,7 @@ impl EventProofs for ProofStore {
 			self.update_proofs(&event_id, &proofs)?;
 			Ok(proofs.len() as u16)
 		} else {
-			return Err(Error::Other("Event not found".to_string()))
+			Err(Error::Other("Event not found".to_string()))
 		}
 	}
 }

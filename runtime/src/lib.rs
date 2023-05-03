@@ -408,37 +408,46 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_validated_streams::ExtrinsicDetails<Block,UncheckedExtrinsic,Runtime> for Runtime
-	{
-		fn get_extrinsic_ids(extrinsics:&Vec<<Block as BlockT>::Extrinsic>) -> Vec<H256>
-		{
+	impl pallet_validated_streams::ExtrinsicDetails<Block, UncheckedExtrinsic, Runtime> for Runtime {
+		fn get_extrinsic_ids(extrinsics: &Vec<<Block as BlockT>::Extrinsic>) -> Vec<H256> {
 			let mut ids = Vec::new();
-			for extrinsic in extrinsics.iter()
-			{
-				if let Call::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event{event_id:call_data,proofs:_}) = &extrinsic.function
+			for extrinsic in extrinsics.iter() {
+				if let Call::ValidatedStreams(
+					pallet_validated_streams::Call::<Runtime>::validate_event {
+						event_id: call_data,
+						proofs: _,
+					},
+				) = &extrinsic.function
 				{
 					ids.push(*call_data);
 				}
 			}
 			ids
 		}
-		fn create_unsigned_extrinsic(event_id:H256,_event_proofs: Option<BoundedBTreeMap<Public,BoundedVec<u8,<Runtime as pallet_validated_streams::Config>::SignatureLength>,<Runtime as pallet_validated_streams::Config>::VSMaxAuthorities>>) -> UncheckedExtrinsic
-		{
-			UncheckedExtrinsic
-			{
-				signature:None,
-				function:pallet_validated_streams::Call::<Runtime>::validate_event { event_id , proofs: _event_proofs}.into(),
+		fn create_unsigned_extrinsic(
+			event_id: H256,
+			_event_proofs: Option<
+				BoundedBTreeMap<
+					Public,
+					BoundedVec<u8, <Runtime as pallet_validated_streams::Config>::SignatureLength>,
+					<Runtime as pallet_validated_streams::Config>::VSMaxAuthorities,
+				>,
+			>,
+		) -> UncheckedExtrinsic {
+			UncheckedExtrinsic {
+				signature: None,
+				function: pallet_validated_streams::Call::<Runtime>::validate_event {
+					event_id,
+					proofs: _event_proofs,
+				}
+				.into(),
 			}
 		}
-		fn verify_extrinsic(extrinsic: <Block as BlockT>::Extrinsic)-> bool
-		{
-				if let Call::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event{event_id:_,proofs:_}) = &extrinsic.function
-				{
-					false
-				}else
-				{
-					true
-				}
+		fn verify_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> bool {
+			!matches!(&extrinsic.function, Call::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event {
+				event_id: _,
+				proofs: _,
+			}))
 		}
 	}
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
@@ -456,9 +465,7 @@ impl_runtime_apis! {
 			opaque::SessionKeys::generate(seed)
 		}
 
-		fn decode_session_keys(
-			encoded: Vec<u8>,
-		) -> Option<Vec<(Vec<u8>, KeyTypeId)>> {
+		fn decode_session_keys(encoded: Vec<u8>) -> Option<Vec<(Vec<u8>, KeyTypeId)>> {
 			opaque::SessionKeys::decode_into_raw_public_keys(&encoded)
 		}
 	}
@@ -533,14 +540,13 @@ impl_runtime_apis! {
 
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
-		fn benchmark_metadata(extra: bool) -> (
-			Vec<frame_benchmarking::BenchmarkList>,
-			Vec<frame_support::traits::StorageInfo>,
-		) {
-			use frame_benchmarking::{baseline, Benchmarking, BenchmarkList};
+		fn benchmark_metadata(
+			extra: bool,
+		) -> (Vec<frame_benchmarking::BenchmarkList>, Vec<frame_support::traits::StorageInfo>) {
+			use baseline::Pallet as BaselineBench;
+			use frame_benchmarking::{baseline, BenchmarkList, Benchmarking};
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
-			use baseline::Pallet as BaselineBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
 			list_benchmarks!(list, extra);
@@ -551,27 +557,37 @@ impl_runtime_apis! {
 		}
 
 		fn dispatch_benchmark(
-			config: frame_benchmarking::BenchmarkConfig
+			config: frame_benchmarking::BenchmarkConfig,
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
-			use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch, TrackedStorageKey};
+			use frame_benchmarking::{baseline, BenchmarkBatch, Benchmarking, TrackedStorageKey};
 
-			use frame_system_benchmarking::Pallet as SystemBench;
 			use baseline::Pallet as BaselineBench;
+			use frame_system_benchmarking::Pallet as SystemBench;
 
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl baseline::Config for Runtime {}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac").to_vec().into(),
+				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac")
+					.to_vec()
+					.into(),
 				// Total Issuance
-				hex_literal::hex!("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80").to_vec().into(),
+				hex_literal::hex!("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80")
+					.to_vec()
+					.into(),
 				// Execution Phase
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a").to_vec().into(),
+				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a")
+					.to_vec()
+					.into(),
 				// Event Count
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850").to_vec().into(),
+				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850")
+					.to_vec()
+					.into(),
 				// System Events
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
+				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7")
+					.to_vec()
+					.into(),
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();

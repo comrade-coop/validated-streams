@@ -10,12 +10,12 @@ fn it_adds_event() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		let event_id = H256::repeat_byte(0);
-		assert_eq!(ValidatedStreams::verify_event(event_id), false);
+		assert!(!ValidatedStreams::verify_event(event_id));
 		// Dispatch an extrinsic
 		// signature should not matter since it should pass through validate_unsigned.
 		assert_ok!(ValidatedStreams::validate_event(Origin::none(), event_id, None));
 		assert_eq!(ValidatedStreams::get_all_events(), vec![event_id]);
-		assert_eq!(ValidatedStreams::verify_event(event_id), true);
+		assert!(ValidatedStreams::verify_event(event_id));
 		System::assert_last_event(
 			pallet_validated_streams::Event::ValidatedEvent { event_id }.into(),
 		);
@@ -39,7 +39,7 @@ fn it_validates_event() {
 		let event_id = H256::repeat_byte(0);
 		let keys = initialize();
 		let proofs_map = proofs(&event_id, &keys);
-		assert_eq!(ValidatedStreams::verify_event(event_id), false);
+		assert!(!ValidatedStreams::verify_event(event_id));
 		// Dispatch an extrinsic
 		// signature should not matter since it should pass through validate_unsigned.
 		assert_ok!(ValidatedStreams::validate_event(
@@ -48,7 +48,7 @@ fn it_validates_event() {
 			Some(proofs_map.clone())
 		));
 		assert_eq!(ValidatedStreams::get_all_events(), vec![event_id]);
-		assert_eq!(ValidatedStreams::verify_event(event_id), true);
+		assert!(ValidatedStreams::verify_event(event_id));
 		System::assert_last_event(
 			pallet_validated_streams::Event::ValidatedEvent { event_id }.into(),
 		);
@@ -72,7 +72,7 @@ fn it_validates_event() {
 			ValidatedStreams::validate_event(Origin::root(), event_id, Some(proofs_map.clone())),
 			pallet_validated_streams::Error::<Test>::UnrecognizedAuthority
 		);
-		//privide unsifficient amount of proofs by removing two proofs since target is 3
+		//provide unsifficient amount of proofs by removing two proofs since target is 3
 		let mut proofs_map = proofs(&event_id, &keys);
 		proofs_map.remove(keys.get(0).unwrap());
 		proofs_map.remove(keys.get(1).unwrap());
