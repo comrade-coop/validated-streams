@@ -270,7 +270,9 @@ where
 						self.block_manager
 							.deffer_block(block.header.hash(), &unwitnessed_ids)
 							.await;
-						return Err(ConsensusError::ClientImport("block contains unwitnessed events".to_string()))
+						return Err(ConsensusError::ClientImport(
+							"block contains unwitnessed events".to_string(),
+						))
 					} else {
 						let block_hash = block.header.hash();
 						let parent_result =

@@ -35,7 +35,7 @@ elif [ "$COMMAND" = "start" ]; then
       "event_id": "'"$hash_value"'"
     }'
       for server in "${validators[@]}"; do
-        RESPONSE=$(grpcurl -plaintext -import-path ../proto -proto streams.proto  -d "$req" "$server" ValidatedStreams.Streams/ValidateEvent)
+        RESPONSE=$(grpcurl -plaintext -import-path ../proto -proto streams.proto  -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent)
         echo $RESPONSE
       done
   done

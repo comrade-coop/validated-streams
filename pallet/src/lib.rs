@@ -78,12 +78,7 @@ pub mod pallet {
 
 	#[cfg(feature = "on-chain-proofs")]
 	#[pallet::storage]
-	pub(super) type OnStreams<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		T::Hash,
-		ProofsMap<T>,
-	>;
+	pub(super) type OnStreams<T: Config> = StorageMap<_, Blake2_128Concat, T::Hash, ProofsMap<T>>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {

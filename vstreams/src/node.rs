@@ -34,14 +34,15 @@ impl ValidatedStreamsNode {
 		spawn_handle.clone().spawn_blocking("Event service", None, async move {
 			let self_addr = DebugLocalNetworkConfiguration::self_multiaddr();
 			let events_service = Arc::new(
-				EventService::new(event_proofs, streams_gossip, keystore, tx_pool, client).await,
+				EventService::new(event_proofs, streams_gossip, keystore, tx_pool, client.clone())
+					.await,
 			);
 			streams_gossip_service
 				.start(spawn_handle.clone(), self_addr, peers, events_service.clone())
 				.await;
 
 			spawn_handle.spawn_blocking("gRPC server", None, async move {
-				ValidatedStreamsGrpc::run(events_service, grpc_port).await.unwrap()
+				ValidatedStreamsGrpc::run(client, events_service, grpc_port).await.unwrap()
 			});
 		});
 		Ok(())
