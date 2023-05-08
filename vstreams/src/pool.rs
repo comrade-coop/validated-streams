@@ -52,14 +52,14 @@ impl TransactionPool<H256, Block> for NetworkTxPool {
 		};
 
 		let best_block_id = BlockId::hash(self.1.info().best_hash);
-		match self.1.runtime_api().verify_extrinsic(&best_block_id, uxt.clone()) {
-			Ok(valid) =>
-				if !valid {
-					log::error!("peer attempted to corrupt the tx pool");
-					return async { TransactionImport::Bad }.boxed()
-				},
-			Err(_) => return async { TransactionImport::None }.boxed(),
+		let Ok(is_validated_streams) =
+			self.1.runtime_api().is_witnessed_event_extrinsic(&best_block_id, uxt.clone())
+			else { return async { TransactionImport::None }.boxed() };
+		if is_validated_streams {
+			log::error!("peer attempted to corrupt the tx pool");
+			return async { TransactionImport::Bad }.boxed()
 		}
+
 		let pool = self.0.pool().clone();
 		Box::pin(async move {
 			let import_future = pool.submit_one(
@@ -104,7 +104,7 @@ impl NetworkTxPool {
 	) -> PoolFuture<Result<(), Error>, Error> {
 		for xt in xts {
 			let best_block_id = BlockId::hash(client.info().best_hash);
-			match client.runtime_api().verify_extrinsic(&best_block_id, xt.clone()) {
+			match client.runtime_api().is_witnessed_event_extrinsic(&best_block_id, xt.clone()) {
 				Ok(valid) =>
 					if !valid {
 						log::error!("💣 Attempt to inject witnessed events in TxPool detected");

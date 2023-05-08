@@ -443,8 +443,8 @@ impl_runtime_apis! {
 				.into(),
 			}
 		}
-		fn verify_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> bool {
-			!matches!(&extrinsic.function, Call::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event {
+		fn is_witnessed_event_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> bool {
+			matches!(&extrinsic.function, Call::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event {
 				event_id: _,
 				proofs: _,
 			}))

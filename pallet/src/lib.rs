@@ -205,7 +205,7 @@ pub mod pallet {
 				event_id: H256,
 				event_proofs: Option<ProofsMap<R>>,
 			) -> T;
-			fn verify_extrinsic(extrinsic: Block::Extrinsic) -> bool; // TODO: Clarify returned value semantics
+			fn is_witnessed_event_extrinsic(extrinsic: Block::Extrinsic) -> bool;
 		}
 	}
 }

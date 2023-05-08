@@ -10,8 +10,6 @@ use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-#[cfg(not(feature = "on-chain-proofs"))]
-use vstreams::services::witness_block_import::BlockManager;
 use vstreams::{
 	configs::{ExecutorDispatch, FullClient},
 	node::ValidatedStreamsNode,
@@ -225,13 +223,7 @@ pub fn new_full(
 	task_manager.spawn_handle().spawn(
 		"dht event handler",
 		None,
-		BlockManager::handle_dht_events(
-			block_import.block_manager.network_service.clone(),
-			block_import.block_manager.deferred_blocks.clone(),
-			network.clone(),
-			client.clone(),
-			event_proofs.clone(),
-		),
+		block_import.block_manager.clone().handle_dht_events(network.clone()),
 	);
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
