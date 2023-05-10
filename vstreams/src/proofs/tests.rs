@@ -7,6 +7,7 @@ fn test_add_event_proof() {
 	let event_id = H256::repeat_byte(0);
 	let witnessed_event = create_witnessed_event(event_id);
 
+	let _ = std::fs::remove_dir_all("/tmp/test");
 	let proofs = ProofStore::create("/tmp/test");
 	let in_mem_proofs = InMemoryEventProofs::create();
 
@@ -24,6 +25,8 @@ fn test_add_event_proof() {
 #[test]
 fn test_get_proof_count() {
 	let event_id = H256::repeat_byte(1);
+
+	let _ = std::fs::remove_dir_all("/tmp/test2");
 	let proofs = ProofStore::create("/tmp/test2");
 	let in_mem_proofs = InMemoryEventProofs::create();
 
