@@ -2,14 +2,14 @@ use crate::{
 	benchmarking::{inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder},
 	chain_spec,
 	cli::{Cli, Subcommand},
-	service,
+	service::{self, ExecutorDispatch},
 };
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use node_runtime::{Block, EXISTENTIAL_DEPOSIT};
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
 use sp_keyring::Sr25519Keyring;
-use vstreams::configs::{DebugLocalNetworkConfiguration, ExecutorDispatch};
+use vstreams::configs::DebugLocalNetworkConfiguration;
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> String {

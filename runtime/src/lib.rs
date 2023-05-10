@@ -6,20 +6,24 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use frame_support::{BoundedBTreeMap, BoundedVec};
+use frame_support::BoundedVec;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, sr25519::Public, OpaqueMetadata, H256};
+use sp_core::{
+	crypto::KeyTypeId,
+	sr25519::{Public, Signature as SrSignature},
+	OpaqueMetadata, H256,
+};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, MultiSignature,
 };
-use sp_std::prelude::*;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
@@ -270,7 +274,6 @@ impl pallet_sudo::Config for Runtime {
 /// Configure validated streams pallet
 impl pallet_validated_streams::Config for Runtime {
 	type Event = Event;
-	type SignatureLength = ConstU32<64>;
 	type VSAuthorityId = AuraId;
 	type VSMaxAuthorities = ConstU32<32>;
 	fn authorities() -> BoundedVec<Self::VSAuthorityId, Self::VSMaxAuthorities> {
@@ -408,7 +411,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_validated_streams::ExtrinsicDetails<Block, UncheckedExtrinsic, Runtime> for Runtime {
+	impl pallet_validated_streams::ExtrinsicDetails<Block> for Runtime {
 		fn get_extrinsic_ids(extrinsics: &Vec<<Block as BlockT>::Extrinsic>) -> Vec<H256> {
 			let mut ids = Vec::new();
 			for extrinsic in extrinsics.iter() {
@@ -426,19 +429,19 @@ impl_runtime_apis! {
 		}
 		fn create_unsigned_extrinsic(
 			event_id: H256,
-			_event_proofs: Option<
-				BoundedBTreeMap<
+			event_proofs: Option<
+				BTreeMap<
 					Public,
-					BoundedVec<u8, <Runtime as pallet_validated_streams::Config>::SignatureLength>,
-					<Runtime as pallet_validated_streams::Config>::VSMaxAuthorities,
+					SrSignature
 				>,
 			>,
-		) -> UncheckedExtrinsic {
+		) -> <Block as BlockT>::Extrinsic {
+			let proofs = event_proofs.and_then(|x| x.try_into().ok()); // NOTE: Ignoring the try_into error here. It is (very) likely that passing the wrong number of proofs would just result in no proofs being submitted, and thus produce an error.
 			UncheckedExtrinsic {
 				signature: None,
 				function: pallet_validated_streams::Call::<Runtime>::validate_event {
 					event_id,
-					proofs: _event_proofs,
+					proofs,
 				}
 				.into(),
 			}

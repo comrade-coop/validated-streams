@@ -1,7 +1,6 @@
 //! Service which handles incoming events from the trusted client and other nodes
 
 use crate::{
-	configs::FullClient,
 	errors::Error,
 	gossip::{StreamsGossip, StreamsGossipHandler},
 	proofs::{EventProofs, WitnessedEvent},
@@ -9,14 +8,8 @@ use crate::{
 use async_trait::async_trait;
 use futures::StreamExt;
 use libp2p::gossipsub::IdentTopic;
-use node_runtime::{
-	self,
-	opaque::{Block, BlockId},
-	pallet_validated_streams::ExtrinsicDetails,
-};
+use pallet_validated_streams::ExtrinsicDetails;
 use sc_client_api::{BlockchainEvents, HeaderBackend};
-use sc_transaction_pool::{BasicPool, FullChainApi};
-use sc_transaction_pool_api::TransactionSource;
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::AuraApi;
 use sp_core::{
@@ -24,16 +17,18 @@ use sp_core::{
 	ByteArray, H256,
 };
 use sp_keystore::CryptoStore;
-use sp_runtime::{app_crypto::CryptoTypePublicPair, BoundedBTreeMap, BoundedVec};
+use sp_runtime::app_crypto::CryptoTypePublicPair;
 #[cfg(test)]
 pub mod tests;
-use sp_runtime::{app_crypto::RuntimePublic, key_types::AURA, OpaqueExtrinsic};
+use codec::Codec;
+use sc_transaction_pool_api::LocalTransactionPool;
+use sp_api::BlockT;
+use sp_runtime::{app_crypto::RuntimePublic, generic::BlockId, key_types::AURA};
 use std::{
 	collections::HashMap,
+	marker::PhantomData,
 	sync::{Arc, RwLock},
 };
-pub use tonic::{transport::Server, Request, Response, Status};
-const TX_SOURCE: TransactionSource = TransactionSource::Local;
 
 /// Internal struct holding the latest block state in the EventService
 #[derive(Clone, Debug)]
@@ -77,48 +72,61 @@ impl EventServiceBlockState {
 	}
 }
 
+#[async_trait]
+pub trait EventWitnessHandler {
+	/// receives client requests for handling incoming witnessed events
+	async fn witness_event(&self, event: H256) -> Result<(), Error>;
+}
+
 /// A service which handles incoming events from the trusted client and other nodes.
 /// It maintains the proofs that enter [EventProofs] storage, handles incoming gossip,
 /// and submits extrinsics for proofs that we have collected the necessary signatures for.
-pub struct EventService {
+pub struct EventService<TxPool, Client, AuthorityId: Send + Sync> {
 	block_state: Arc<RwLock<EventServiceBlockState>>,
 	event_proofs: Arc<dyn EventProofs + Send + Sync>,
 	streams_gossip: StreamsGossip,
 	keystore: Arc<dyn CryptoStore>,
-	tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
-	client: Arc<FullClient>,
+	tx_pool: Arc<TxPool>,
+	client: Arc<Client>,
+	phantom: PhantomData<AuthorityId>,
 }
-impl EventService {
+impl<
+		TxPool: LocalTransactionPool,
+		Client: ProvideRuntimeApi<TxPool::Block>
+			+ BlockchainEvents<TxPool::Block>
+			+ HeaderBackend<TxPool::Block>
+			+ Send
+			+ Sync
+			+ 'static,
+		AuthorityId: Codec + Send + Sync + 'static,
+	> EventService<TxPool, Client, AuthorityId>
+where
+	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
+	Client::Api: ExtrinsicDetails<TxPool::Block> + AuraApi<TxPool::Block, AuthorityId>,
+{
 	/// Creates a new EventService
 	pub async fn new(
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		streams_gossip: StreamsGossip,
 		keystore: Arc<dyn CryptoStore>,
-		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
-		client: Arc<FullClient>,
-	) -> EventService {
+		tx_pool: Arc<TxPool>,
+		client: Arc<Client>,
+	) -> Self {
 		let block_state = Arc::new(RwLock::new(EventServiceBlockState::new(vec![])));
 		Self::handle_imported_blocks(client.clone(), block_state.clone()).await;
-		EventService { block_state, event_proofs, streams_gossip, keystore, tx_pool, client }
+		Self {
+			block_state,
+			event_proofs,
+			streams_gossip,
+			keystore,
+			tx_pool,
+			client,
+			phantom: PhantomData,
+		}
 	}
 
 	fn witnessed_events_topic() -> IdentTopic {
 		IdentTopic::new("WitnessedEvent")
-	}
-
-	/// receives client requests for handling incoming witnessed events, if the event has not been
-	/// witnessed previously it adds it to the EventProofs and gossips the event for other
-	/// validators
-	pub async fn handle_client_request(&self, event: H256) -> Result<String, Error> {
-		let witnessed_event = self.sign_witnessed_event(event).await?;
-		let response = self.handle_witnessed_event(witnessed_event.clone()).await?;
-		let serilized_event = bincode::serialize(&witnessed_event)
-			.map_err(|e| Error::SerilizationFailure(e.to_string()))?;
-		self.streams_gossip
-			.clone()
-			.publish(Self::witnessed_events_topic(), serilized_event)
-			.await;
-		Ok(response)
 	}
 
 	/// creates a signed witnessed event messages
@@ -148,32 +156,10 @@ impl EventService {
 		}
 	}
 
-	/// calculates the target from the latest finalized block and checks whether each event in ids
-	/// reaches the target, it returns a result that contains only the events that did Not reach
-	/// the target yet or completely unwitnessed events
-	pub fn verify_events_validity(
-		client: Arc<FullClient>,
-		event_proofs: Arc<dyn EventProofs + Send + Sync>,
-		ids: Vec<H256>,
-	) -> Result<Vec<H256>, Error> {
-		let block_state =
-			Self::get_block_state(client.clone(), BlockId::hash(client.info().finalized_hash))?;
-		let target = block_state.target();
-		event_proofs.purge_stale_signatures(&block_state.validators, &ids)?;
-		let mut unprepared_ids = Vec::new();
-		for id in ids {
-			let current_count = event_proofs.get_proof_count(id)?;
-			if current_count < target {
-				unprepared_ids.push(id);
-			}
-		}
-		Ok(unprepared_ids)
-	}
-
 	/// starts a loop in another thread that listens for incoming finalized block and update the
 	/// list of validators after each one
 	async fn handle_imported_blocks(
-		client: Arc<FullClient>,
+		client: Arc<Client>,
 		block_state: Arc<RwLock<EventServiceBlockState>>,
 	) {
 		tokio::spawn(async move {
@@ -182,65 +168,29 @@ impl EventService {
 					client.finality_notification_stream().select_next_some().await;
 
 				if let Err(e) =
-					Self::get_block_state(client.clone(), BlockId::hash(finality_notification.hash))
-						.map(|public_keys| {
+					get_block_state(client.clone(), BlockId::hash(finality_notification.hash)).map(
+						|public_keys| {
 							block_state.write().map(|mut guard| *guard = public_keys.clone())
-						}) {
+						},
+					) {
 					log::error!("{}", e.to_string());
 				}
 			}
 		});
 	}
 
-	/// updates the list of validators
-	fn get_block_state(
-		client: Arc<FullClient>,
-		block_id: BlockId,
-	) -> Result<EventServiceBlockState, Error> {
-		let public_keys = client
-			.runtime_api()
-			.authorities(&block_id)
-			.map_err(|e| Error::Other(e.to_string()))?
-			.iter()
-			.map(CryptoTypePublicPair::from)
-			.collect();
-
-		Ok(EventServiceBlockState::new(public_keys))
-	}
-}
-
-/// Allows EventService to be used as a handler for StreamsGossip
-#[async_trait]
-impl StreamsGossipHandler for EventService {
-	fn get_topics() -> Vec<IdentTopic> {
-		vec![Self::witnessed_events_topic()]
-	}
-
-	async fn handle(&self, message_data: Vec<u8>) {
-		match bincode::deserialize::<WitnessedEvent>(message_data.as_slice()) {
-			Ok(witnessed_event) => {
-				self.handle_witnessed_event(witnessed_event).await.ok();
-			},
-			Err(e) => log::error!("failed deserilizing message data due to error:{:?}", e),
-		}
-	}
-}
-impl EventService {
 	/// every incoming WitnessedEvent event should go through this function for processing the
 	/// message outcome, it verifies the WitnessedEvent than it tries to add it to the EventProofs,
 	/// and if its not already added it checks whether it reached the required target or not, if it
 	/// did it submits it to the transaction pool
-	async fn handle_witnessed_event(
-		&self,
-		witnessed_event: WitnessedEvent,
-	) -> Result<String, Error> {
+	async fn handle_witnessed_event(&self, witnessed_event: WitnessedEvent) -> Result<(), Error> {
 		let (witnessed_event, target) = {
 			let block_state = &self.block_state.read()?;
 			(block_state.verify_witnessed_event_origin(witnessed_event)?, block_state.target())
 		};
 
 		match self.event_proofs.add_event_proof(&witnessed_event) {
-			Ok(proof_count) =>
+			Ok(proof_count) => {
 				if proof_count == target {
 					// avoid purging stale signatures everytime an event gets added, just check it
 					// only when proof count is updated
@@ -257,19 +207,23 @@ impl EventService {
 							Some(self.event_proofs.get_event_proofs(&witnessed_event.event_id)?),
 						)
 						.await?;
-						Ok(format!("Event:{} has been witnessed by a mjority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count))
+						log::debug!("Event:{} has been witnessed by a majority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count)
 					} else {
-						Ok(format!(
+						log::debug!(
 							"Event:{} has been added to the event proofs, Current Proof Count:{}",
-							witnessed_event.event_id, proof_count
-						))
+							witnessed_event.event_id,
+							proof_count
+						)
 					}
 				} else {
-					Ok(format!(
+					log::debug!(
 						"Event:{} has been added to the event proofs, Current Proof Count:{}",
-						witnessed_event.event_id, proof_count
-					))
-				},
+						witnessed_event.event_id,
+						proof_count
+					)
+				}
+				Ok(())
+			},
 			Err(e) => {
 				log::info!("{}", e);
 				Err(e)
@@ -282,16 +236,17 @@ impl EventService {
 		&self,
 		event_id: H256,
 		event_proofs: Option<HashMap<CryptoTypePublicPair, Vec<u8>>>,
-	) -> Result<H256, Error> {
+	) -> Result<TxPool::Hash, Error> {
 		let proofs = {
 			if let Some(mut event_proofs) = event_proofs {
-				let proofs =
-					event_proofs.iter_mut().fold(BoundedBTreeMap::new(), |mut proofs, (k, v)| {
+				let proofs = event_proofs
+					.iter_mut()
+					.map(|(k, v)| {
 						let pubkey = Public::from_slice(k.1.as_slice()).unwrap();
-						let signature: BoundedVec<_, _> = v.clone().try_into().unwrap();
-						proofs.try_insert(pubkey, signature).unwrap();
-						proofs
-					});
+						let signature = Signature::from_slice(v.clone().as_slice()).unwrap();
+						(pubkey, signature)
+					})
+					.collect();
 				Some(proofs)
 			} else {
 				None
@@ -303,11 +258,122 @@ impl EventService {
 			.runtime_api()
 			.create_unsigned_extrinsic(&best_block_id, event_id, proofs)
 			.map_err(|e| Error::Other(e.to_string()))?;
-		let opaque_extrinsic = OpaqueExtrinsic::from(unsigned_extrinsic);
 		self.tx_pool
-			.pool()
-			.submit_one(&best_block_id, TX_SOURCE, opaque_extrinsic)
-			.await
+			.submit_local(&best_block_id, unsigned_extrinsic)
 			.map_err(|e| Error::Other(e.to_string()))
 	}
+}
+
+/// Allows EventService to be used as a handler for StreamsGossip
+#[async_trait]
+impl<
+		TxPool: LocalTransactionPool,
+		Client: ProvideRuntimeApi<TxPool::Block>
+			+ HeaderBackend<TxPool::Block>
+			+ BlockchainEvents<TxPool::Block>,
+		AuthorityId: Codec + Send + Sync + 'static,
+	> StreamsGossipHandler for EventService<TxPool, Client, AuthorityId>
+where
+	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
+	Client: Send + Sync + 'static,
+	Client::Api: ExtrinsicDetails<TxPool::Block> + AuraApi<TxPool::Block, AuthorityId>,
+{
+	fn get_topics() -> Vec<IdentTopic> {
+		vec![Self::witnessed_events_topic()]
+	}
+
+	async fn handle(&self, message_data: Vec<u8>) {
+		match bincode::deserialize::<WitnessedEvent>(message_data.as_slice()) {
+			Ok(witnessed_event) => {
+				self.handle_witnessed_event(witnessed_event).await.ok();
+			},
+			Err(e) => log::error!("failed deserilizing message data due to error:{:?}", e),
+		}
+	}
+}
+
+#[async_trait]
+impl<
+		TxPool: LocalTransactionPool,
+		Client: ProvideRuntimeApi<TxPool::Block>
+			+ HeaderBackend<TxPool::Block>
+			+ BlockchainEvents<TxPool::Block>,
+		AuthorityId: Codec + Send + Sync + 'static,
+	> EventWitnessHandler for EventService<TxPool, Client, AuthorityId>
+where
+	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
+	Client: Send + Sync + 'static,
+	Client::Api: ExtrinsicDetails<TxPool::Block> + AuraApi<TxPool::Block, AuthorityId>,
+{
+	/// receives client requests for handling incoming witnessed events, if the event has not been
+	/// witnessed previously it adds it to the EventProofs and gossips the event for other
+	/// validators
+	async fn witness_event(&self, event: H256) -> Result<(), Error> {
+		let witnessed_event = self.sign_witnessed_event(event).await?;
+
+		self.handle_witnessed_event(witnessed_event.clone()).await?;
+
+		let serilized_event = bincode::serialize(&witnessed_event)
+			.map_err(|e| Error::SerilizationFailure(e.to_string()))?;
+		self.streams_gossip
+			.clone()
+			.publish(Self::witnessed_events_topic(), serilized_event)
+			.await;
+
+		Ok(())
+	}
+}
+
+/// calculates the target from the latest finalized block and checks whether each event in ids
+/// reaches the target, it returns a result that contains only the events that did Not reach
+/// the target yet or completely unwitnessed events
+pub fn verify_events_validity<
+	Block: BlockT,
+	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	AuthorityId: Codec + Send + Sync + 'static,
+>(
+	client: Arc<Client>,
+	block_id: BlockId<Block>,
+	event_proofs: Arc<dyn EventProofs + Send + Sync>,
+	ids: Vec<H256>,
+) -> Result<Vec<H256>, Error>
+where
+	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
+	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
+{
+	let block_state = get_block_state(client, block_id)?;
+	let target = block_state.target();
+	event_proofs.purge_stale_signatures(&block_state.validators, &ids)?;
+	let mut unprepared_ids = Vec::new();
+	for id in ids {
+		let current_count = event_proofs.get_proof_count(id)?;
+		if current_count < target {
+			unprepared_ids.push(id);
+		}
+	}
+	Ok(unprepared_ids)
+}
+
+/// updates the list of validators
+fn get_block_state<
+	Block: BlockT,
+	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	AuthorityId: Codec + Send + Sync + 'static,
+>(
+	client: Arc<Client>,
+	block_id: BlockId<Block>,
+) -> Result<EventServiceBlockState, Error>
+where
+	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
+	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
+{
+	let public_keys = client
+		.runtime_api()
+		.authorities(&block_id)
+		.map_err(|e| Error::Other(e.to_string()))?
+		.iter()
+		.map(CryptoTypePublicPair::from)
+		.collect();
+
+	Ok(EventServiceBlockState::new(public_keys))
 }

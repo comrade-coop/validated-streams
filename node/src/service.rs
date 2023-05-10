@@ -6,19 +6,40 @@ use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
-use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
+use sc_service::{error::Error as ServiceError, Configuration, TFullClient, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
+use sp_consensus_aura::sr25519::{AuthorityId as AuraId, AuthorityPair as AuraPair};
 use std::{sync::Arc, time::Duration};
 use vstreams::{
-	configs::{ExecutorDispatch, FullClient},
-	node::ValidatedStreamsNode,
 	pool::NetworkTxPool,
 	proofs::{EventProofs, ProofStore},
 	services::witness_block_import::WitnessBlockImport,
 };
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
+
+/// Our native executor instance.
+pub struct ExecutorDispatch;
+
+impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
+	/// Only enable the benchmarking host functions when we actually want to benchmark.
+	#[cfg(feature = "runtime-benchmarks")]
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+	/// Otherwise we only use the default Substrate host functions.
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type ExtendHostFunctions = ();
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		node_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		node_runtime::native_version()
+	}
+}
+
+/// The TFullClient type
+pub type FullClient = TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 
 type FullPartialComponents = sc_service::PartialComponents<
 	FullClient,
@@ -31,7 +52,10 @@ type FullPartialComponents = sc_service::PartialComponents<
 
 type FullPartialComponentsOther = (
 	WitnessBlockImport<
+		Block,
 		sc_finality_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
+		FullClient,
+		AuraId,
 	>,
 	Arc<dyn EventProofs + Send + Sync>,
 	sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
@@ -166,7 +190,7 @@ pub fn new_full(
 		other: (block_import, event_proofs, grandpa_link, mut telemetry),
 	} = new_partial(&config, proofs_path)?;
 
-	ValidatedStreamsNode::start(
+	vstreams::node::start(
 		task_manager.spawn_handle(),
 		event_proofs.clone(),
 		client.clone(),

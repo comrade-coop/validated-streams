@@ -59,8 +59,6 @@ impl system::Config for Test {
 impl pallet_validated_streams::Config for Test {
 	type Event = Event;
 
-	type SignatureLength = ConstU32<64>;
-
 	type VSAuthorityId = AuraId;
 
 	type VSMaxAuthorities = ConstU32<32>;

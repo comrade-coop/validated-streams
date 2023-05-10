@@ -1,19 +1,19 @@
 //! A GRPC server for submitting event hashes from a trusted client.
 
-use crate::{configs::FullClient, services::events::EventService};
+use crate::{chain_info::ChainInfo, services::events::EventWitnessHandler};
 use local_ip_address::local_ip;
 use std::pin::Pin;
 
-use node_runtime::pallet_validated_streams::ExtrinsicDetails;
-use sc_client_api::{BlockBackend, BlockchainEvents};
-use sp_api::ProvideRuntimeApi;
-use sp_core::H256;
-
 use futures::{stream, Stream, StreamExt};
-use sp_blockchain::lowest_common_ancestor;
+use pallet_validated_streams::ExtrinsicDetails;
+use sc_client_api::{BlockBackend, BlockchainEvents};
+use sp_api::{BlockT, ProvideRuntimeApi};
+use sp_blockchain::{lowest_common_ancestor, HeaderMetadata};
+use sp_core::H256;
 use sp_runtime::generic::BlockId;
 use std::{
 	io::{Error, ErrorKind},
+	marker::PhantomData,
 	sync::Arc,
 };
 use tonic::{transport::Server, Request, Response, Status};
@@ -31,20 +31,37 @@ pub mod validated_streams_proto {
 
 /// Implements a GRPC server for submitting event hashes from the trusted client.
 /// See <https://github.com/comrade-coop/validated-streams/blob/master/proto/streams.proto>) for the protobuf file and associated documentation.
-pub struct ValidatedStreamsGrpc {
-	events_service: Arc<EventService>,
-	client: Arc<FullClient>,
+pub struct ValidatedStreamsGrpc<EventWitness, Block: BlockT, Client> {
+	event_witness: Arc<EventWitness>,
+	client: Arc<Client>,
+	phantom: PhantomData<Block>,
 }
-impl ValidatedStreamsGrpc {
+impl<EventWitness: EventWitnessHandler + Sync + Send + 'static, Block: BlockT, Client>
+	ValidatedStreamsGrpc<EventWitness, Block, Client>
+where
+	Client: ChainInfo<Block>
+		+ HeaderMetadata<Block>
+		+ BlockBackend<Block>
+		+ BlockchainEvents<Block>
+		+ ProvideRuntimeApi<Block>
+		+ Sync
+		+ Send
+		+ 'static,
+	Client::Api: ExtrinsicDetails<Block>,
+{
 	/// Run the GRPC server.
 	pub async fn run(
-		client: Arc<FullClient>,
-		events_service: Arc<EventService>,
+		client: Arc<Client>,
+		event_witness: Arc<EventWitness>,
 		grpc_port: u16,
 	) -> Result<(), Error> {
 		log::info!("Server could be reached at {}", local_ip().unwrap().to_string());
 		Server::builder()
-			.add_service(StreamsServer::new(ValidatedStreamsGrpc { events_service, client }))
+			.add_service(StreamsServer::new(ValidatedStreamsGrpc {
+				event_witness,
+				client,
+				phantom: PhantomData,
+			}))
 			.serve(
 				format!("[::0]:{}", grpc_port)
 					.parse()
@@ -56,7 +73,19 @@ impl ValidatedStreamsGrpc {
 }
 
 #[tonic::async_trait]
-impl Streams for ValidatedStreamsGrpc {
+impl<EventWitness: EventWitnessHandler + Sync + Send + 'static, Block: BlockT, Client> Streams
+	for ValidatedStreamsGrpc<EventWitness, Block, Client>
+where
+	Client: ChainInfo<Block>
+		+ HeaderMetadata<Block>
+		+ BlockBackend<Block>
+		+ BlockchainEvents<Block>
+		+ ProvideRuntimeApi<Block>
+		+ Sync
+		+ Send
+		+ 'static,
+	Client::Api: ExtrinsicDetails<Block>,
+{
 	async fn witness_event(
 		&self,
 		request: Request<WitnessEventRequest>,
@@ -68,8 +97,8 @@ impl Streams for ValidatedStreamsGrpc {
 			Err(Status::invalid_argument("invalid event_id length (expected 32 bytes)"))
 		}?;
 
-		self.events_service
-			.handle_client_request(event_id)
+		self.event_witness
+			.witness_event(event_id)
 			.await
 			.map_err(|e| Status::aborted(e.to_string()))?;
 
@@ -92,7 +121,7 @@ impl Streams for ValidatedStreamsGrpc {
 				let mut last_finalized = client.chain_info().finalized_hash;
 
 				let block_id = loop {
-					if let Ok(Some(block_hash)) = client.block_hash(block_num) {
+					if let Ok(Some(block_hash)) = client.block_hash(block_num.into()) {
 						// If the block at block_num is part of the chain...
 						if let Ok(common_ancestor) =
 							lowest_common_ancestor(client.as_ref(), last_finalized, block_hash)

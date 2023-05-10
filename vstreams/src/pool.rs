@@ -1,9 +1,8 @@
 //! module for custom transaction pools
-use crate::configs::FullClient;
 use codec::{Decode, Encode};
 use futures::FutureExt;
-use node_runtime::{opaque::Block, pallet_validated_streams::ExtrinsicDetails};
-use sc_client_api::HeaderBackend;
+use pallet_validated_streams::ExtrinsicDetails;
+use sc_client_api::{BlockBackend, HeaderBackend};
 use sc_network::config::TransactionPool;
 use sc_service::{
 	InPoolTransaction, IntoPoolError, TransactionImport, TransactionImportFuture,
@@ -14,17 +13,31 @@ use sc_transaction_pool_api::{
 	error::Error as TxPoolError, MaintainedTransactionPool, PoolFuture, TransactionFor, TxHash,
 };
 use sp_api::{BlockId, ProvideRuntimeApi};
-use sp_core::H256;
-use sp_runtime::{traits::Block as BlockT, OpaqueExtrinsic};
+use sp_runtime::traits::{Block as BlockT, BlockIdTo};
+use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::{collections::HashMap, sync::Arc};
 /// A transaction pool that wraps BasicPool and rejects all gossiped validate_event transactions
 /// from peers
-pub struct NetworkTxPool(
-	pub Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
-	pub Arc<FullClient>,
-);
-impl TransactionPool<H256, Block> for NetworkTxPool {
-	fn transactions(&self) -> Vec<(H256, <Block as BlockT>::Extrinsic)> {
+pub struct NetworkTxPool<Client, Block>(
+	pub Arc<BasicPool<FullChainApi<Client, Block>, Block>>,
+	pub Arc<Client>,
+)
+where
+	Block: BlockT,
+	Client:
+		ProvideRuntimeApi<Block> + BlockBackend<Block> + BlockIdTo<Block> + HeaderBackend<Block>,
+	Client: Send + Sync + 'static,
+	Client::Api: TaggedTransactionQueue<Block> + ExtrinsicDetails<Block>;
+
+impl<Client, Block> TransactionPool<<Block as BlockT>::Hash, Block> for NetworkTxPool<Client, Block>
+where
+	Block: BlockT,
+	Client:
+		ProvideRuntimeApi<Block> + BlockBackend<Block> + BlockIdTo<Block> + HeaderBackend<Block>,
+	Client: Send + Sync + 'static,
+	Client::Api: TaggedTransactionQueue<Block> + ExtrinsicDetails<Block>,
+{
+	fn transactions(&self) -> Vec<(<Block as BlockT>::Hash, <Block as BlockT>::Extrinsic)> {
 		self.0
 			.ready()
 			.filter(|t| t.is_propagable())
@@ -36,14 +49,14 @@ impl TransactionPool<H256, Block> for NetworkTxPool {
 			.collect()
 	}
 
-	fn hash_of(&self, _: &<Block as BlockT>::Extrinsic) -> H256 {
+	fn hash_of(&self, _: &<Block as BlockT>::Extrinsic) -> <Block as BlockT>::Hash {
 		Default::default()
 	}
 
 	fn import(&self, ext: <Block as BlockT>::Extrinsic) -> TransactionImportFuture {
 		// reject all imported transaction if any node attempt to gossip them
 		let encoded = ext.encode();
-		let uxt: OpaqueExtrinsic = match Decode::decode(&mut &encoded[..]) {
+		let uxt: <Block as BlockT>::Extrinsic = match Decode::decode(&mut &encoded[..]) {
 			Ok(uxt) => uxt,
 			Err(e) => {
 				log::error!("Transaction invalid: {:?}", e);
@@ -86,20 +99,27 @@ impl TransactionPool<H256, Block> for NetworkTxPool {
 			}
 		})
 	}
-	fn on_broadcasted(&self, propagations: HashMap<H256, Vec<String>>) {
+	fn on_broadcasted(&self, propagations: HashMap<<Block as BlockT>::Hash, Vec<String>>) {
 		self.0.on_broadcasted(propagations)
 	}
 
-	fn transaction(&self, hash: &H256) -> Option<<Block as BlockT>::Extrinsic> {
+	fn transaction(&self, hash: &<Block as BlockT>::Hash) -> Option<<Block as BlockT>::Extrinsic> {
 		self.0.ready_transaction(hash).and_then(
 			// Only propagable transactions should be resolved for network service.
 			|tx| if tx.is_propagable() { Some(tx.data().clone()) } else { None },
 		)
 	}
 }
-impl NetworkTxPool {
+impl<Client, Block> NetworkTxPool<Client, Block>
+where
+	Block: BlockT,
+	Client:
+		ProvideRuntimeApi<Block> + BlockBackend<Block> + BlockIdTo<Block> + HeaderBackend<Block>,
+	Client: Send + Sync + 'static,
+	Client::Api: TaggedTransactionQueue<Block> + ExtrinsicDetails<Block>,
+{
 	fn check_extrinsics(
-		client: Arc<FullClient>,
+		client: Arc<Client>,
 		xts: &Vec<sc_transaction_pool_api::TransactionFor<Self>>,
 	) -> PoolFuture<Result<(), Error>, Error> {
 		for xt in xts {
@@ -125,10 +145,17 @@ impl NetworkTxPool {
 		Box::pin(async { Ok(Ok(())) })
 	}
 }
-impl ConfigPool for NetworkTxPool {
+impl<Client, Block> ConfigPool for NetworkTxPool<Client, Block>
+where
+	Block: BlockT,
+	Client:
+		ProvideRuntimeApi<Block> + BlockBackend<Block> + BlockIdTo<Block> + HeaderBackend<Block>,
+	Client: Send + Sync + 'static,
+	Client::Api: TaggedTransactionQueue<Block> + ExtrinsicDetails<Block>,
+{
 	type Block = Block;
 
-	type Hash = H256;
+	type Hash = <Block as BlockT>::Hash;
 
 	type InPoolTransaction = Transaction<TxHash<Self>, TransactionFor<Self>>;
 	type Error = sc_transaction_pool::error::Error;
@@ -258,7 +285,14 @@ impl ConfigPool for NetworkTxPool {
 		self.0.ready_transaction(hash)
 	}
 }
-impl MaintainedTransactionPool for NetworkTxPool {
+impl<Client, Block> MaintainedTransactionPool for NetworkTxPool<Client, Block>
+where
+	Block: BlockT,
+	Client:
+		ProvideRuntimeApi<Block> + BlockBackend<Block> + BlockIdTo<Block> + HeaderBackend<Block>,
+	Client: Send + Sync + 'static,
+	Client::Api: TaggedTransactionQueue<Block> + ExtrinsicDetails<Block>,
+{
 	fn maintain(
 		&self,
 		event: sc_transaction_pool_api::ChainEvent<Self::Block>,

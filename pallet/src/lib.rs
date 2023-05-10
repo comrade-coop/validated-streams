@@ -26,14 +26,16 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 	use sp_api;
-	#[cfg(feature = "on-chain-proofs")]
-	use sp_core::sr25519::Signature;
-	use sp_core::{sr25519::Public, H256};
+	use sp_core::{
+		sr25519::{Public, Signature},
+		H256,
+	};
 	#[cfg(feature = "on-chain-proofs")]
 	use sp_runtime::app_crypto::RuntimePublic;
 	pub use sp_runtime::traits::Extrinsic;
 	use sp_runtime::RuntimeAppPublic;
-	use sp_std::vec::Vec;
+	use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -41,8 +43,6 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		#[pallet::constant]
-		type SignatureLength: Get<u32>;
 		type VSAuthorityId: Member
 			+ Parameter
 			+ RuntimeAppPublic
@@ -69,8 +69,7 @@ pub mod pallet {
 		UnrecognizedAuthority,
 	}
 
-	type ProofSignature<T> = BoundedVec<u8, <T as Config>::SignatureLength>;
-	type ProofsMap<T> = BoundedBTreeMap<Public, ProofSignature<T>, <T as Config>::VSMaxAuthorities>;
+	type ProofsMap<T> = BoundedBTreeMap<Public, Signature, <T as Config>::VSMaxAuthorities>;
 
 	#[cfg(not(feature = "on-chain-proofs"))]
 	#[pallet::storage]
@@ -131,13 +130,9 @@ pub mod pallet {
 
 				let target = (2 * ((authorities.len() - 1) / 3) + 1) as u16;
 				let mut proof_count = 0;
-				for (key, sig) in &proofs {
-					if let Some(signature) = Signature::from_slice(sig.as_slice()) {
-						ensure!(key.verify(&event_id, &signature), Error::<T>::InvalidProof);
-						proof_count += 1;
-					} else {
-						return Err(Error::<T>::BadSignature.into())
-					}
+				for (key, signature) in &proofs {
+					ensure!(key.verify(&event_id, &signature), Error::<T>::InvalidProof);
+					proof_count += 1;
 				}
 				if proof_count < target {
 					return Err(Error::<T>::NotEnoughProofs.into())
@@ -194,18 +189,15 @@ pub mod pallet {
 		/// that should be used to quickly retrieve all the event ids (hashes) given a vector of
 		/// extrinsics currently used to inspect the proposed block event ids and whether they are
 		/// witnessed offchain or not
-		pub trait ExtrinsicDetails<T, R>
-		where
-			T: Extrinsic + Decode,
-			R: Config,
+		pub trait ExtrinsicDetails
 		{
 			#[allow(clippy::ptr_arg)]
 			fn get_extrinsic_ids(extrinsics: &Vec<Block::Extrinsic>) -> Vec<H256>;
 			fn create_unsigned_extrinsic(
 				event_id: H256,
-				event_proofs: Option<ProofsMap<R>>,
-			) -> T;
-			fn is_witnessed_event_extrinsic(extrinsic: Block::Extrinsic) -> bool;
+				event_proofs: Option<BTreeMap<Public, Signature>>,
+			) -> Block::Extrinsic;
+			fn is_witnessed_event_extrinsic(extrinsic: Block::Extrinsic) -> bool; // Use ValidateUnsigned instead?
 		}
 	}
 }
