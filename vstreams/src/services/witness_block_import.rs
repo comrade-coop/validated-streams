@@ -181,9 +181,9 @@ impl BlockManager {
 		if let Some(dht) = &*self.network_service.lock().await {
 			if inner.insert(block_hash, unwitnessed_events.into()).is_none() {
 				log::info!(
-					"⏭️  Deffered Block {} containing {:?} unwitnessed events",
+					"⏭️  Deffered Block {} containing {} unwitnessed events",
 					block_hash,
-					unwitnessed_events
+					unwitnessed_events.len()
 				);
 			}
 			dht.get_value(&key);

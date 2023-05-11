@@ -42,6 +42,8 @@ sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/paritytech/su
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 sc-network= { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch ="polkadot-v0.9.40" }
 sc-network-common= { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git",branch = "polkadot-v0.9.40" }
+frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true , branch = "polkadot-v0.9.40" }
+frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 
 # local dependencies
 node-runtime = { version = "0.1.0", path = "../runtime" }
@@ -55,3 +57,8 @@ sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/subs
 [features]
 default = []
 on-chain-proofs =[]
+runtime-benchmarks = [
+	"node-runtime/runtime-benchmarks",
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-benchmarking-cli/runtime-benchmarks",
+]

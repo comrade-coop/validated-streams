@@ -26,8 +26,8 @@ benchmarks! {
 	on_chain_proofs {
 		let event_id = H256::default();
 		let event_hash = T::Hash::default();
-		type ProofsMap= BoundedBTreeMap<sp_core::sr25519::Public, BoundedVec<u8, ConstU32<64>>, ConstU32<32>>;
-		let mut event_proofs = {
+		// type ProofsMap= BoundedBTreeMap<sp_core::sr25519::Public, BoundedVec<u8, ConstU32<64>>, ConstU32<32>>;
+		let event_proofs = {
 			let mut proofs = BoundedBTreeMap::new();
 			for i in 0..32{
 				let key = sr25519_generate(AURA,None);
