@@ -5,11 +5,16 @@
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-
+use sp_core::{
+	crypto::KeyTypeId,
+	sr25519::{Public, Signature as SrSignature},
+	OpaqueMetadata, H256,
+};
+use frame_support::BoundedBTreeMap;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 use pallet_grandpa::AuthorityId as GrandpaId;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
@@ -47,6 +52,8 @@ pub use sp_runtime::{Perbill, Permill};
 
 /// Import the template pallet.
 pub use pallet_validated_streams;
+use pallet_transaction_payment_rpc_runtime_api::runtime_decl_for_transaction_payment_call_api::runtime_metadata;
+pub use pallet_validated_streams::Call;
 use frame_support::BoundedVec;
 
 /// An index to a block.
