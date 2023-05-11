@@ -1,10 +1,8 @@
 //! module for custom transaction pools
 use crate::configs::FullClient;
-use codec::{Decode, Encode};
 use futures::FutureExt;
 use node_runtime::{opaque::Block, pallet_validated_streams::ExtrinsicDetails};
 use sc_client_api::HeaderBackend;
-use sc_network::config::TransactionPool;
 use sc_service::{
 	InPoolTransaction, IntoPoolError, TransactionImport, TransactionImportFuture,
 	TransactionPool as ConfigPool,
@@ -23,80 +21,82 @@ pub struct NetworkTxPool(
 	pub Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 	pub Arc<FullClient>,
 );
-impl TransactionPool<H256, Block> for NetworkTxPool {
-	fn transactions(&self) -> Vec<(H256, <Block as BlockT>::Extrinsic)> {
-		self.0
-			.ready()
-			.filter(|t| t.is_propagable())
-			.map(|t| {
-				let hash = *t.hash();
-				let ex = t.data().clone();
-				(hash, ex)
-			})
-			.collect()
-	}
-
-	fn hash_of(&self, _: &<Block as BlockT>::Extrinsic) -> H256 {
-		Default::default()
-	}
-
-	fn import(&self, ext: <Block as BlockT>::Extrinsic) -> TransactionImportFuture {
-		// reject all imported transaction if any node attempt to gossip them
-		let encoded = ext.encode();
-		let uxt: OpaqueExtrinsic = match Decode::decode(&mut &encoded[..]) {
-			Ok(uxt) => uxt,
-			Err(e) => {
-				log::error!("Transaction invalid: {:?}", e);
-				return Box::pin(futures::future::ready(TransactionImport::Bad))
-			},
-		};
-
-		let best_block_id = BlockId::hash(self.1.info().best_hash);
-		match self.1.runtime_api().verify_extrinsic(&best_block_id, uxt.clone()) {
-			Ok(valid) =>
-				if !valid {
-					log::error!("peer attempted to corrupt the tx pool");
-					return async { TransactionImport::Bad }.boxed()
-				},
-			Err(_) => return async { TransactionImport::None }.boxed(),
-		}
-		let pool = self.0.pool().clone();
-		Box::pin(async move {
-			let import_future = pool.submit_one(
-				&best_block_id,
-				sc_transaction_pool_api::TransactionSource::External,
-				uxt.clone(),
-			);
-			match import_future.await {
-				Ok(_) => TransactionImport::NewGood,
-				Err(e) => match e.into_pool_error() {
-					Ok(sc_transaction_pool_api::error::Error::AlreadyImported(_)) =>
-						TransactionImport::KnownGood,
-					Ok(e) => {
-						log::error!("Error adding transaction to the pool: {:?}", e);
-						TransactionImport::Bad
-					},
-					Err(e) => {
-						log::error!("Error converting pool error: {}", e);
-						// it is not bad at least, just some internal node logic error, so peer is
-						// innocent.
-						TransactionImport::KnownGood
-					},
-				},
-			}
-		})
-	}
-	fn on_broadcasted(&self, propagations: HashMap<H256, Vec<String>>) {
-		self.0.on_broadcasted(propagations)
-	}
-
-	fn transaction(&self, hash: &H256) -> Option<<Block as BlockT>::Extrinsic> {
-		self.0.ready_transaction(hash).and_then(
-			// Only propagable transactions should be resolved for network service.
-			|tx| if tx.is_propagable() { Some(tx.data().clone()) } else { None },
-		)
-	}
-}
+// impl TransactionPool<H256, Block> for NetworkTxPool {
+// 	fn transactions(&self) -> Vec<(H256, <Block as BlockT>::Extrinsic)> {
+// 		self.0
+// 			.ready()
+// 			.filter(|t| t.is_propagable())
+// 			.map(|t| {
+// 				let hash = *t.hash();
+// 				let ex = t.data().clone();
+// 				(hash, ex)
+// 			})
+// 			.collect()
+// 	}
+//
+// 	fn hash_of(&self, _: &<Block as BlockT>::Extrinsic) -> H256 {
+// 		Default::default()
+// 	}
+//
+// 	fn import(&self, ext: <Block as BlockT>::Extrinsic) -> TransactionImportFuture {
+// 		// reject all imported transaction if any node attempt to gossip them
+// 		let encoded = ext.encode();
+// 		let uxt: OpaqueExtrinsic = match Decode::decode(&mut &encoded[..]) {
+// 			Ok(uxt) => uxt,
+// 			Err(e) => {
+// 				log::error!("Transaction invalid: {:?}", e);
+// 				return Box::pin(futures::future::ready(TransactionImport::Bad))
+// 			},
+// 		};
+//
+// 		let best_block_id = BlockId::hash(self.1.info().best_hash);
+// 		match self.1.runtime_api().verify_extrinsic(&best_block_id, uxt.clone()) {
+// 			Ok(valid) =>
+// 				if !valid {
+// 					log::error!("peer attempted to corrupt the tx pool");
+// 					return async { TransactionImport::Bad }.boxed()
+// 				},
+// 			Err(_) => return async { TransactionImport::None }.boxed(),
+// 		}
+// 		let pool = self.0.pool().clone();
+// 		Box::pin(async move {
+// 			let import_future = pool.submit_one(
+// 				&best_block_id,
+// 				sc_transaction_pool_api::TransactionSource::External,
+// 				uxt.clone(),
+// 			);
+// 			match import_future.await {
+// 				Ok(_) => TransactionImport::NewGood,
+// 				Err(e) => match e.into_pool_error() {
+// 					Ok(sc_transaction_pool_api::error::Error::AlreadyImported(e)) =>{
+// 						log::error!("Transaction already imported, Error:{:?}",e);
+// 						TransactionImport::KnownGood
+// 					},
+// 					Ok(e) => {
+// 						log::error!("Error adding transaction to the pool: {:?}", e);
+// 						TransactionImport::Bad
+// 					},
+// 					Err(e) => {
+// 						log::error!("Error converting pool error: {}", e);
+// 						// it is not bad at least, just some internal node logic error, so peer is
+// 						// innocent.
+// 						TransactionImport::KnownGood
+// 					},
+// 				},
+// 			}
+// 		})
+// 	}
+// 	fn on_broadcasted(&self, propagations: HashMap<H256, Vec<String>>) {
+// 		self.0.on_broadcasted(propagations)
+// 	}
+//
+// 	fn transaction(&self, hash: &H256) -> Option<<Block as BlockT>::Extrinsic> {
+// 		self.0.ready_transaction(hash).and_then(
+// 			// Only propagable transactions should be resolved for network service.
+// 			|tx| if tx.is_propagable() { Some(tx.data().clone()) } else { None },
+// 		)
+// 	}
+// }
 impl NetworkTxPool {
 	fn check_extrinsics(
 		client: Arc<FullClient>,

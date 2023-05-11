@@ -23,7 +23,7 @@ use sp_core::{
 	sr25519::{Public, Signature},
 	ByteArray, H256,
 };
-use sp_keystore::CryptoStore;
+use sp_keystore::Keystore;
 use sp_runtime::{app_crypto::CryptoTypePublicPair, BoundedBTreeMap, BoundedVec};
 #[cfg(test)]
 pub mod tests;
@@ -84,7 +84,7 @@ pub struct EventService {
 	block_state: Arc<RwLock<EventServiceBlockState>>,
 	event_proofs: Arc<dyn EventProofs + Send + Sync>,
 	streams_gossip: StreamsGossip,
-	keystore: Arc<dyn CryptoStore>,
+	keystore: Arc<dyn Keystore>,
 	tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 	client: Arc<FullClient>,
 }
@@ -93,7 +93,7 @@ impl EventService {
 	pub async fn new(
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		streams_gossip: StreamsGossip,
-		keystore: Arc<dyn CryptoStore>,
+		keystore: Arc<dyn Keystore>,
 		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 		client: Arc<FullClient>,
 	) -> EventService {

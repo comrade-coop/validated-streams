@@ -16,7 +16,7 @@ use vstreams::{
 	configs::{ExecutorDispatch, FullClient},
 	node::ValidatedStreamsNode,
 	pool::NetworkTxPool,
-	proofs::{EventProofs, ProofStore},
+	proofs::{EventProofs, ProofStore, InMemoryEventProofs},
 	services::witness_block_import::WitnessBlockImport,
 };
 type FullBackend = sc_service::TFullBackend<Block>;
@@ -97,7 +97,8 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let event_proofs = Arc::new(ProofStore::create(&proofs_path));
+	// let event_proofs = Arc::new(ProofStore::create(&proofs_path));
+	let event_proofs = Arc::new(InMemoryEventProofs::create());
 
 	#[cfg(feature = "on-chain-proofs")]
 	let witness_block_import = WitnessBlockImport::new(grandpa_block_import.clone());

@@ -82,3 +82,7 @@ fn it_validates_event() {
 		);
 	})
 }
+impl Config for Test{
+  // -- snip --
+  type WeightInfo = ();
+}

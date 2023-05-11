@@ -12,7 +12,8 @@ use node_runtime::opaque::Block;
 use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
 use sc_transaction_pool::{BasicPool, FullChainApi};
 
-use sp_keystore::CryptoStore;
+
+use sp_keystore::Keystore;
 use std::sync::Arc;
 
 /// A helper for starting all the components needed to run a validated streams node
@@ -24,7 +25,7 @@ impl ValidatedStreamsNode {
 		spawn_handle: SpawnTaskHandle,
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		client: Arc<FullClient>,
-		keystore: Arc<dyn CryptoStore>,
+		keystore: Arc<dyn Keystore>,
 		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 		grpc_port: u16,
 		peers: Vec<Multiaddr>,
