@@ -3,10 +3,10 @@ use libp2p::Multiaddr;
 pub struct RunCmd {
 	#[clap(flatten)]
 	pub base: sc_cli::RunCmd,
-	#[clap(long, default_value_t = 5555, parse(try_from_str = validate_port))]
+	#[clap(long, default_value_t = 5555)]
 	/// grpc port for the current validated streams node
 	pub grpc_port: u16,
-	#[clap(long, multiple_values = true)]
+	#[clap(long)]
 	/// multiaddresses of the boot nodes
 	pub peers_multiaddr: Vec<Multiaddr>,
 	#[clap(long, default_value = "/tmp/ProofStore")]

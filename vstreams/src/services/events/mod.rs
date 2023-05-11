@@ -14,6 +14,9 @@ use node_runtime::{
 	opaque::{Block, BlockId},
 	pallet_validated_streams::ExtrinsicDetails,
 };
+
+use sp_runtime::RuntimeAppPublic;
+use sp_application_crypto::{RuntimePublic, key_types::AURA,CryptoTypePublicPair};
 use sc_client_api::{BlockchainEvents, HeaderBackend};
 use sc_transaction_pool::{BasicPool, FullChainApi};
 use sc_transaction_pool_api::TransactionSource;
@@ -23,11 +26,11 @@ use sp_core::{
 	sr25519::{Public, Signature},
 	ByteArray, H256,
 };
-use sp_keystore::Keystore;
-use sp_runtime::{app_crypto::CryptoTypePublicPair, BoundedBTreeMap, BoundedVec};
+use sp_keystore::CryptoStore;
+use sp_runtime::{BoundedBTreeMap, BoundedVec};
 #[cfg(test)]
 pub mod tests;
-use sp_runtime::{app_crypto::RuntimePublic, key_types::AURA, OpaqueExtrinsic};
+use sp_runtime::{OpaqueExtrinsic};
 use std::{
 	collections::HashMap,
 	sync::{Arc, RwLock},
@@ -61,6 +64,7 @@ impl EventServiceBlockState {
 				.ok_or_else(|| {
 					Error::Other("can't create sr25519 signature from witnessed event".to_string())
 				})?;
+			
 			if pubkey.verify(&witnessed_event.event_id, &signature) {
 				Ok(witnessed_event)
 			} else {
@@ -84,7 +88,7 @@ pub struct EventService {
 	block_state: Arc<RwLock<EventServiceBlockState>>,
 	event_proofs: Arc<dyn EventProofs + Send + Sync>,
 	streams_gossip: StreamsGossip,
-	keystore: Arc<dyn Keystore>,
+	keystore: Arc<dyn CryptoStore>,
 	tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 	client: Arc<FullClient>,
 }
@@ -93,7 +97,7 @@ impl EventService {
 	pub async fn new(
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		streams_gossip: StreamsGossip,
-		keystore: Arc<dyn Keystore>,
+		keystore: Arc<dyn CryptoStore>,
 		tx_pool: Arc<BasicPool<FullChainApi<FullClient, Block>, Block>>,
 		client: Arc<FullClient>,
 	) -> EventService {
@@ -157,7 +161,7 @@ impl EventService {
 		ids: Vec<H256>,
 	) -> Result<Vec<H256>, Error> {
 		let block_state =
-			Self::get_block_state(client.clone(), BlockId::hash(client.info().finalized_hash))?;
+			Self::get_block_state(client.clone())?;
 		let target = block_state.target();
 		event_proofs.purge_stale_signatures(&block_state.validators, &ids)?;
 		let mut unprepared_ids = Vec::new();
@@ -182,7 +186,7 @@ impl EventService {
 					client.finality_notification_stream().select_next_some().await;
 
 				if let Err(e) =
-					Self::get_block_state(client.clone(), BlockId::hash(finality_notification.hash))
+					Self::get_block_state(client.clone())
 						.map(|public_keys| {
 							block_state.write().map(|mut guard| *guard = public_keys.clone())
 						}) {
@@ -195,11 +199,10 @@ impl EventService {
 	/// updates the list of validators
 	fn get_block_state(
 		client: Arc<FullClient>,
-		block_id: BlockId,
 	) -> Result<EventServiceBlockState, Error> {
 		let public_keys = client
 			.runtime_api()
-			.authorities(&block_id)
+			.authorities(client.info().finalized_hash)
 			.map_err(|e| Error::Other(e.to_string()))?
 			.iter()
 			.map(CryptoTypePublicPair::from)
@@ -301,7 +304,7 @@ impl EventService {
 		let unsigned_extrinsic = self
 			.client
 			.runtime_api()
-			.create_unsigned_extrinsic(&best_block_id, event_id, proofs)
+			.create_unsigned_extrinsic(self.client.info().best_hash, event_id, proofs)
 			.map_err(|e| Error::Other(e.to_string()))?;
 		let opaque_extrinsic = OpaqueExtrinsic::from(unsigned_extrinsic);
 		self.tx_pool

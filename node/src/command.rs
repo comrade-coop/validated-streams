@@ -9,6 +9,9 @@ use node_runtime::{Block, EXISTENTIAL_DEPOSIT};
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
 use sp_keyring::Sr25519Keyring;
+
+#[cfg(feature = "try-runtime")]
+use try_runtime_cli::block_building_info::timestamp_with_aura_info;
 use vstreams::configs::{DebugLocalNetworkConfiguration, ExecutorDispatch};
 
 impl SubstrateCli for Cli {
@@ -71,16 +74,14 @@ pub fn run() -> sc_cli::Result<()> {
 		Some(Subcommand::ExportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, .. } =
-					service::new_partial(&config, cli.run.proofs_path)?;
+				let PartialComponents { client, task_manager, .. } = service::new_partial(&config,cli.run.proofs_path)?;
 				Ok((cmd.run(client, config.database), task_manager))
 			})
 		},
 		Some(Subcommand::ExportState(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, .. } =
-					service::new_partial(&config, cli.run.proofs_path)?;
+				let PartialComponents { client, task_manager, .. } = service::new_partial(&config,cli.run.proofs_path)?;
 				Ok((cmd.run(client, config.chain_spec), task_manager))
 			})
 		},
@@ -88,7 +89,7 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, import_queue, .. } =
-					service::new_partial(&config, cli.run.proofs_path)?;
+					service::new_partial(&config,cli.run.proofs_path)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
@@ -100,9 +101,9 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, backend, .. } =
-					service::new_partial(&config, cli.run.proofs_path)?;
+					service::new_partial(&config,cli.run.proofs_path)?;
 				let aux_revert = Box::new(|client, _, blocks| {
-					sc_finality_grandpa::revert(client, blocks)?;
+					sc_consensus_grandpa::revert(client, blocks)?;
 					Ok(())
 				});
 				Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
@@ -127,28 +128,37 @@ pub fn run() -> sc_cli::Result<()> {
 						cmd.run::<Block, ExecutorDispatch>(config)
 					},
 					BenchmarkCmd::Block(cmd) => {
-						let PartialComponents { client, .. } =
-							service::new_partial(&config, cli.run.proofs_path)?;
+						let PartialComponents { client, .. } = service::new_partial(&config,cli.run.proofs_path)?;
 						cmd.run(client)
 					},
+					#[cfg(not(feature = "runtime-benchmarks"))]
+					BenchmarkCmd::Storage(_) => Err(
+						"Storage benchmarking can be enabled with `--features runtime-benchmarks`."
+							.into(),
+					),
+					#[cfg(feature = "runtime-benchmarks")]
 					BenchmarkCmd::Storage(cmd) => {
 						let PartialComponents { client, backend, .. } =
-							service::new_partial(&config, cli.run.proofs_path)?;
+							service::new_partial(&config)?;
 						let db = backend.expose_db();
 						let storage = backend.expose_storage();
 
 						cmd.run(config, client, db, storage)
 					},
 					BenchmarkCmd::Overhead(cmd) => {
-						let PartialComponents { client, .. } =
-							service::new_partial(&config, cli.run.proofs_path)?;
+						let PartialComponents { client, .. } = service::new_partial(&config,cli.run.proofs_path)?;
 						let ext_builder = RemarkBuilder::new(client.clone());
 
-						cmd.run(config, client, inherent_benchmark_data()?, &ext_builder)
+						cmd.run(
+							config,
+							client,
+							inherent_benchmark_data()?,
+							Vec::new(),
+							&ext_builder,
+						)
 					},
 					BenchmarkCmd::Extrinsic(cmd) => {
-						let PartialComponents { client, .. } =
-							service::new_partial(&config, cli.run.proofs_path)?;
+						let PartialComponents { client, .. } = service::new_partial(&config,cli.run.proofs_path)?;
 						// Register the *Remark* and *TKA* builders.
 						let ext_factory = ExtrinsicFactory(vec![
 							Box::new(RemarkBuilder::new(client.clone())),
@@ -159,7 +169,7 @@ pub fn run() -> sc_cli::Result<()> {
 							)),
 						]);
 
-						cmd.run(client, inherent_benchmark_data()?, &ext_factory)
+						cmd.run(client, inherent_benchmark_data()?, Vec::new(), &ext_factory)
 					},
 					BenchmarkCmd::Machine(cmd) =>
 						cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone()),
@@ -168,6 +178,8 @@ pub fn run() -> sc_cli::Result<()> {
 		},
 		#[cfg(feature = "try-runtime")]
 		Some(Subcommand::TryRuntime(cmd)) => {
+			use crate::service::ExecutorDispatch;
+			use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				// we don't need any of the components of new_partial, just a runtime, or a task
@@ -176,7 +188,15 @@ pub fn run() -> sc_cli::Result<()> {
 				let task_manager =
 					sc_service::TaskManager::new(config.tokio_handle.clone(), registry)
 						.map_err(|e| sc_cli::Error::Service(sc_service::Error::Prometheus(e)))?;
-				Ok((cmd.run::<Block, ExecutorDispatch>(config), task_manager))
+				let info_provider = timestamp_with_aura_info(6000);
+
+				Ok((
+					cmd.run::<Block, ExtendedHostFunctions<
+						sp_io::SubstrateHostFunctions,
+						<ExecutorDispatch as NativeExecutionDispatch>::ExtendHostFunctions,
+					>, _>(Some(info_provider)),
+					task_manager,
+				))
 			})
 		},
 		#[cfg(not(feature = "try-runtime"))]

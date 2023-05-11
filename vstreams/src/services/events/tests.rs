@@ -2,7 +2,7 @@ use super::EventServiceBlockState;
 use crate::proofs::WitnessedEvent;
 use sc_keystore::LocalKeystore;
 use sp_core::{sr25519::Public, H256};
-use sp_keystore::KeyStore;
+use sp_keystore::CryptoStore;
 use sp_runtime::{app_crypto::CryptoTypePublicPair, key_types::AURA};
 
 #[tokio::test]

@@ -6,6 +6,9 @@ use crate::{
 	proofs::{EventProofs, ProofsMap},
 	services::events::EventService,
 };
+
+use sc_client_api::HeaderBackend;
+use sp_application_crypto::{RuntimePublic, CryptoTypePublicPair};
 use futures::StreamExt;
 use node_runtime::{self, opaque::Block, pallet_validated_streams::ExtrinsicDetails};
 use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult};
@@ -18,10 +21,7 @@ use sp_core::{
 	sr25519::{Public, Signature},
 	ByteArray, H256,
 };
-use sp_runtime::{
-	app_crypto::{CryptoTypePublicPair, RuntimePublic},
-	generic::BlockId,
-};
+use sp_runtime::generic::BlockId;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 /// Wrapper around a [sc_consensus::BlockImport] which waits for all events to be witnessed in an
@@ -132,10 +132,10 @@ impl BlockManager {
 		unwitnessed_events: &[H256],
 		client: Arc<FullClient>,
 	) -> Result<bool, Error> {
-		let block_id = BlockId::Number(client.chain_info().best_number);
+		// let block_id = BlockId::Number(client.chain_info().best_number);
 		let authorities: Vec<CryptoTypePublicPair> = client
 			.runtime_api()
-			.authorities(&block_id)
+			.authorities(client.info().best_hash)
 			.map_err(|e| Error::Other(e.to_string()))?
 			.iter()
 			.map(CryptoTypePublicPair::from)
@@ -254,13 +254,13 @@ where
 		block: BlockImportParams<Block, Self::Transaction>,
 	) -> Result<ImportResult, Self::Error> {
 		if let Some(block_extrinsics) = &block.body {
-			let block_id = BlockId::Number(self.block_manager.client.chain_info().best_number);
+			// let block_id = BlockId::Number(self.block_manager.client.chain_info().best_number);
 			log::info!("number of extrinsics in block {}",block_extrinsics.len());
 			let event_ids = self
 				.block_manager
 				.client
 				.runtime_api()
-				.get_extrinsic_ids(&block_id, block_extrinsics)
+				.get_extrinsic_ids(self.block_manager.client.info().best_hash, block_extrinsics)
 				.ok()
 				.unwrap_or_default();
 			match EventService::verify_events_validity(

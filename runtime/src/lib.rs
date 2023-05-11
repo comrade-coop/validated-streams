@@ -5,23 +5,18 @@
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
-use sp_core::{
-	crypto::KeyTypeId,
-	sr25519::{Public, Signature as SrSignature},
-	OpaqueMetadata, H256,
-};
-use frame_support::BoundedBTreeMap;
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+
 use pallet_grandpa::AuthorityId as GrandpaId;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata, sr25519::Public, H256};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
 		AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, One, Verify,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, MultiSignature,
+	ApplyExtrinsicResult, MultiSignature, BoundedVec, BoundedBTreeMap,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -52,9 +47,6 @@ pub use sp_runtime::{Perbill, Permill};
 
 /// Import the template pallet.
 pub use pallet_validated_streams;
-use pallet_transaction_payment_rpc_runtime_api::runtime_decl_for_transaction_payment_call_api::runtime_metadata;
-pub use pallet_validated_streams::Call;
-use frame_support::BoundedVec;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -251,10 +243,6 @@ impl pallet_balances::Config for Runtime {
 	type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
 	type AccountStore = System;
 	type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
-	type FreezeIdentifier = ();
-	type MaxFreezes = ();
-	type HoldIdentifier = ();
-	type MaxHolds = ();
 }
 
 parameter_types! {
@@ -275,7 +263,7 @@ impl pallet_sudo::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 }
 
-/// Configure the pallet-validated-streams.
+/// Configure the pallet-template in pallets/template.
 impl pallet_validated_streams::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_validated_streams::weights::SubstrateWeight<Runtime>;
@@ -373,14 +361,6 @@ impl_runtime_apis! {
 		fn metadata() -> OpaqueMetadata {
 			OpaqueMetadata::new(Runtime::metadata().into())
 		}
-
-		fn metadata_at_version(version: u32) -> Option<OpaqueMetadata> {
-			Runtime::metadata_at_version(version)
-		}
-
-		fn metadata_versions() -> sp_std::vec::Vec<u32> {
-			Runtime::metadata_versions()
-		}
 	}
 
 	impl sp_block_builder::BlockBuilder<Block> for Runtime {
@@ -403,21 +383,11 @@ impl_runtime_apis! {
 			data.check_extrinsics(&block)
 		}
 	}
-
-	impl sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block> for Runtime {
-		fn validate_transaction(
-			source: TransactionSource,
-			tx: <Block as BlockT>::Extrinsic,
-			block_hash: <Block as BlockT>::Hash,
-		) -> TransactionValidity {
-			Executive::validate_transaction(source, tx, block_hash)
-		}
-	}
 	impl pallet_validated_streams::ExtrinsicDetails<Block, UncheckedExtrinsic, Runtime> for Runtime {
 		fn get_extrinsic_ids(extrinsics: &Vec<<Block as BlockT>::Extrinsic>) -> Vec<H256> {
 			let mut ids = Vec::new();
 			for extrinsic in extrinsics.iter() {
-				if let Call::ValidatedStreams(
+				if let RuntimeCall::ValidatedStreams(
 					pallet_validated_streams::Call::<Runtime>::validate_event {
 						event_id: call_data,
 						proofs: _,
@@ -449,10 +419,19 @@ impl_runtime_apis! {
 			}
 		}
 		fn verify_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> bool {
-			!matches!(&extrinsic.function, Call::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event {
+			!matches!(&extrinsic.function, RuntimeCall::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event {
 				event_id: _,
 				proofs: _,
 			}))
+		}
+	}
+	impl sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block> for Runtime {
+		fn validate_transaction(
+			source: TransactionSource,
+			tx: <Block as BlockT>::Extrinsic,
+			block_hash: <Block as BlockT>::Hash,
+		) -> TransactionValidity {
+			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
 

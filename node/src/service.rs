@@ -3,48 +3,52 @@ use libp2p::Multiaddr;
 use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{BlockBackend, ExecutorProvider};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
+use sc_consensus_grandpa::SharedVoterState;
 pub use sc_executor::NativeElseWasmExecutor;
-use sc_finality_grandpa::SharedVoterState;
+
 use sc_keystore::LocalKeystore;
-use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
+use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
+
+// use sc_finality_grandpa::SharedVoterState;
 #[cfg(not(feature = "on-chain-proofs"))]
 use vstreams::services::witness_block_import::BlockManager;
 use vstreams::{
 	configs::{ExecutorDispatch, FullClient},
 	node::ValidatedStreamsNode,
-	pool::NetworkTxPool,
 	proofs::{EventProofs, ProofStore, InMemoryEventProofs},
 	services::witness_block_import::WitnessBlockImport,
 };
+
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
-type FullPartialComponents = sc_service::PartialComponents<
-	FullClient,
-	FullBackend,
-	FullSelectChain,
-	sc_consensus::DefaultImportQueue<Block, FullClient>,
-	sc_transaction_pool::FullPool<Block, FullClient>,
-	FullPartialComponentsOther,
->;
-
-type FullPartialComponentsOther = (
-	WitnessBlockImport<
-		sc_finality_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
-	>,
-	Arc<dyn EventProofs + Send + Sync>,
-	sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
-	Option<Telemetry>,
-);
-
-/// Build the services a client is composed of, but don't run it yet
 pub fn new_partial(
 	config: &Configuration,
 	proofs_path: String,
-) -> Result<FullPartialComponents, ServiceError> {
+) -> Result<
+	sc_service::PartialComponents<
+		FullClient,
+		FullBackend,
+		FullSelectChain,
+		sc_consensus::DefaultImportQueue<Block, FullClient>,
+		sc_transaction_pool::FullPool<Block, FullClient>,
+		(
+			WitnessBlockImport<sc_consensus_grandpa::GrandpaBlockImport<
+				FullBackend,
+				Block,
+				FullClient,
+				FullSelectChain,
+			>>,
+			sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
+			Option<Telemetry>,
+			Arc<dyn EventProofs + Send + Sync>,
+		),
+	>,
+	ServiceError,
+> {
 	if config.keystore_remote.is_some() {
 		return Err(ServiceError::Other("Remote Keystores are not supported.".into()))
 	}
@@ -90,13 +94,12 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-	let (grandpa_block_import, grandpa_link) = sc_finality_grandpa::block_import(
+	let (grandpa_block_import, grandpa_link) = sc_consensus_grandpa::block_import(
 		client.clone(),
 		&(client.clone() as Arc<_>),
 		select_chain.clone(),
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
-
 	// let event_proofs = Arc::new(ProofStore::create(&proofs_path));
 	let event_proofs = Arc::new(InMemoryEventProofs::create());
 
@@ -105,13 +108,12 @@ pub fn new_partial(
 	#[cfg(not(feature = "on-chain-proofs"))]
 	let witness_block_import =
 		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
-
-	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
+		let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
 	let import_queue =
-		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _, _>(ImportQueueParams {
+		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _>(ImportQueueParams {
 			block_import: witness_block_import.clone(),
-			justification_import: Some(Box::new(grandpa_block_import)),
+			justification_import: Some(Box::new(grandpa_block_import.clone())),
 			client: client.clone(),
 			create_inherent_data_providers: move |_, ()| async move {
 				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
@@ -122,16 +124,15 @@ pub fn new_partial(
 						slot_duration,
 					);
 
-				Ok((timestamp, slot))
+				Ok((slot, timestamp))
 			},
 			spawner: &task_manager.spawn_essential_handle(),
-			can_author_with: sp_consensus::CanAuthorWithNativeVersion::new(
-				client.executor().clone(),
-			),
 			registry: config.prometheus_registry(),
 			check_for_equivocation: Default::default(),
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
+			compatibility_mode: Default::default(),
 		})?;
+
 	Ok(sc_service::PartialComponents {
 		client,
 		backend,
@@ -140,11 +141,11 @@ pub fn new_partial(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (witness_block_import, event_proofs, grandpa_link, telemetry),
+		other: (witness_block_import, grandpa_link, telemetry,event_proofs),
 	})
 }
 
-fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
+fn remote_keystore(_url: &String) -> Result<Arc<LocalKeystore>, &'static str> {
 	// FIXME: here would the concrete keystore be built,
 	//        must return a concrete type (NOT `LocalKeystore`) that
 	//        implements `CryptoStore` and `SyncCryptoStore`
@@ -166,9 +167,9 @@ pub fn new_full(
 		mut keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, event_proofs, grandpa_link, mut telemetry),
-	} = new_partial(&config, proofs_path)?;
-
+		other: (block_import, grandpa_link, mut telemetry, event_proofs),
+	} = new_partial(&config,proofs_path)?;
+	
 	ValidatedStreamsNode::start(
 		task_manager.spawn_handle(),
 		event_proofs.clone(),
@@ -189,7 +190,7 @@ pub fn new_full(
 				))),
 		};
 	}
-	let grandpa_protocol_name = sc_finality_grandpa::protocol_standard_name(
+	let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
 		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
 		&config.chain_spec,
 	);
@@ -197,23 +198,35 @@ pub fn new_full(
 	config
 		.network
 		.extra_sets
-		.push(sc_finality_grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
-	let warp_sync = Arc::new(sc_finality_grandpa::warp_proof::NetworkProvider::new(
+		.push(sc_consensus_grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
+	let warp_sync = Arc::new(sc_consensus_grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
 		grandpa_link.shared_authority_set().clone(),
 		Vec::default(),
 	));
 
-	let (network, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
-			transaction_pool: Arc::new(NetworkTxPool(transaction_pool.clone(), client.clone())),
+			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			block_announce_validator_builder: None,
-			warp_sync: Some(warp_sync),
+			warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
 		})?;
+		#[cfg(not(feature = "on-chain-proofs"))]
+		task_manager.spawn_handle().spawn(
+			"dht event handler",
+			None,
+			BlockManager::handle_dht_events(
+				block_import.block_manager.network_service.clone(),
+				block_import.block_manager.deferred_blocks.clone(),
+				network.clone(),
+				client.clone(),
+				event_proofs.clone(),
+			),
+		);
 	if config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(
 			&config,
@@ -222,18 +235,7 @@ pub fn new_full(
 			network.clone(),
 		);
 	}
-	#[cfg(not(feature = "on-chain-proofs"))]
-	task_manager.spawn_handle().spawn(
-		"dht event handler",
-		None,
-		BlockManager::handle_dht_events(
-			block_import.block_manager.network_service.clone(),
-			block_import.block_manager.deferred_blocks.clone(),
-			network.clone(),
-			client.clone(),
-			event_proofs.clone(),
-		),
-	);
+
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks: Option<()> = None;
@@ -261,6 +263,8 @@ pub fn new_full(
 		rpc_builder: rpc_extensions_builder,
 		backend,
 		system_rpc_tx,
+		tx_handler_controller,
+		sync_service: sync_service.clone(),
 		config,
 		telemetry: telemetry.as_mut(),
 	})?;
@@ -273,10 +277,10 @@ pub fn new_full(
 			prometheus_registry.as_ref(),
 			telemetry.as_ref().map(|x| x.handle()),
 		);
-		let can_author_with =
-			sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
+
 		let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
-		let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _, _>(
+
+		let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _>(
 			StartAuraParams {
 				slot_duration,
 				client,
@@ -292,17 +296,17 @@ pub fn new_full(
 							slot_duration,
 						);
 
-					Ok((timestamp, slot))
+					Ok((slot, timestamp))
 				},
 				force_authoring,
 				backoff_authoring_blocks,
 				keystore: keystore_container.sync_keystore(),
-				can_author_with,
-				sync_oracle: network.clone(),
-				justification_sync_link: network.clone(),
+				sync_oracle: sync_service.clone(),
+				justification_sync_link: sync_service.clone(),
 				block_proposal_slot_portion: SlotProportion::new(2f32 / 3f32),
 				max_block_proposal_slot_portion: None,
 				telemetry: telemetry.as_ref().map(|x| x.handle()),
+				compatibility_mode: Default::default(),
 			},
 		)?;
 
@@ -319,7 +323,7 @@ pub fn new_full(
 		let keystore =
 			if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
 
-		let grandpa_config = sc_finality_grandpa::Config {
+		let grandpa_config = sc_consensus_grandpa::Config {
 			// FIXME #1578 make this available through chainspec
 			gossip_duration: Duration::from_millis(333),
 			justification_period: 512,
@@ -337,11 +341,12 @@ pub fn new_full(
 		// and vote data availability than the observer. The observer has not
 		// been tested extensively yet and having most nodes in a network run it
 		// could lead to finality stalls.
-		let grandpa_config = sc_finality_grandpa::GrandpaParams {
+		let grandpa_config = sc_consensus_grandpa::GrandpaParams {
 			config: grandpa_config,
 			link: grandpa_link,
 			network,
-			voting_rule: sc_finality_grandpa::VotingRulesBuilder::default().build(),
+			sync: Arc::new(sync_service),
+			voting_rule: sc_consensus_grandpa::VotingRulesBuilder::default().build(),
 			prometheus_registry,
 			shared_voter_state: SharedVoterState::empty(),
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
@@ -352,7 +357,7 @@ pub fn new_full(
 		task_manager.spawn_essential_handle().spawn_blocking(
 			"grandpa-voter",
 			None,
-			sc_finality_grandpa::run_grandpa_voter(grandpa_config)?,
+			sc_consensus_grandpa::run_grandpa_voter(grandpa_config)?,
 		);
 	}
 

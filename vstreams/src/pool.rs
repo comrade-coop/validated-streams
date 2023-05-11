@@ -103,8 +103,8 @@ impl NetworkTxPool {
 		xts: &Vec<sc_transaction_pool_api::TransactionFor<Self>>,
 	) -> PoolFuture<Result<(), Error>, Error> {
 		for xt in xts {
-			let best_block_id = BlockId::hash(client.info().best_hash);
-			match client.runtime_api().verify_extrinsic(&best_block_id, xt.clone()) {
+			// let best_block_id = BlockId::hash(client.info().best_hash);
+			match client.runtime_api().verify_extrinsic(client.info().best_hash, xt.clone()) {
 				Ok(valid) =>
 					if !valid {
 						log::error!("💣 Attempt to inject witnessed events in TxPool detected");
@@ -258,11 +258,11 @@ impl ConfigPool for NetworkTxPool {
 		self.0.ready_transaction(hash)
 	}
 }
-impl MaintainedTransactionPool for NetworkTxPool {
-	fn maintain(
-		&self,
-		event: sc_transaction_pool_api::ChainEvent<Self::Block>,
-	) -> std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send>> {
-		self.0.maintain(event)
-	}
-}
+// impl MaintainedTransactionPool for NetworkTxPool {
+// 	fn maintain(
+// 		&self,
+// 		event: sc_transaction_pool_api::ChainEvent<Self::Block>,
+// 	) -> std::pin::Pin<Box<dyn futures::Future<Output = ()> + Send>> {
+// 		self.0.maintain(event)
+// 	}
+// }
