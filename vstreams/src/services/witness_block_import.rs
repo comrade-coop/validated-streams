@@ -77,13 +77,12 @@ impl BlockManager {
 							let desrialized_key = H256::from_slice(key.to_vec().as_slice());
 							inner.lock().await.remove(&desrialized_key);
 						},
-						DhtEvent::ValuePutFailed(key)=>{
+						DhtEvent::ValuePutFailed(_key)=>{
 							// log::info!("value put failed for {:?}",key);
 						},
 						DhtEvent::ValuePut(key)=>{
-							log::info!("key is in dht {:?}",key);
+							log::info!("key {:?} inserted in dht",key);
 						},
-						_ => {},
 					}
 				}
 			}

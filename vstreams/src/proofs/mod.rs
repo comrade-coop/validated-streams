@@ -173,12 +173,12 @@ impl EventProofs for InMemoryEventProofs {
 }
 /// persistent database for storing event proofs
 pub struct ProofStore {
-	db: sled::Db,
+	db: rocksdb::DB,
 }
 impl ProofStore {
 	/// returns a ProofStore instance that persists data in the provided path
 	pub fn create(path: &str) -> Self {
-		Self { db: sled::open(path).expect("open") }
+		Self { db: rocksdb::DB::open_default(path).expect("open") }
 	}
 	/// inserts the given event proofs and check whether they already exist in the database
 	fn insert_proofs(
@@ -212,7 +212,7 @@ impl ProofStore {
 		let serialized_witnesses =
 			bincode::serialize(&proofs).map_err(|e| Error::Other(e.to_string()))?;
 		self.db
-			.insert(event_id, serialized_witnesses)
+			.put(event_id, serialized_witnesses)
 			.map_err(|e| Error::Other(e.to_string()))?;
 		Ok(())
 	}

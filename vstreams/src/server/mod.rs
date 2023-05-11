@@ -11,7 +11,6 @@ use sp_core::H256;
 
 use futures::{stream, Stream, StreamExt};
 use sp_blockchain::lowest_common_ancestor;
-use sp_runtime::generic::BlockId;
 use std::{
 	io::{Error, ErrorKind},
 	sync::Arc,

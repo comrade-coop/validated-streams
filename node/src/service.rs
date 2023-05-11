@@ -1,7 +1,7 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 use libp2p::Multiaddr;
 use node_runtime::{self, opaque::Block, RuntimeApi};
-use sc_client_api::{BlockBackend, ExecutorProvider};
+use sc_client_api::BlockBackend;
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_consensus_grandpa::SharedVoterState;
 pub use sc_executor::NativeElseWasmExecutor;
@@ -18,13 +18,13 @@ use vstreams::services::witness_block_import::BlockManager;
 use vstreams::{
 	configs::{ExecutorDispatch, FullClient},
 	node::ValidatedStreamsNode,
-	proofs::{EventProofs, ProofStore, InMemoryEventProofs},
+	proofs::{EventProofs, ProofStore},
 	services::witness_block_import::WitnessBlockImport,
 };
 
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
-
+/// Build the services a client is composed of, but don't run it yet
 pub fn new_partial(
 	config: &Configuration,
 	proofs_path: String,
@@ -100,9 +100,9 @@ pub fn new_partial(
 		select_chain.clone(),
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
-	// let event_proofs = Arc::new(ProofStore::create(&proofs_path));
-	let event_proofs = Arc::new(InMemoryEventProofs::create());
-
+	
+	let event_proofs = Arc::new(ProofStore::create(&proofs_path));
+	
 	#[cfg(feature = "on-chain-proofs")]
 	let witness_block_import = WitnessBlockImport::new(grandpa_block_import.clone());
 	#[cfg(not(feature = "on-chain-proofs"))]

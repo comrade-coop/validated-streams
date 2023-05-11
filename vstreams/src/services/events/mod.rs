@@ -15,7 +15,6 @@ use node_runtime::{
 	pallet_validated_streams::ExtrinsicDetails,
 };
 
-use sp_runtime::RuntimeAppPublic;
 use sp_application_crypto::{RuntimePublic, key_types::AURA,CryptoTypePublicPair};
 use sc_client_api::{BlockchainEvents, HeaderBackend};
 use sc_transaction_pool::{BasicPool, FullChainApi};
@@ -182,7 +181,7 @@ impl EventService {
 	) {
 		tokio::spawn(async move {
 			loop {
-				let finality_notification =
+				let _=
 					client.finality_notification_stream().select_next_some().await;
 
 				if let Err(e) =
