@@ -1,5 +1,5 @@
 //! Block import which waits for all events to be witnessed before finalizing a block.
-
+#![allow(unused_imports)]
 use crate::{
     configs::FullClient,
     {proofs::EventProofs, services::events::EventService},
@@ -11,7 +11,7 @@ pub use sc_executor::NativeElseWasmExecutor;
 use sp_api::ProvideRuntimeApi;
 use sp_consensus::Error as ConsensusError;
 use sp_consensus::SyncOracle;
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, Mutex};
 use std::sync::Arc;
 use sc_network_sync::SyncingService;
 /// Wrapper around a [sc_consensus::BlockImport] which waits for all events to be witnessed in an
@@ -21,11 +21,7 @@ use sc_network_sync::SyncingService;
 pub struct WitnessBlockImport<I> {
     parent_block_import: I,
     #[cfg(not(feature = "on-chain-proofs"))]
-    client: Arc<FullClient>,
-    #[cfg(not(feature = "on-chain-proofs"))]
-    event_proofs: Arc<dyn EventProofs + Send + Sync>,
-    #[cfg(not(feature = "on-chain-proofs"))]
-    sync_service: Shared<oneshot::Receiver<Arc<SyncingService<Block>>>>,
+	pub utils: Arc<Utils>
 }
 impl<I> WitnessBlockImport<I> {
     #[cfg(feature = "on-chain-proofs")]
@@ -38,10 +34,29 @@ impl<I> WitnessBlockImport<I> {
         parent_block_import: I,
         client: Arc<FullClient>,
         event_proofs: Arc<dyn EventProofs + Send + Sync>,
-        ) -> (Self, oneshot::Sender<Arc<SyncingService<Block>>>) {
+        ) -> Self {
         let (sync_service_sender, sync_service) = oneshot::channel();
-        (Self { parent_block_import, client, event_proofs, sync_service: sync_service.shared()}, sync_service_sender)
+		let utils = Utils{client, event_proofs ,sync_service:sync_service.shared(),sync_service_sender: Arc::new(Mutex::new(Some(sync_service_sender)))};
+        Self { parent_block_import, utils: Arc::new(utils)}
     }
+}
+#[cfg(not(feature = "on-chain-proofs"))]
+#[derive(Clone)]
+pub struct Utils{
+    client: Arc<FullClient>,
+    event_proofs: Arc<dyn EventProofs + Send + Sync>,
+    sync_service: Shared<oneshot::Receiver<Arc<SyncingService<Block>>>>,
+	sync_service_sender: Arc<Mutex<Option<oneshot::Sender<Arc<SyncingService<Block>>>>>>,
+}
+#[cfg(not(feature = "on-chain-proofs"))]
+impl Utils{
+	pub async fn update_sync_service(self: Arc<Self>, sync_service: Arc<SyncingService<Block>>){
+		if let Some(sync_service_sender) =
+		std::mem::replace(&mut *self.sync_service_sender.lock().await, None)
+	{
+		let _ = sync_service_sender.send(sync_service.clone());
+	}
+	}
 }
 #[async_trait::async_trait]
 impl<I: sc_consensus::BlockImport<Block>> sc_consensus::BlockImport<Block> for WitnessBlockImport<I>
@@ -64,7 +79,7 @@ I: Send,
 #[cfg(feature = "on-chain-proofs")]
     async fn import_block(
         &mut self,
-        block: BlockCheckParams<Block>,
+        block: BlockImportParams<Block,Self::Transaction>,
         ) -> Result<ImportResult, Self::Error> {
         return self
             .parent_block_import
@@ -78,7 +93,7 @@ I: Send,
         &mut self,
         block: BlockImportParams<Block, Self::Transaction>,
         ) -> Result<ImportResult, Self::Error> {
-        let sync_service = self.sync_service.clone().await.unwrap();
+        let sync_service = self.utils.sync_service.clone().await.unwrap();
             if sync_service.is_major_syncing(){
                 log::info!("🔁 Node is Syncing");
                 return self
@@ -91,16 +106,17 @@ I: Send,
         if let Some(block_extrinsics) = &block.body {
             // get an iterator for all ready transactions and skip the first element which
             // contains the default extrinsic
-            let block_id = self.client.chain_info().best_hash;
+            let block_id = self.utils.client.chain_info().best_hash;
             let extrinsic_ids = self
-                .client
+				.utils
+				.client
                 .runtime_api()
                 .get_extrinsic_ids(block_id, block_extrinsics)
                 .ok()
                 .unwrap_or_default();
             match EventService::verify_events_validity(
-                self.client.clone(),
-                self.event_proofs.clone(),
+                self.utils.client.clone(),
+                self.utils.event_proofs.clone(),
                 extrinsic_ids.clone(),
                 ) {
                 Ok(unwitnessed_ids) =>

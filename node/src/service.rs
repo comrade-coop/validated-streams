@@ -10,8 +10,6 @@ use sc_keystore::LocalKeystore;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-use sc_network_sync::SyncingService;
-use tokio::sync::oneshot;
 use std::{sync::Arc, time::Duration};
 
 // use sc_finality_grandpa::SharedVoterState;
@@ -45,7 +43,6 @@ pub fn new_partial(
 			sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 			Option<Telemetry>,
 			Arc<dyn EventProofs + Send + Sync>,
-			oneshot::Sender<Arc<SyncingService<Block>>>
 		),
 	>,
 	ServiceError,
@@ -107,7 +104,7 @@ pub fn new_partial(
 	#[cfg(feature = "on-chain-proofs")]
 	let witness_block_import = WitnessBlockImport::new(grandpa_block_import.clone());
 	#[cfg(not(feature = "on-chain-proofs"))]
-	let (witness_block_import, sync_sender)=
+	let witness_block_import=
 		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
 		let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
@@ -142,7 +139,7 @@ pub fn new_partial(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (witness_block_import, grandpa_link, telemetry,event_proofs, sync_sender),
+		other: (witness_block_import, grandpa_link, telemetry,event_proofs),
 	})
 }
 
@@ -168,7 +165,7 @@ pub fn new_full(
 		mut keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, grandpa_link, mut telemetry, event_proofs, sync_sender),
+		other: (block_import, grandpa_link, mut telemetry, event_proofs),
 	} = new_partial(&config,proofs_path)?;
 
 	ValidatedStreamsNode::start(
@@ -218,8 +215,12 @@ pub fn new_full(
 		})?;
 
 	// update the sync service for the witness block import
-    let _ = sync_sender.send(sync_service.clone());
-
+	#[cfg(not(feature = "on-chain-proofs"))]
+	task_manager.spawn_handle().spawn(
+		"SyncService Sender",
+		None,
+		block_import.utils.clone().update_sync_service(sync_service.clone()),
+	);
         if config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(
 			&config,
