@@ -74,14 +74,16 @@ pub fn run() -> sc_cli::Result<()> {
 		Some(Subcommand::ExportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, .. } = service::new_partial(&config,cli.run.proofs_path)?;
+				let PartialComponents { client, task_manager, .. } =
+					service::new_partial(&config, cli.run.proofs_path)?;
 				Ok((cmd.run(client, config.database), task_manager))
 			})
 		},
 		Some(Subcommand::ExportState(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, .. } = service::new_partial(&config,cli.run.proofs_path)?;
+				let PartialComponents { client, task_manager, .. } =
+					service::new_partial(&config, cli.run.proofs_path)?;
 				Ok((cmd.run(client, config.chain_spec), task_manager))
 			})
 		},
@@ -89,7 +91,7 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, import_queue, .. } =
-					service::new_partial(&config,cli.run.proofs_path)?;
+					service::new_partial(&config, cli.run.proofs_path)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
@@ -101,7 +103,7 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, backend, .. } =
-					service::new_partial(&config,cli.run.proofs_path)?;
+					service::new_partial(&config, cli.run.proofs_path)?;
 				let aux_revert = Box::new(|client, _, blocks| {
 					sc_consensus_grandpa::revert(client, blocks)?;
 					Ok(())
@@ -128,7 +130,8 @@ pub fn run() -> sc_cli::Result<()> {
 						cmd.run::<Block, ExecutorDispatch>(config)
 					},
 					BenchmarkCmd::Block(cmd) => {
-						let PartialComponents { client, .. } = service::new_partial(&config,cli.run.proofs_path)?;
+						let PartialComponents { client, .. } =
+							service::new_partial(&config, cli.run.proofs_path)?;
 						cmd.run(client)
 					},
 					#[cfg(not(feature = "runtime-benchmarks"))]
@@ -139,14 +142,15 @@ pub fn run() -> sc_cli::Result<()> {
 					#[cfg(feature = "runtime-benchmarks")]
 					BenchmarkCmd::Storage(cmd) => {
 						let PartialComponents { client, backend, .. } =
-							service::new_partial(&config,cli.run.proofs_path)?;
+							service::new_partial(&config, cli.run.proofs_path)?;
 						let db = backend.expose_db();
 						let storage = backend.expose_storage();
 
 						cmd.run(config, client, db, storage)
 					},
 					BenchmarkCmd::Overhead(cmd) => {
-						let PartialComponents { client, .. } = service::new_partial(&config,cli.run.proofs_path)?;
+						let PartialComponents { client, .. } =
+							service::new_partial(&config, cli.run.proofs_path)?;
 						let ext_builder = RemarkBuilder::new(client.clone());
 
 						cmd.run(
@@ -158,7 +162,8 @@ pub fn run() -> sc_cli::Result<()> {
 						)
 					},
 					BenchmarkCmd::Extrinsic(cmd) => {
-						let PartialComponents { client, .. } = service::new_partial(&config,cli.run.proofs_path)?;
+						let PartialComponents { client, .. } =
+							service::new_partial(&config, cli.run.proofs_path)?;
 						// Register the *Remark* and *TKA* builders.
 						let ext_factory = ExtrinsicFactory(vec![
 							Box::new(RemarkBuilder::new(client.clone())),

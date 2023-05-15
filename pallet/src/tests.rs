@@ -54,7 +54,11 @@ fn it_validates_event() {
 		);
 		//dispatch an extrinsic with an already validated event
 		assert_err!(
-			ValidatedStreams::validate_event(RuntimeOrigin::root(), event_id, Some(proofs_map.clone())),
+			ValidatedStreams::validate_event(
+				RuntimeOrigin::root(),
+				event_id,
+				Some(proofs_map.clone())
+			),
 			pallet_validated_streams::Error::<Test>::AlreadyValidated
 		);
 		//corrupt a signature
@@ -62,14 +66,22 @@ fn it_validates_event() {
 		let mut proofs_map = proofs(&event_id, &keys);
 		*proofs_map.get_mut(keys.get(0).unwrap()).unwrap().get_mut(0).unwrap() += 1;
 		assert_err!(
-			ValidatedStreams::validate_event(RuntimeOrigin::root(), event_id, Some(proofs_map.clone())),
+			ValidatedStreams::validate_event(
+				RuntimeOrigin::root(),
+				event_id,
+				Some(proofs_map.clone())
+			),
 			pallet_validated_streams::Error::<Test>::InvalidProof
 		);
 		//inject an unrecognized authority proof
 		let unrecognized_authority = KEYSTORE.sr25519_generate_new(AURA, None).unwrap();
 		proofs_map.try_insert(unrecognized_authority, BoundedVec::default()).unwrap();
 		assert_err!(
-			ValidatedStreams::validate_event(RuntimeOrigin::root(), event_id, Some(proofs_map.clone())),
+			ValidatedStreams::validate_event(
+				RuntimeOrigin::root(),
+				event_id,
+				Some(proofs_map.clone())
+			),
 			pallet_validated_streams::Error::<Test>::UnrecognizedAuthority
 		);
 		//provide unsifficient amount of proofs by removing two proofs since target is 3
@@ -77,7 +89,11 @@ fn it_validates_event() {
 		proofs_map.remove(keys.get(0).unwrap());
 		proofs_map.remove(keys.get(1).unwrap());
 		assert_err!(
-			ValidatedStreams::validate_event(RuntimeOrigin::root(), event_id, Some(proofs_map.clone())),
+			ValidatedStreams::validate_event(
+				RuntimeOrigin::root(),
+				event_id,
+				Some(proofs_map.clone())
+			),
 			pallet_validated_streams::Error::<Test>::NotEnoughProofs
 		);
 	})

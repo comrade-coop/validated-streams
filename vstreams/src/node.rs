@@ -12,7 +12,6 @@ use node_runtime::opaque::Block;
 use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
 use sc_transaction_pool::{BasicPool, FullChainApi};
 
-
 use sp_keystore::CryptoStore;
 use std::sync::Arc;
 

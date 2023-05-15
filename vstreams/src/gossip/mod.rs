@@ -238,7 +238,8 @@ impl StreamsGossipService {
 			.gossip_lazy(32)
 			.duplicate_cache_time(Duration::from_secs(500))
 			.max_transmit_size(3109)
-			.build().unwrap();
+			.build()
+			.unwrap();
 		gossipsub::Gossipsub::new(message_authenticity, gossipsub_config).unwrap()
 	}
 }

@@ -97,38 +97,38 @@ impl EventProofs for InMemoryEventProofs {
 		}
 	}
 	fn add_events_proofs(&self, _proofs: ProofsMap) -> Result<(), Error> {
-        Ok(())
-    }
-    fn get_proof_count(&self, event_id: H256) -> Result<u16, Error> {
-        let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
-        if proofs.contains_key(&event_id) {
-            let count = proofs
-                .get(&event_id)
-                .ok_or_else(|| Error::Other("Could not retrieve event count".to_string()))?
-                .len() as u16;
-            Ok(count)
-        } else {
-            Ok(0)
-        }
-    }
-    fn get_event_proofs(
-        &self,
-        event_id: &H256,
-        ) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error> {
-        let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
-        if proofs.contains_key(event_id) {
-            let map = proofs
-                .get(event_id)
-                .ok_or_else(|| Error::Other("Could not retrieve event proofs".to_string()))?
-                .clone();
-            Ok(map)
-        } else {
-            Err(Error::Other("Event not found".to_string()))
-        }
-    }
-    fn get_events_proofs(&self, _events: &[H256]) -> Result<ProofsMap, Error> {
-        Ok(ProofsMap::new())
-    }
+		Ok(())
+	}
+	fn get_proof_count(&self, event_id: H256) -> Result<u16, Error> {
+		let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
+		if proofs.contains_key(&event_id) {
+			let count = proofs
+				.get(&event_id)
+				.ok_or_else(|| Error::Other("Could not retrieve event count".to_string()))?
+				.len() as u16;
+			Ok(count)
+		} else {
+			Ok(0)
+		}
+	}
+	fn get_event_proofs(
+		&self,
+		event_id: &H256,
+	) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error> {
+		let proofs = self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
+		if proofs.contains_key(event_id) {
+			let map = proofs
+				.get(event_id)
+				.ok_or_else(|| Error::Other("Could not retrieve event proofs".to_string()))?
+				.clone();
+			Ok(map)
+		} else {
+			Err(Error::Other("Event not found".to_string()))
+		}
+	}
+	fn get_events_proofs(&self, _events: &[H256]) -> Result<ProofsMap, Error> {
+		Ok(ProofsMap::new())
+	}
 
 	fn purge_stale_signatures(
 		&self,

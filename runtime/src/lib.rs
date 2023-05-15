@@ -9,14 +9,14 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 use pallet_grandpa::AuthorityId as GrandpaId;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata, sr25519::Public, H256};
+use sp_core::{crypto::KeyTypeId, sr25519::Public, OpaqueMetadata, H256};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
 		AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, One, Verify,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, MultiSignature, BoundedVec, BoundedBTreeMap,
+	ApplyExtrinsicResult, BoundedBTreeMap, BoundedVec, MultiSignature,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]

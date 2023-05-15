@@ -91,7 +91,7 @@ pub mod pallet {
 		/// If so, it raise an `AlreadyValidated` event.
 		/// If not, it inserts the event and the current block into the storage and raise a
 		/// `ValidatedEvent` event.
-        #[pallet::call_index(0)]
+		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::validate_event())]
 		pub fn validate_event(
 			origin: OriginFor<T>,

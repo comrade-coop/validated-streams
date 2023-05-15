@@ -15,11 +15,11 @@ use node_runtime::{
 	pallet_validated_streams::ExtrinsicDetails,
 };
 
-use sp_application_crypto::{RuntimePublic, key_types::AURA,CryptoTypePublicPair};
 use sc_client_api::{BlockchainEvents, HeaderBackend};
 use sc_transaction_pool::{BasicPool, FullChainApi};
 use sc_transaction_pool_api::TransactionSource;
 use sp_api::ProvideRuntimeApi;
+use sp_application_crypto::{key_types::AURA, CryptoTypePublicPair, RuntimePublic};
 use sp_consensus_aura::AuraApi;
 use sp_core::{
 	sr25519::{Public, Signature},
@@ -29,7 +29,7 @@ use sp_keystore::CryptoStore;
 use sp_runtime::{BoundedBTreeMap, BoundedVec};
 #[cfg(test)]
 pub mod tests;
-use sp_runtime::{OpaqueExtrinsic};
+use sp_runtime::OpaqueExtrinsic;
 use std::{
 	collections::HashMap,
 	sync::{Arc, RwLock},
@@ -63,7 +63,7 @@ impl EventServiceBlockState {
 				.ok_or_else(|| {
 					Error::Other("can't create sr25519 signature from witnessed event".to_string())
 				})?;
-			
+
 			if pubkey.verify(&witnessed_event.event_id, &signature) {
 				Ok(witnessed_event)
 			} else {
@@ -159,8 +159,7 @@ impl EventService {
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
 		ids: Vec<H256>,
 	) -> Result<Vec<H256>, Error> {
-		let block_state =
-			Self::get_block_state(client.clone())?;
+		let block_state = Self::get_block_state(client.clone())?;
 		let target = block_state.target();
 		event_proofs.purge_stale_signatures(&block_state.validators, &ids)?;
 		let mut unprepared_ids = Vec::new();
@@ -181,14 +180,11 @@ impl EventService {
 	) {
 		tokio::spawn(async move {
 			loop {
-				let _=
-					client.finality_notification_stream().select_next_some().await;
+				let _ = client.finality_notification_stream().select_next_some().await;
 
-				if let Err(e) =
-					Self::get_block_state(client.clone())
-						.map(|public_keys| {
-							block_state.write().map(|mut guard| *guard = public_keys.clone())
-						}) {
+				if let Err(e) = Self::get_block_state(client.clone()).map(|public_keys| {
+					block_state.write().map(|mut guard| *guard = public_keys.clone())
+				}) {
 					log::error!("{}", e.to_string());
 				}
 			}
@@ -196,9 +192,7 @@ impl EventService {
 	}
 
 	/// updates the list of validators
-	fn get_block_state(
-		client: Arc<FullClient>,
-	) -> Result<EventServiceBlockState, Error> {
+	fn get_block_state(client: Arc<FullClient>) -> Result<EventServiceBlockState, Error> {
 		let public_keys = client
 			.runtime_api()
 			.authorities(client.info().finalized_hash)
