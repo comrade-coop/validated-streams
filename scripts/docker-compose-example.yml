@@ -56,7 +56,7 @@ services:
     image: comradecoop/validated-streams
     ports:
       - "9944:9944"
-    command: --eve "--ws-port 9944" --unsafe-ws-external
+    command: --ws-port 9944 --unsafe-ws-external
     networks:
       mynetwork:
         ipv4_address: 172.19.0.6

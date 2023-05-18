@@ -10,10 +10,10 @@ use futures::{channel::oneshot, future::Shared, FutureExt, StreamExt};
 use pallet_validated_streams::ExtrinsicDetails;
 use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult};
 pub use sc_executor::NativeElseWasmExecutor;
-use sc_network::{DhtEvent, Event, KademliaKey, NetworkDHTProvider, NetworkService};
-use sc_network_common::service::NetworkEventStream;
+use sc_network::{
+	DhtEvent, Event, KademliaKey, NetworkDHTProvider, NetworkEventStream, NetworkService,
+};
 use sp_api::{HeaderT, ProvideRuntimeApi};
-use sp_blockchain::well_known_cache_keys;
 use sp_consensus::Error as ConsensusError;
 use sp_consensus_aura::AuraApi;
 use sp_core::{
@@ -113,7 +113,12 @@ where
 							let Ok(deserialized_key) = <Block as BlockT>::Hash::decode(&mut key.to_vec().as_slice()) else {continue;};
 							deferred_blocks.lock().await.remove(&deserialized_key);
 						},
-						_ => {},
+						DhtEvent::ValuePutFailed(_key) => {
+							// log::info!("value put failed for {:?}",key);
+						},
+						DhtEvent::ValuePut(key) => {
+							log::info!("key {:?} inserted in dht", key);
+						},
 					}
 				}
 			}
@@ -157,10 +162,9 @@ where
 		unwitnessed_events: &[H256],
 		client: Arc<Client>,
 	) -> Result<bool, Error> {
-		let block_id = BlockId::Hash(block);
 		let authorities: Vec<CryptoTypePublicPair> = client
 			.runtime_api()
-			.authorities(&block_id)
+			.authorities(block) // client.info().best_hash
 			.map_err(|e| Error::Other(e.to_string()))?
 			.iter()
 			.map(CryptoTypePublicPair::from)
@@ -282,11 +286,10 @@ where
 	async fn import_block(
 		&mut self,
 		block: BlockImportParams<Block, Self::Transaction>,
-		cache: HashMap<well_known_cache_keys::Id, Vec<u8>>,
 	) -> Result<ImportResult, Self::Error> {
 		return self
 			.parent_block_import
-			.import_block(block, cache)
+			.import_block(block)
 			.await
 			.map_err(|e| ConsensusError::ClientImport(format!("{}", e)))
 	}
@@ -294,15 +297,15 @@ where
 	async fn import_block(
 		&mut self,
 		block: BlockImportParams<Block, Self::Transaction>,
-		cache: HashMap<well_known_cache_keys::Id, Vec<u8>>,
 	) -> Result<ImportResult, Self::Error> {
 		if let Some(block_extrinsics) = &block.body {
-			let block_id = BlockId::Hash(block.header.hash());
+			let block_id = block.header.hash(); // self.block_manager.client.info().best_hash
+			log::info!("number of extrinsics in block {}", block_extrinsics.len());
 			let event_ids = self
 				.block_manager
 				.client
 				.runtime_api()
-				.get_extrinsic_ids(&block_id, block_extrinsics)
+				.get_extrinsic_ids(block_id, block_extrinsics)
 				.ok()
 				.unwrap_or_default();
 			match verify_events_validity(
@@ -311,25 +314,41 @@ where
 				self.block_manager.event_proofs.clone(),
 				event_ids.clone(),
 			) {
-				Ok(unwitnessed_ids) =>
+				Ok(unwitnessed_ids) => {
+					let block_hash = block.header.hash();
 					if !unwitnessed_ids.is_empty() {
+						for event in &unwitnessed_ids {
+							match self.block_manager.event_proofs.get_proof_count(event.clone()) {
+								Ok(count) => {
+									log::info!(
+										"unwitnessed event {} has proof count of {}",
+										event,
+										count
+									);
+								},
+								Err(e) => {
+									log::error!("{}", e);
+								},
+							}
+						}
 						self.block_manager.defer_block(block.header.hash(), &unwitnessed_ids).await;
 						return Err(ConsensusError::ClientImport(
 							"block contains unwitnessed events".to_string(),
 						))
 					} else {
-						let block_hash = block.header.hash();
-						let parent_result =
-							self.parent_block_import.import_block(block, cache).await;
+						let parent_result = self.parent_block_import.import_block(block).await;
 						match parent_result {
 							Ok(result) => {
-								self.block_manager.provide_block(block_hash, &event_ids).await;
+								if !event_ids.is_empty() {
+									self.block_manager.provide_block(block_hash, &event_ids).await;
+								}
 								log::info!("📥 Block {} Imported", block_hash);
 								return Ok(result)
 							},
 							Err(e) => return Err(ConsensusError::ClientImport(format!("{}", e))),
 						}
-					},
+					}
+				},
 				Err(e) => {
 					log::error!("the following Error happened while verifying block events in the event_proofs:{}",e);
 					return Err(ConsensusError::ClientImport(format!("{}", e)))
@@ -338,7 +357,7 @@ where
 		} else {
 			return self
 				.parent_block_import
-				.import_block(block, cache)
+				.import_block(block)
 				.await
 				.map_err(|e| ConsensusError::ClientImport(format!("{}", e)))
 		}

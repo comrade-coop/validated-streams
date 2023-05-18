@@ -25,6 +25,7 @@ elif [ "$COMMAND" = "start" ]; then
     "localhost:5556"
     "localhost:5557"
     "localhost:5558"
+    "localhost:5559"
   )
   #base64 encoded hash for 256 zeroes
   #hash_value="ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQ="
@@ -35,8 +36,7 @@ elif [ "$COMMAND" = "start" ]; then
       "event_id": "'"$hash_value"'"
     }'
       for server in "${validators[@]}"; do
-        RESPONSE=$(grpcurl -plaintext -import-path ../proto -proto streams.proto  -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent)
-        echo $RESPONSE
+        RESPONSE=$(grpcurl -plaintext -import-path ../proto -proto streams.proto  -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent) &
       done
   done
 else

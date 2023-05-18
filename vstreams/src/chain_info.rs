@@ -13,6 +13,6 @@ impl<Block: BlockT, TRtApi, TExec: CodeExecutor + RuntimeVersionOf + Clone + 'st
 	ChainInfo<Block> for TFullClient<Block, TRtApi, TExec>
 {
 	fn chain_info(&self) -> Info<Block> {
-		self.chain_info()
+		<TFullClient<Block, TRtApi, TExec>>::chain_info(self)
 	}
 }

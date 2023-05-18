@@ -51,13 +51,14 @@ impl system::Config for Test {
 	type SS58Prefix = ConstU16<42>;
 	type OnSetCode = ();
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
-	type Origin = Origin;
-	type Call = Call;
-	type Event = Event;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
+	type RuntimeEvent = RuntimeEvent;
 }
 
 impl pallet_validated_streams::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = pallet_validated_streams::weights::SubstrateWeight<Test>;
 
 	type VSAuthorityId = AuraId;
 

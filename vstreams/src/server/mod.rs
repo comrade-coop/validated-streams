@@ -10,7 +10,7 @@ use sc_client_api::{BlockBackend, BlockchainEvents};
 use sp_api::{BlockT, ProvideRuntimeApi};
 use sp_blockchain::{lowest_common_ancestor, HeaderMetadata};
 use sp_core::H256;
-use sp_runtime::generic::BlockId;
+
 use std::{
 	io::{Error, ErrorKind},
 	marker::PhantomData,
@@ -129,7 +129,7 @@ where
 							if common_ancestor.hash == block_hash {
 								// ...And is part of the finalized chain (LCA between it and the
 								// finalized tip is the block itself)
-								break BlockId::hash(block_hash) // Then, the block at block_num id was finalized
+								break block_hash // Then, the block at block_num id was finalized
 							}
 						}
 					}
@@ -139,10 +139,10 @@ where
 				};
 
 				let block_extrinsics =
-					client.block_body(&block_id).ok().flatten().unwrap_or_default();
+					client.block_body(block_id.clone()).ok().flatten().unwrap_or_default();
 				let event_ids = client
 					.runtime_api()
-					.get_extrinsic_ids(&block_id, &block_extrinsics)
+					.get_extrinsic_ids(block_id, &block_extrinsics)
 					.unwrap_or_default();
 
 				let result = Ok(ValidatedEventsResponse {

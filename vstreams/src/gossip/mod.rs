@@ -18,7 +18,7 @@ use libp2p::{
 	tcp, tls, Multiaddr, PeerId, Swarm, Transport,
 };
 use sc_service::SpawnTaskHandle;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 #[cfg(test)]
 pub mod tests;
 
@@ -232,7 +232,14 @@ impl StreamsGossipService {
 	/// Creates a gossipsub behaviour
 	fn get_behaviour(key: Keypair) -> Gossipsub {
 		let message_authenticity = MessageAuthenticity::Signed(key);
-		let gossipsub_config = gossipsub::GossipsubConfig::default();
+		let gossipsub_config = gossipsub::GossipsubConfigBuilder::default()
+			.history_length(500)
+			.history_gossip(500)
+			.gossip_lazy(32)
+			.duplicate_cache_time(Duration::from_secs(500))
+			.max_transmit_size(3109)
+			.build()
+			.unwrap();
 		gossipsub::Gossipsub::new(message_authenticity, gossipsub_config).unwrap()
 	}
 }

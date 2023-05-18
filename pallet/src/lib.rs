@@ -1,3 +1,4 @@
+#![cfg_attr(not(feature = "std"), no_std)]
 //! # Validated Streams Pallet
 //!
 //! - [`Config`]
@@ -5,21 +6,23 @@
 //!
 //! ### Dispatchable Functions
 //! * [validate_event](pallet/struct.Pallet.html#method.validate_event)
-#![cfg_attr(not(feature = "std"), no_std)]
 // Re-export pallet items so that they can be accessed from the crate namespace.
+pub use pallet::*;
 #[cfg(test)]
 pub mod tests;
 
 #[cfg(test)]
 pub mod mock;
 
+pub mod weights;
+pub use weights::*;
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
-
+	use super::*;
 	use frame_support::{
 		pallet_prelude::{ValidTransaction, *},
 		BoundedBTreeMap, BoundedVec,
@@ -37,12 +40,12 @@ pub mod pallet {
 	use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type WeightInfo: WeightInfo;
 		type VSAuthorityId: Member
 			+ Parameter
 			+ RuntimeAppPublic
@@ -86,8 +89,8 @@ pub mod pallet {
 		/// If so, it raise an `AlreadyValidated` event.
 		/// If not, it inserts the event and the current block into the storage and raise a
 		/// `ValidatedEvent` event.
-
-		#[pallet::weight(0)]
+		#[pallet::call_index(0)]
+		#[pallet::weight(T::WeightInfo::validate_event())]
 		pub fn validate_event(
 			origin: OriginFor<T>,
 			event_id: T::Hash,

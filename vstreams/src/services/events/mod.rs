@@ -17,13 +17,16 @@ use sp_core::{
 	ByteArray, H256,
 };
 use sp_keystore::CryptoStore;
-use sp_runtime::app_crypto::CryptoTypePublicPair;
 #[cfg(test)]
 pub mod tests;
 use codec::Codec;
 use sc_transaction_pool_api::LocalTransactionPool;
 use sp_api::BlockT;
-use sp_runtime::{app_crypto::RuntimePublic, generic::BlockId, key_types::AURA};
+use sp_runtime::{
+	app_crypto::{CryptoTypePublicPair, RuntimePublic},
+	generic::BlockId,
+	key_types::AURA,
+};
 use std::{
 	collections::HashMap,
 	marker::PhantomData,
@@ -56,6 +59,7 @@ impl EventServiceBlockState {
 				.ok_or_else(|| {
 					Error::Other("can't create sr25519 signature from witnessed event".to_string())
 				})?;
+
 			if pubkey.verify(&witnessed_event.event_id, &signature) {
 				Ok(witnessed_event)
 			} else {
@@ -168,17 +172,14 @@ where
 					client.finality_notification_stream().select_next_some().await;
 
 				if let Err(e) =
-					get_block_state(client.clone(), BlockId::hash(finality_notification.hash)).map(
-						|public_keys| {
-							block_state.write().map(|mut guard| *guard = public_keys.clone())
-						},
-					) {
+					get_block_state(client.clone(), finality_notification.hash).map(|public_keys| {
+						block_state.write().map(|mut guard| *guard = public_keys.clone())
+					}) {
 					log::error!("{}", e.to_string());
 				}
 			}
 		});
 	}
-
 	/// every incoming WitnessedEvent event should go through this function for processing the
 	/// message outcome, it verifies the WitnessedEvent than it tries to add it to the EventProofs,
 	/// and if its not already added it checks whether it reached the required target or not, if it
@@ -256,7 +257,7 @@ where
 		let unsigned_extrinsic = self
 			.client
 			.runtime_api()
-			.create_unsigned_extrinsic(&best_block_id, event_id, proofs)
+			.create_unsigned_extrinsic(self.client.info().best_hash, event_id, proofs)
 			.map_err(|e| Error::Other(e.to_string()))?;
 		self.tx_pool
 			.submit_local(&best_block_id, unsigned_extrinsic)
@@ -333,7 +334,7 @@ pub fn verify_events_validity<
 	AuthorityId: Codec + Send + Sync + 'static,
 >(
 	client: Arc<Client>,
-	block_id: BlockId<Block>,
+	block_id: <Block as BlockT>::Hash,
 	event_proofs: Arc<dyn EventProofs + Send + Sync>,
 	ids: Vec<H256>,
 ) -> Result<Vec<H256>, Error>
@@ -361,7 +362,7 @@ fn get_block_state<
 	AuthorityId: Codec + Send + Sync + 'static,
 >(
 	client: Arc<Client>,
-	block_id: BlockId<Block>,
+	block_id: <Block as BlockT>::Hash,
 ) -> Result<EventServiceBlockState, Error>
 where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
@@ -369,7 +370,7 @@ where
 {
 	let public_keys = client
 		.runtime_api()
-		.authorities(&block_id)
+		.authorities(block_id)
 		.map_err(|e| Error::Other(e.to_string()))?
 		.iter()
 		.map(CryptoTypePublicPair::from)
