@@ -161,17 +161,17 @@ where
 		}
 
 		if let Some(block_extrinsics) = &block.body {
-			let block_id = block.header.hash(); // self.utils.client.chain_info().best_hash;
+			let parent_block_id = *block.header.parent_hash();
 			let extrinsic_ids = self
 				.utils
 				.client
 				.runtime_api()
-				.get_extrinsic_ids(block_id, block_extrinsics)
+				.get_extrinsic_ids(parent_block_id, block_extrinsics)
 				.ok()
 				.unwrap_or_default();
 			match verify_events_validity(
 				self.utils.client.clone(),
-				block_id,
+				parent_block_id,
 				self.utils.event_proofs.clone(),
 				extrinsic_ids.clone(),
 			) {

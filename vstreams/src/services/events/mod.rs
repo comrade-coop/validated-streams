@@ -334,7 +334,7 @@ pub fn verify_events_validity<
 	AuthorityId: Codec + Send + Sync + 'static,
 >(
 	client: Arc<Client>,
-	block_id: <Block as BlockT>::Hash,
+	authorities_block_id: <Block as BlockT>::Hash,
 	event_proofs: Arc<dyn EventProofs + Send + Sync>,
 	ids: Vec<H256>,
 ) -> Result<Vec<H256>, Error>
@@ -342,9 +342,9 @@ where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
 {
-	let block_state = get_block_state(client, block_id)?;
+	let block_state = get_block_state(client, authorities_block_id)?;
 	let target = block_state.target();
-	event_proofs.purge_stale_signatures(&block_state.validators, &ids)?;
+	event_proofs.purge_stale_signatures(&block_state.validators, &ids)?; // TODO: This is likely buggy
 	let mut unprepared_ids = Vec::new();
 	for id in ids {
 		let current_count = event_proofs.get_proof_count(id)?;
@@ -362,7 +362,7 @@ fn get_block_state<
 	AuthorityId: Codec + Send + Sync + 'static,
 >(
 	client: Arc<Client>,
-	block_id: <Block as BlockT>::Hash,
+	authorities_block_id: <Block as BlockT>::Hash,
 ) -> Result<EventServiceBlockState, Error>
 where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
@@ -370,7 +370,7 @@ where
 {
 	let public_keys = client
 		.runtime_api()
-		.authorities(block_id)
+		.authorities(authorities_block_id)
 		.map_err(|e| Error::Other(e.to_string()))?
 		.iter()
 		.map(CryptoTypePublicPair::from)
