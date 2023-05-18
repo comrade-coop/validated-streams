@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "node",
-    "pallet",
-    "runtime",
+	"node",
+	"pallet",
+	"runtime",
 	"vstreams"
 ]
 [profile.release]

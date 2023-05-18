@@ -6,46 +6,45 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-local-ip-address = "0.4.9"
-ctrlc = "3.2.3"
-tonic = "0.8"
-prost = "0.11"
-tokio = { version = "1.0", features = ["full"] }
 async-trait = "0.1.58"
-hex = "0.4.3"
-subxt = "0.24.0"
-futures = "0.3.13"
-clap = { version = "3.2.23", features = ["derive"] }
-log = "0.4.17"
-libp2p = { version = "0.50.0", features = [
-    "gossipsub","tcp", "dns", "async-std", "websocket","tls", "noise", "mplex", "yamux"
-] }
 bincode = "1.3.3"
-serde = "1.0.152"
-rocksdb = "0.19.0"
-# sp-transaction-pool
+clap = { version = "3.2.23", features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false }
-sc-service = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch ="polkadot-v0.9.40" }
-sc-client-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sc-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sp-application-crypto = { version = "7.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sp-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sp-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sp-keystore = { version = "0.13.0-dev", git = "https://github.com/paritytech/substrate.git", branch= "polkadot-v0.9.40" }
-sc-keystore = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sp-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sc-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sc-executor = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sc-network= { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch ="polkadot-v0.9.40" }
-sc-network-sync= { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch ="polkadot-v0.9.40" }
-sc-network-common= { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git",branch = "polkadot-v0.9.40" }
+ctrlc = "3.2.3"
 frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true , branch = "polkadot-v0.9.40" }
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+futures = "0.3.13"
+hex = "0.4.3"
+libp2p = { version = "0.50.0", features = [
+	"gossipsub", "tcp", "dns", "async-std", "websocket", "tls", "noise", "mplex", "yamux"
+] }
+local-ip-address = "0.4.9"
+log = "0.4.17"
+prost = "0.11"
+rocksdb = "0.19.0"
+sc-client-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-executor = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-keystore = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-network = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-network-common = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-network-sync = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-service = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+serde = "1.0.152"
+sp-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-application-crypto = { version = "7.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-consensus-aura = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-keystore = { version = "0.13.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+subxt = "0.24.0"
+tokio = { version = "1.0", features = ["full"] }
+tonic = "0.8"
 # local dependencies
 pallet-validated-streams = { version = "0.1.0", path = "../pallet" }
 
@@ -53,7 +52,7 @@ pallet-validated-streams = { version = "0.1.0", path = "../pallet" }
 tonic-build = "0.8"
 
 [dev-dependencies]
-sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch ="polkadot-v0.9.40" }
+sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 
 [features]
 default = []

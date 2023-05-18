@@ -34,7 +34,7 @@ impl<Block: BlockT, I, Client, SyncingService, AuthorityId>
 		parent_block_import: I,
 		client: Arc<Client>,
 		event_proofs: Arc<dyn EventProofs + Send + Sync>,
-	) -> (Self, impl FnOnce(Arc<SyncingService>) -> ()) {
+	) -> (Self, impl FnOnce(Arc<SyncingService>)) {
 		let (sync_service_sender, sync_service_receiver) = oneshot::channel();
 
 		(
@@ -89,7 +89,7 @@ where
 			.parent_block_import
 			.check_block(block)
 			.await
-			.map_err(|e| ConsensusError::ClientImport(format!("{}", e)))
+			.map_err(|e| ConsensusError::ClientImport(format!("{e}")))
 	}
 
 	async fn import_block(
@@ -103,7 +103,7 @@ where
 				.parent_block_import
 				.import_block(block)
 				.await
-				.map_err(|e| ConsensusError::ClientImport(format!("{}", e)))
+				.map_err(|e| ConsensusError::ClientImport(format!("{e}")))
 		}
 
 		if let Some(block_extrinsics) = &block.body {
@@ -126,9 +126,9 @@ where
 							"Block rejeceted containing {} unwitnessed events",
 							unwitnessed_ids.len()
 						);
-						return Err(ConsensusError::ClientImport(format!(
-							"Block contains unwitnessed events"
-						)))
+						return Err(ConsensusError::ClientImport(
+							"Block contains unwitnessed events".to_string(),
+						))
 					} else {
 						log::info!("All block {} events have been witnessed", extrinsic_ids.len());
 					},
@@ -142,6 +142,6 @@ where
 			.parent_block_import
 			.import_block(block)
 			.await
-			.map_err(|e| ConsensusError::ClientImport(format!("{}", e)))
+			.map_err(|e| ConsensusError::ClientImport(format!("{e}")))
 	}
 }

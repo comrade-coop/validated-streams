@@ -20,14 +20,12 @@ pub enum Error {
 impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			Error::AlreadySentProof(h) =>
-				write!(f, "Peer already sent a proof for event_id {:?}", h),
-			Error::LockFail(r) => write!(f, "Failed locking resource {}", r),
+			Error::AlreadySentProof(h) => write!(f, "Peer already sent a proof for event_id {h:?}"),
+			Error::LockFail(r) => write!(f, "Failed locking resource {r}"),
 			Error::BadWitnessedEventSignature(source) =>
-				write!(f, "Received bad witnessed event signature from {}", source),
-			Error::SerilizationFailure(reason) =>
-				write!(f, "Serialization failed due to {}", reason),
-			Error::Other(reason) => write!(f, "{}", reason),
+				write!(f, "Received bad witnessed event signature from {source}"),
+			Error::SerilizationFailure(reason) => write!(f, "Serialization failed due to {reason}"),
+			Error::Other(reason) => write!(f, "{reason}"),
 		}
 	}
 }
@@ -36,6 +34,6 @@ impl E for Error {}
 #[doc(hidden)] // Enable use of `?` operator.
 impl<T> From<std::sync::PoisonError<T>> for Error {
 	fn from(e: std::sync::PoisonError<T>) -> Error {
-		Error::LockFail(format!("PoisonError: {}", e))
+		Error::LockFail(format!("PoisonError: {e}"))
 	}
 }

@@ -63,7 +63,7 @@ where
 				phantom: PhantomData,
 			}))
 			.serve(
-				format!("[::0]:{}", grpc_port)
+				format!("[::0]:{grpc_port}")
 					.parse()
 					.expect("Failed parsing gRPC server Address"),
 			)
@@ -139,7 +139,7 @@ where
 				};
 
 				let block_extrinsics =
-					client.block_body(block_id.clone()).ok().flatten().unwrap_or_default();
+					client.block_body(block_id).ok().flatten().unwrap_or_default();
 				let event_ids = client
 					.runtime_api()
 					.get_extrinsic_ids(block_id, &block_extrinsics)

@@ -184,7 +184,7 @@ where
 	/// message outcome, it verifies the WitnessedEvent than it tries to add it to the EventProofs,
 	/// and if its not already added it checks whether it reached the required target or not, if it
 	/// did it submits it to the transaction pool
-	async fn handle_witnessed_event(&self, witnessed_event: WitnessedEvent) -> Result<(), Error> {
+	async fn handle_witnessed_event(&self, witnessed_event: WitnessedEvent) -> Result<bool, Error> {
 		let (witnessed_event, target) = {
 			let block_state = &self.block_state.read()?;
 			(block_state.verify_witnessed_event_origin(witnessed_event)?, block_state.target())
@@ -223,8 +223,9 @@ where
 						proof_count
 					)
 				}
-				Ok(())
+				Ok(true)
 			},
+			Err(Error::AlreadySentProof(_)) => Ok(false),
 			Err(e) => {
 				log::info!("{}", e);
 				Err(e)
@@ -312,14 +313,14 @@ where
 	async fn witness_event(&self, event: H256) -> Result<(), Error> {
 		let witnessed_event = self.sign_witnessed_event(event).await?;
 
-		self.handle_witnessed_event(witnessed_event.clone()).await?;
-
-		let serilized_event = bincode::serialize(&witnessed_event)
-			.map_err(|e| Error::SerilizationFailure(e.to_string()))?;
-		self.streams_gossip
-			.clone()
-			.publish(Self::witnessed_events_topic(), serilized_event)
-			.await;
+		if self.handle_witnessed_event(witnessed_event.clone()).await? {
+			let serilized_event = bincode::serialize(&witnessed_event)
+				.map_err(|e| Error::SerilizationFailure(e.to_string()))?;
+			self.streams_gossip
+				.clone()
+				.publish(Self::witnessed_events_topic(), serilized_event)
+				.await;
+		}
 
 		Ok(())
 	}

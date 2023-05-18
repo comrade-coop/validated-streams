@@ -13,9 +13,9 @@ use sc_service::{
 	error::Error as ServiceError, Configuration, TFullClient, TaskManager, WarpSyncParams,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_consensus_aura::sr25519::{AuthorityPair as AuraPair};
 #[cfg(not(feature = "on-chain-proofs"))]
-use sp_consensus_aura::sr25519::{AuthorityId as AuraId};
+use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
 use vstreams::proofs::{EventProofs, ProofStore};
 #[cfg(not(feature = "on-chain-proofs"))]
@@ -73,7 +73,7 @@ type FullPartialComponentsOther = (
 		SyncingService<Block>,
 		AuraId,
 	>,
-	Box<dyn FnOnce(Arc<SyncingService<Block>>) -> ()>,
+	Box<dyn FnOnce(Arc<SyncingService<Block>>)>,
 	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
 	Arc<dyn EventProofs + Send + Sync>,
@@ -131,7 +131,7 @@ pub fn new_partial(
 
 	let (grandpa_block_import, grandpa_link) = sc_consensus_grandpa::block_import(
 		client.clone(),
-		&(client.clone() as Arc<_>),
+		&client,
 		select_chain.clone(),
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
@@ -148,7 +148,7 @@ pub fn new_partial(
 	let import_queue =
 		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _>(ImportQueueParams {
 			block_import: block_import.clone(),
-			justification_import: Some(Box::new(grandpa_block_import.clone())),
+			justification_import: Some(Box::new(grandpa_block_import)),
 			client: client.clone(),
 			create_inherent_data_providers: move |_, ()| async move {
 				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
@@ -189,7 +189,7 @@ pub fn new_partial(
 	})
 }
 
-fn remote_keystore(_url: &String) -> Result<Arc<LocalKeystore>, &'static str> {
+fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
 	// FIXME: here would the concrete keystore be built,
 	//        must return a concrete type (NOT `LocalKeystore`) that
 	//        implements `CryptoStore` and `SyncCryptoStore`
@@ -219,9 +219,9 @@ pub fn new_full(
 
 	vstreams::node::start(
 		task_manager.spawn_handle(),
-		event_proofs.clone(),
+		event_proofs,
 		client.clone(),
-		keystore_container.keystore().clone(),
+		keystore_container.keystore(),
 		transaction_pool.clone(),
 		grpc_port,
 		peers_multiaddr,
@@ -232,8 +232,7 @@ pub fn new_full(
 			Ok(k) => keystore_container.set_remote_keystore(k),
 			Err(e) =>
 				return Err(ServiceError::Other(format!(
-					"Error hooking up remote keystore for {}: {}",
-					url, e
+					"Error hooking up remote keystore for {url}: {e}"
 				))),
 		};
 	}
