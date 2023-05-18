@@ -4,21 +4,22 @@ use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::BlockBackend;
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_consensus_grandpa::SharedVoterState;
-pub use sc_executor::NativeElseWasmExecutor;
+use sc_executor::NativeElseWasmExecutor;
+#[cfg(not(feature = "on-chain-proofs"))]
+use sc_network_sync::SyncingService;
 
 use sc_keystore::LocalKeystore;
 use sc_service::{
 	error::Error as ServiceError, Configuration, TFullClient, TaskManager, WarpSyncParams,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_consensus_aura::sr25519::{AuthorityId as AuraId, AuthorityPair as AuraPair};
+use sp_consensus_aura::sr25519::{AuthorityPair as AuraPair};
+#[cfg(not(feature = "on-chain-proofs"))]
+use sp_consensus_aura::sr25519::{AuthorityId as AuraId};
 use std::{sync::Arc, time::Duration};
-
-// use sc_finality_grandpa::SharedVoterState;
-use vstreams::{
-	proofs::{EventProofs, ProofStore},
-	services::witness_block_import::WitnessBlockImport,
-};
+use vstreams::proofs::{EventProofs, ProofStore};
+#[cfg(not(feature = "on-chain-proofs"))]
+use vstreams::services::witness_block_import::WitnessBlockImport;
 
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
@@ -55,13 +56,24 @@ type FullPartialComponents = sc_service::PartialComponents<
 	FullPartialComponentsOther,
 >;
 
+#[cfg(feature = "on-chain-proofs")]
+type FullPartialComponentsOther = (
+	sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
+	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
+	Option<Telemetry>,
+	Arc<dyn EventProofs + Send + Sync>,
+);
+
+#[cfg(not(feature = "on-chain-proofs"))]
 type FullPartialComponentsOther = (
 	WitnessBlockImport<
 		Block,
 		sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 		FullClient,
+		SyncingService<Block>,
 		AuraId,
 	>,
+	Box<dyn FnOnce(Arc<SyncingService<Block>>) -> ()>,
 	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
 	Arc<dyn EventProofs + Send + Sync>,
@@ -127,15 +139,15 @@ pub fn new_partial(
 	let event_proofs = Arc::new(ProofStore::create(&proofs_path));
 
 	#[cfg(feature = "on-chain-proofs")]
-	let witness_block_import = WitnessBlockImport::new(grandpa_block_import.clone());
+	let block_import = grandpa_block_import.clone();
 	#[cfg(not(feature = "on-chain-proofs"))]
-	let witness_block_import =
+	let (block_import, provide_sync_service) =
 		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
 	let import_queue =
 		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _>(ImportQueueParams {
-			block_import: witness_block_import.clone(),
+			block_import: block_import.clone(),
 			justification_import: Some(Box::new(grandpa_block_import.clone())),
 			client: client.clone(),
 			create_inherent_data_providers: move |_, ()| async move {
@@ -164,7 +176,16 @@ pub fn new_partial(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (witness_block_import, grandpa_link, telemetry, event_proofs),
+		#[cfg(feature = "on-chain-proofs")]
+		other: (block_import, grandpa_link, telemetry, event_proofs),
+		#[cfg(not(feature = "on-chain-proofs"))]
+		other: (
+			block_import,
+			Box::new(provide_sync_service),
+			grandpa_link,
+			telemetry,
+			event_proofs,
+		),
 	})
 }
 
@@ -190,7 +211,10 @@ pub fn new_full(
 		mut keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, grandpa_link, mut telemetry, event_proofs),
+		#[cfg(feature = "on-chain-proofs")]
+			other: (block_import, grandpa_link, mut telemetry, event_proofs),
+		#[cfg(not(feature = "on-chain-proofs"))]
+			other: (block_import, provide_sync_service, grandpa_link, mut telemetry, event_proofs),
 	} = new_partial(&config, proofs_path)?;
 
 	vstreams::node::start(
@@ -238,12 +262,10 @@ pub fn new_full(
 			block_announce_validator_builder: None,
 			warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
 		})?;
+
 	#[cfg(not(feature = "on-chain-proofs"))]
-	task_manager.spawn_handle().spawn(
-		"SyncService Sender",
-		None,
-		block_import.utils.clone().update_sync_service(sync_service.clone()),
-	);
+	provide_sync_service(sync_service.clone());
+
 	if config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(
 			&config,

@@ -99,6 +99,7 @@ runtime-benchmarks = [
 	"pallet-timestamp/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
+on-chain-proofs = ["pallet-validated-streams/on-chain-proofs"]
 try-runtime = [
 	"frame-try-runtime/try-runtime",
 	"frame-executive/try-runtime",

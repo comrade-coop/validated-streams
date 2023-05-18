@@ -69,7 +69,7 @@ tonic-build = "0.8"
 
 [features]
 default = []
-on-chain-proofs =[]
+on-chain-proofs = [ "vstreams/on-chain-proofs", "node-runtime/on-chain-proofs" ]
 runtime-benchmarks = [
 	"node-runtime/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",

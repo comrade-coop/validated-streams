@@ -57,7 +57,7 @@ sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/subs
 
 [features]
 default = []
-on-chain-proofs =[]
+on-chain-proofs = ["pallet-validated-streams/on-chain-proofs"]
 runtime-benchmarks = [
 	"pallet-validated-streams/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",
