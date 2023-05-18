@@ -6,22 +6,19 @@ use crate::{
 	proofs::{EventProofs, WitnessedEvent},
 };
 use async_trait::async_trait;
+use codec::Codec;
 use futures::StreamExt;
 use libp2p::gossipsub::IdentTopic;
 use pallet_validated_streams::ExtrinsicDetails;
 use sc_client_api::{BlockchainEvents, HeaderBackend};
-use sp_api::ProvideRuntimeApi;
+use sc_transaction_pool_api::LocalTransactionPool;
+use sp_api::{BlockT, ProvideRuntimeApi};
 use sp_consensus_aura::AuraApi;
 use sp_core::{
 	sr25519::{Public, Signature},
 	ByteArray, H256,
 };
 use sp_keystore::CryptoStore;
-#[cfg(test)]
-pub mod tests;
-use codec::Codec;
-use sc_transaction_pool_api::LocalTransactionPool;
-use sp_api::BlockT;
 use sp_runtime::{
 	app_crypto::{CryptoTypePublicPair, RuntimePublic},
 	generic::BlockId,
@@ -32,6 +29,8 @@ use std::{
 	marker::PhantomData,
 	sync::{Arc, RwLock},
 };
+#[cfg(test)]
+pub mod tests;
 
 /// Internal struct holding the latest block state in the EventService
 #[derive(Clone, Debug)]
@@ -180,6 +179,7 @@ where
 			}
 		});
 	}
+
 	/// every incoming WitnessedEvent event should go through this function for processing the
 	/// message outcome, it verifies the WitnessedEvent than it tries to add it to the EventProofs,
 	/// and if its not already added it checks whether it reached the required target or not, if it

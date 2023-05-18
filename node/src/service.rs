@@ -58,12 +58,7 @@ type FullPartialComponents = sc_service::PartialComponents<
 type FullPartialComponentsOther = (
 	WitnessBlockImport<
 		Block,
-		sc_consensus_grandpa::GrandpaBlockImport<
-			FullBackend,
-			Block,
-			FullClient,
-			FullSelectChain,
-		>,
+		sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 		FullClient,
 		AuraId,
 	>,
@@ -245,9 +240,9 @@ pub fn new_full(
 		})?;
 	#[cfg(not(feature = "on-chain-proofs"))]
 	task_manager.spawn_handle().spawn(
-		"dht event handler",
+		"SyncService Sender",
 		None,
-		block_import.block_manager.clone().handle_dht_events(network.clone()),
+		block_import.utils.clone().update_sync_service(sync_service.clone()),
 	);
 	if config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(

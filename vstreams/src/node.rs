@@ -10,7 +10,6 @@ use pallet_validated_streams::ExtrinsicDetails;
 use sc_client_api::{BlockBackend, BlockchainEvents, HeaderBackend};
 use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
 use sc_transaction_pool_api::LocalTransactionPool;
-// use sc_transaction_pool::{BasicPool, FullChainApi};
 use sp_api::{BlockT, ProvideRuntimeApi};
 use sp_blockchain::HeaderMetadata;
 use sp_consensus_aura::AuraApi;
