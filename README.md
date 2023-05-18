@@ -12,19 +12,33 @@ Prerequisites:
 - [grpcurl](https://github.com/fullstorydev/grpcurl)
 
 Running the example:
-- Build the docker image of a validated streams node (this might take a while the first time)
+1. Build the docker image of a validated streams node (this might take a while the first time)
     ```bash
     docker build -t comradecoop/validated-streams .
     ```
-- Start the example network and client:
+2. Start the example network:
     ```bash
     ./scripts/run-example.sh start
     ```
     (pass --podman to use podman-compose)
-- To stop the network:
+3. Start an example trusted client witnessing a few thousand events to the example network:
+    ```bash
+    ./scripts/run-example.sh witness
+    ```
+4. (in another shell) Listen for validated events:
+    ```bash
+    ./scripts/run-example.sh validated
+    ```
+5. To stop the network:
     ```bash
     ./scripts/run-example.sh stop
     ```
+
+Alternatively, use the combined run command directly instead of steps 2-5:
+```bash
+./scripts/run-example.sh build
+./scripts/run-example.sh run
+```
 
 ## Architecture
 ![Diagram of Validated Streams, with Stream service ingesting events from an application, passing them to a gossip, which then leads to on-chain transactions, that, after block finalization, get forwarded back to the application. (validated-streams.drawio.png)](https://user-images.githubusercontent.com/5276727/211316562-ad73fdd0-0dec-4543-884e-fe60cb09ee7a.png)

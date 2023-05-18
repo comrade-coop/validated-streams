@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.3-labs
 
 FROM rust:1-slim-bullseye AS build
-RUN apt-get update && apt-get install -y cmake libprotobuf-dev protobuf-compiler clang
+RUN apt-get update && apt-get install -y cmake libprotobuf-dev protobuf-compiler clang git
 COPY . /validated-streams/
 #RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/usr/local/rustup --mount=type=cache,target=/validated-streams/target cd /validated-streams/ && cargo fetch
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/usr/local/rustup --mount=type=cache,target=/validated-streams/target cd /validated-streams/ && cargo build --release -Z unstable-options --out-dir=out
