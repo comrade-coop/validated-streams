@@ -17,7 +17,7 @@ use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-use vstreams::proofs::{EventProofs, ProofStore};
+use vstreams::proofs::{EventProofs, RocksDbEventProofs};
 #[cfg(not(feature = "on-chain-proofs"))]
 use vstreams::services::witness_block_import::WitnessBlockImport;
 
@@ -136,7 +136,7 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let event_proofs = Arc::new(ProofStore::create(&proofs_path));
+	let event_proofs = Arc::new(RocksDbEventProofs::create(&proofs_path));
 
 	#[cfg(feature = "on-chain-proofs")]
 	let block_import = grandpa_block_import.clone();

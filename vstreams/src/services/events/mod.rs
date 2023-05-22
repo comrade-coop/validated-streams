@@ -11,7 +11,10 @@ use futures::StreamExt;
 use libp2p::gossipsub::IdentTopic;
 use pallet_validated_streams::ExtrinsicDetails;
 use sc_client_api::{BlockchainEvents, HeaderBackend};
-use sc_transaction_pool_api::LocalTransactionPool;
+use sc_transaction_pool_api::{
+	error::{Error as PoolError, IntoPoolError},
+	LocalTransactionPool,
+};
 use sp_api::{BlockT, ProvideRuntimeApi};
 use sp_consensus_aura::AuraApi;
 use sp_core::{
@@ -52,20 +55,28 @@ impl EventServiceBlockState {
 		if self.validators.contains(&witnessed_event.pub_key) {
 			let pubkey =
 				Public::from_slice(witnessed_event.pub_key.1.as_slice()).map_err(|_| {
-					Error::Other("can't retrieve sr25519 keys from WitnessedEvent".to_string())
+					Error::BadWitnessedEventSignature(
+						"can't retrieve sr25519 keys from WitnessedEvent".to_string(),
+					)
 				})?;
 			let signature = Signature::from_slice(witnessed_event.signature.as_slice())
 				.ok_or_else(|| {
-					Error::Other("can't create sr25519 signature from witnessed event".to_string())
+					Error::BadWitnessedEventSignature(
+						"can't create sr25519 signature from witnessed event".to_string(),
+					)
 				})?;
 
 			if pubkey.verify(&witnessed_event.event_id, &signature) {
 				Ok(witnessed_event)
 			} else {
-				Err(Error::Other("incorrect gossip message signature".to_string()))
+				Err(Error::BadWitnessedEventSignature(
+					"incorrect gossip message signature".to_string(),
+				))
 			}
 		} else {
-			Err(Error::Other("received a gossip message from a non validator".to_string()))
+			Err(Error::BadWitnessedEventSignature(
+				"received a gossip message from a non validator".to_string(),
+			))
 		}
 	}
 
@@ -93,6 +104,7 @@ pub struct EventService<TxPool, Client, AuthorityId: Send + Sync> {
 	client: Arc<Client>,
 	phantom: PhantomData<AuthorityId>,
 }
+
 impl<
 		TxPool: LocalTransactionPool,
 		Client: ProvideRuntimeApi<TxPool::Block>
@@ -185,52 +197,57 @@ where
 	/// and if its not already added it checks whether it reached the required target or not, if it
 	/// did it submits it to the transaction pool
 	async fn handle_witnessed_event(&self, witnessed_event: WitnessedEvent) -> Result<bool, Error> {
-		let (witnessed_event, target) = {
-			let block_state = &self.block_state.read()?;
-			(block_state.verify_witnessed_event_origin(witnessed_event)?, block_state.target())
+		let (witnessed_event_to_submit, proofs) = {
+			let block_state = self.block_state.read()?;
+			let witnessed_event = block_state.verify_witnessed_event_origin(witnessed_event)?;
+
+			self.event_proofs.add_event_proof(&witnessed_event)?;
+
+			self.event_proofs
+				.purge_event_stale_signatures(&witnessed_event.event_id, &block_state.validators)?;
+
+			let proof_count = self
+				.event_proofs
+				.get_event_proof_count(&witnessed_event.event_id, &block_state.validators)?;
+
+			if proof_count >= block_state.target() {
+				#[cfg(not(feature = "on-chain-proofs"))]
+				let proofs = None;
+				#[cfg(feature = "on-chain-proofs")]
+				let proofs = Some(
+					self.event_proofs
+						.get_event_proofs(&witnessed_event.event_id, &block_state.validators)?,
+				);
+
+				log::debug!(
+					"Event:{} has been witnessed by a majority of validators and will be added to TxPool, Current Proof count:{}",
+					witnessed_event.event_id,
+					proof_count
+				);
+
+				(Some(witnessed_event), proofs)
+			} else {
+				log::debug!(
+					"Event:{} has been added to the event proofs, Current Proof Count:{}",
+					witnessed_event.event_id,
+					proof_count
+				);
+
+				(None, None)
+			}
 		};
 
-		match self.event_proofs.add_event_proof(&witnessed_event) {
-			Ok(proof_count) => {
-				if proof_count == target {
-					// avoid purging stale signatures everytime an event gets added, just check it
-					// only when proof count is updated
-					let proof_count = self.event_proofs.purge_stale_signature(
-						&self.block_state.read()?.validators,
-						witnessed_event.event_id,
-					)?;
-					if proof_count >= target {
-						#[cfg(not(feature = "on-chain-proofs"))]
-						self.submit_event_extrinsic(witnessed_event.event_id, None).await?;
-						#[cfg(feature = "on-chain-proofs")]
-						self.submit_event_extrinsic(
-							witnessed_event.event_id,
-							Some(self.event_proofs.get_event_proofs(&witnessed_event.event_id)?),
-						)
-						.await?;
-						log::debug!("Event:{} has been witnessed by a majority of validators and is in TXPool, Current Proof count:{}",witnessed_event.event_id,proof_count)
-					} else {
-						log::debug!(
-							"Event:{} has been added to the event proofs, Current Proof Count:{}",
-							witnessed_event.event_id,
-							proof_count
-						)
-					}
-				} else {
-					log::debug!(
-						"Event:{} has been added to the event proofs, Current Proof Count:{}",
-						witnessed_event.event_id,
-						proof_count
-					)
-				}
-				Ok(true)
-			},
-			Err(Error::AlreadySentProof(_)) => Ok(false),
+		if let Some(witnessed_event) = witnessed_event_to_submit {
+			self.submit_event_extrinsic(witnessed_event.event_id, proofs).await?;
+		}
+
+		Ok(true)
+		/*
 			Err(e) => {
 				log::info!("{}", e);
 				Err(e)
 			},
-		}
+		*/
 	}
 	/// create a validated streams unsigned extrinsic with the given event_id and submits it to the
 	/// transaction pool
@@ -238,7 +255,7 @@ where
 		&self,
 		event_id: H256,
 		event_proofs: Option<HashMap<CryptoTypePublicPair, Vec<u8>>>,
-	) -> Result<TxPool::Hash, Error> {
+	) -> Result<(), Error> {
 		let proofs = {
 			if let Some(mut event_proofs) = event_proofs {
 				let proofs = event_proofs
@@ -260,9 +277,15 @@ where
 			.runtime_api()
 			.create_unsigned_extrinsic(self.client.info().best_hash, event_id, proofs)
 			.map_err(|e| Error::Other(e.to_string()))?;
-		self.tx_pool
-			.submit_local(&best_block_id, unsigned_extrinsic)
-			.map_err(|e| Error::Other(e.to_string()))
+
+		match self.tx_pool.submit_local(&best_block_id, unsigned_extrinsic) {
+			Ok(_) => Ok(()),
+			Err(x) => match x.into_pool_error() {
+				Ok(PoolError::AlreadyImported(_)) => Ok(()),
+				Ok(e) => Err(Error::Other(e.to_string())),
+				Err(e) => Err(Error::Other(e.to_string())),
+			},
+		}
 	}
 }
 
@@ -345,10 +368,9 @@ where
 {
 	let block_state = get_block_state(client, authorities_block_id)?;
 	let target = block_state.target();
-	event_proofs.purge_stale_signatures(&block_state.validators, &ids)?; // TODO: This is likely buggy
 	let mut unprepared_ids = Vec::new();
 	for id in ids {
-		let current_count = event_proofs.get_proof_count(id)?;
+		let current_count = event_proofs.get_event_proof_count(&id, &block_state.validators)?;
 		if current_count < target {
 			unprepared_ids.push(id);
 		}
