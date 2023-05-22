@@ -7,7 +7,7 @@ use std::pin::Pin;
 use futures::{stream, Stream, StreamExt};
 use pallet_validated_streams::ExtrinsicDetails;
 use sc_client_api::{BlockBackend, BlockchainEvents};
-use sp_api::{BlockT, ProvideRuntimeApi};
+use sp_api::{BlockT, HeaderT, ProvideRuntimeApi};
 use sp_blockchain::{lowest_common_ancestor, HeaderMetadata};
 use sp_core::H256;
 
@@ -48,6 +48,7 @@ where
 		+ Send
 		+ 'static,
 	Client::Api: ExtrinsicDetails<Block>,
+	<<Block as BlockT>::Header as HeaderT>::Number: Into<u32>,
 {
 	/// Run the GRPC server.
 	pub async fn run(
@@ -85,6 +86,7 @@ where
 		+ Send
 		+ 'static,
 	Client::Api: ExtrinsicDetails<Block>,
+	<<Block as BlockT>::Header as HeaderT>::Number: Into<u32>,
 {
 	async fn witness_event(
 		&self,
@@ -113,12 +115,17 @@ where
 		&self,
 		request: Request<ValidatedEventsRequest>,
 	) -> Result<Response<Self::ValidatedEventsStream>, Status> {
+		let request = request.into_inner();
 		Ok(Response::new(Box::pin(stream::unfold(
 			// We pass the client as "state", because it's an Arc<> and it doesn't have Copy to
 			// move it in the FnMut
-			(self.client.clone(), request.into_inner().from_block),
-			async move |(client, block_num)| {
+			(self.client.clone(), request.from_block),
+			async move |(client, mut block_num)| {
 				let mut last_finalized = client.chain_info().finalized_hash;
+
+				if block_num == 0 && request.from_latest {
+					block_num = client.chain_info().finalized_number.into();
+				}
 
 				let block_id = loop {
 					if let Ok(Some(block_hash)) = client.block_hash(block_num.into()) {

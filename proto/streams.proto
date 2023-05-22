@@ -26,6 +26,7 @@ message WitnessEventResponse {
 
 message ValidatedEventsRequest {
   uint32 from_block = 1;
+  bool from_latest = 2;
 }
 message ValidatedEventsResponse {
   uint32 next_block = 1;
