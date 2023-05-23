@@ -2,7 +2,6 @@ version: "3.3"
 services:
   validator1:
     stdin_open: true
-    tty: true
     container_name: validator1
     build: ..
     image: comradecoop/validated-streams
@@ -14,7 +13,6 @@ services:
        ipv4_address: 172.19.0.2
   validator2:
     stdin_open: true
-    tty: true
     container_name: validator2
     build: ..
     image: comradecoop/validated-streams
@@ -26,7 +24,6 @@ services:
         ipv4_address: 172.19.0.3
   validator3:
     stdin_open: true
-    tty: true
     container_name: validator3
     build: ..
     image: comradecoop/validated-streams
@@ -38,7 +35,6 @@ services:
         ipv4_address: 172.19.0.4
   validator4:
     stdin_open: true
-    tty: true
     container_name: validator4
     build: ..
     image: comradecoop/validated-streams
@@ -50,7 +46,6 @@ services:
         ipv4_address: 172.19.0.5
   syncnode:
     stdin_open: true
-    tty: true
     container_name: syncnode
     build: ..
     image: comradecoop/validated-streams

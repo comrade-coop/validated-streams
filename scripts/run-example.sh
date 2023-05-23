@@ -53,14 +53,22 @@ function command_stop {
 }
 
 function command_logs {
-  $DOCKER_COMPOSE -f docker-compose-example.yml logs -f
+  $DOCKER_COMPOSE -f docker-compose-example.yml logs -f | grep -E "💤|🔁|👌|❌"
 }
 
-function command_stop {
-  $DOCKER_COMPOSE -f docker-compose-example.yml down
+function command_partition {
+  command_stop
+  command_start
+  wait_bootstrap
+  witness_events &
+  command_logs &
+  echo "🔌 Disconnecting Validator 4 from the network"
+  docker stop validator4
+  echo "🔗 Connecting Validator 4 back to the network"
+  docker start validator4
+  wait
 }
-
-function command_witness {
+function wait_bootstrap {
   echo "Waiting for all validators to start up"
   for server in "${validators[@]}"; do
     for i in {1..35}; do
@@ -75,7 +83,9 @@ function command_witness {
       fi
     done
   done
-  echo "Creating 10000 events"
+}
+function witness_events {
+  echo "Witnessing 10000 events"
   for i in {1..10000}; do
     # create a random hash every time
     hash_value=$(openssl rand -base64 32)
@@ -83,10 +93,15 @@ function command_witness {
       "event_id": "'"$hash_value"'"
     }'
     for server in "${validators[@]}"; do
-      grpcurl -plaintext -import-path ../proto -proto streams.proto -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent >/dev/null
+      grpcurl -plaintext -import-path ../proto -proto streams.proto -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent >/dev/null 2>&1 #redirect all errors to null
     done
   done
   wait
+}
+function command_witness {
+  wait_bootstrap
+  witness_events &
+  command_logs
 }
 
 function command_validated {
@@ -101,6 +116,7 @@ case "$COMMAND" in
   'logs') command_logs ;;
   'witness') command_witness ;;
   'validated') command_validated ;;
+  'partition') command_partition ;;
   *)
     echo "Usage: $0 COMMAND [--podman]"
     echo ""
@@ -112,5 +128,6 @@ case "$COMMAND" in
     echo "  validated Show the events finalized by the example network"
     echo "  logs      Display logs from the example network"
     echo "  stop      Stop the example network"
+    echo "  partition Start the network partition example"
     exit 64 ;;
 esac

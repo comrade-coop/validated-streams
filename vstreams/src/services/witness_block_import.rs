@@ -123,14 +123,16 @@ where
 				Ok(unwitnessed_ids) =>
 					if !unwitnessed_ids.is_empty() {
 						log::info!(
-							"Block rejeceted containing {} unwitnessed events",
+							"❌ Block rejeceted containing {} unwitnessed events",
 							unwitnessed_ids.len()
 						);
 						return Err(ConsensusError::ClientImport(
 							"Block contains unwitnessed events".to_string(),
 						))
 					} else {
-						log::info!("All block {} events have been witnessed", extrinsic_ids.len());
+						if extrinsic_ids.len() > 0{
+							log::info!("👌 block {} contains {} events, All have been witnessed", block.post_hash(),extrinsic_ids.len());
+						}
 					},
 				Err(e) => {
 					log::error!("the following Error happened while verifying block events in the event_proofs:{}",e);
