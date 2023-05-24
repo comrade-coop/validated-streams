@@ -6,26 +6,42 @@ Validated Streams also acts as a fundamental building block of [Apocryph](https:
 ## Examples
 
 Prerequisites:
-- [Docker](https://docs.docker.com/get-docker/) with [docker-compose](https://docs.docker.com/compose/install/) ([Podman](https://github.com/containers/podman) with [podman-compose](https://github.com/containers/podman-compose) should work too)
+
+* [Docker](https://docs.docker.com/get-docker/) with [docker-compose](https://docs.docker.com/compose/install/) ([Podman](https://github.com/containers/podman) with [podman-compose](https://github.com/containers/podman-compose) should work too)
 - [grpcurl](https://github.com/fullstorydev/grpcurl)
 
-* Witnessing events:
+1. Witnessing events:
 
     We have set up a demonstration of a private chain comprised of four nodes (hence, the minimum number of nodes required to witness an event is 3 nodes) and a client that sends random events to them.
-    - Build the docker image of a validated streams node (this might take a while the first time)
+Running the example:
+    1. Build the docker image of a validated streams node (this might take a while the first time)
         ```bash
         docker build -t comradecoop/validated-streams .
         ```
-    - Start the example network and client:
+    2. Start the example network:
         ```bash
         ./scripts/run-example.sh start
         ```
         (pass --podman to use podman-compose)
-    - To stop the network:
+    3. Start an example trusted client witnessing a few thousand events to the example network:
+        ```bash
+        ./scripts/run-example.sh witness
+        ```
+    4. (in another shell) Listen for validated events:
+        ```bash
+        ./scripts/run-example.sh validated
+        ```
+    5. To stop the network:
         ```bash
         ./scripts/run-example.sh stop
         ```
-* Network Partition example:
+
+    Alternatively, use the combined run command directly instead of steps 2-5:
+    ```bash
+    ./scripts/run-example.sh build
+    ./scripts/run-example.sh run
+    ```
+2. Network Partition example:
 
     To simulate a network partition, this command will isolate validator 4 from the network therefore it will unwitness some events. after a while, it will reconnect it to the network. The validator will initially reject the blocks (since it does not have enough proofs for the events within) and then catch up with the rest of the network.
 
