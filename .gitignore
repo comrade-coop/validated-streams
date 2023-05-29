@@ -1,5 +1,8 @@
 /target
-client/target/
 scripts/docker_local_net.sh
 scripts/local_net.sh
 scripts/stream_node
+samples/*/obj
+samples/*/bin
+.vs/
+.vscode/

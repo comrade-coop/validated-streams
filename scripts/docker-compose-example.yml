@@ -14,7 +14,6 @@ services:
   validator2:
     stdin_open: true
     container_name: validator2
-    build: ..
     image: comradecoop/validated-streams
     ports:
       - "5557:6000"
@@ -25,7 +24,6 @@ services:
   validator3:
     stdin_open: true
     container_name: validator3
-    build: ..
     image: comradecoop/validated-streams
     ports:
       - "5558:6000"
@@ -36,7 +34,6 @@ services:
   validator4:
     stdin_open: true
     container_name: validator4
-    build: ..
     image: comradecoop/validated-streams
     ports:
       - "5559:6000"
@@ -44,6 +41,16 @@ services:
     networks:
       mynetwork:
         ipv4_address: 172.19.0.5
+  syncnode:
+    stdin_open: true
+    container_name: syncnode
+    image: comradecoop/validated-streams
+    ports:
+      - "9944:9944"
+    command: --ws-port 9944 --unsafe-ws-external
+    networks:
+      mynetwork:
+        ipv4_address: 172.19.0.6
 networks:
   mynetwork:
     driver: bridge

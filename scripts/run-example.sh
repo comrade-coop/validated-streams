@@ -2,20 +2,36 @@
 cd $(dirname $0)
 DOCKER='docker'
 DOCKER_COMPOSE='docker-compose'
-COMMAND=""
+DOCKER_COMPOSE_FILE='docker-compose-example.yml'
+COMMAND=''
+FLAGS=''
 for arg in "$@"; do
   shift
   case "$arg" in
     '--podman')
       DOCKER='podman'
       DOCKER_COMPOSE='podman-compose' ;;
+    '--docker')
+      DOCKER='docker'
+      DOCKER_COMPOSE='docker-compose' ;;
+    '--direct-sample')
+      DOCKER_COMPOSE_FILE='docker-compose-example.yml' ;;
+    '--irc-sample')
+      DOCKER_COMPOSE_FILE='../samples/ValidatedStreams.Irc.TrustedClient/docker-compose-irc.yml' ;;
+    '--help')
+      COMMAND="help"
+      break ;;
     *)
       if [ -z "$COMMAND" ]; then
         COMMAND="$arg"
       else
+        echo "Unexpected '$arg'"
         COMMAND=""; break;
       fi ;;
   esac
+  if [ "$COMMAND" != "$arg" ]; then
+    FLAGS+="$arg"
+  fi
 done
 
 validators=(
@@ -27,11 +43,16 @@ validators=(
 
 function command_run__cleanup {
   echo
-  echo "Note: Run '$0 stop' to stop the example network"
+  echo "Note: Run '$0 stop $FLAGS' to stop the example network"
   exit 130
 }
 
 function command_run {
+  if [ "$DOCKER_COMPOSE_FILE" != "docker-compose-example.yml" ]; then
+    echo "'$0 run' can only be used with the --direct-sample sample.";
+    echo "Use '$0 start $FLAGS' instead.";
+    exit 1;
+  fi
   trap command_run__cleanup SIGINT
   command_start
   command_validated &
@@ -41,26 +62,28 @@ function command_run {
 }
 
 function command_build {
-  $DOCKER build -t comradecoop/validated-streams .. # Note: could using docker-compose here might help reduce repetition
+  $DOCKER_COMPOSE -f $DOCKER_COMPOSE_FILE build
 }
 
 function command_start {
-  $DOCKER_COMPOSE -f docker-compose-example.yml up -d
+  $DOCKER_COMPOSE -f $DOCKER_COMPOSE_FILE up -d
 }
 
 function command_stop {
-  $DOCKER_COMPOSE -f docker-compose-example.yml down
+  $DOCKER_COMPOSE -f $DOCKER_COMPOSE_FILE down
 }
 
 function command_logs {
-  $DOCKER_COMPOSE -f docker-compose-example.yml logs -f | grep -E "💤|🔁|👌|❌"
+  $DOCKER_COMPOSE -f $DOCKER_COMPOSE_FILE logs -f | grep -E "💤|🔁|👌|❌"
 }
 
 function command_disturb {
   command_stop
   command_start
   wait_bootstrap
-  witness_events &
+  if [ "$DOCKER_COMPOSE_FILE" = "docker-compose-example.yml" ]; then
+    witness_events &
+  fi
   command_logs &
   echo "********** 🔌 Applying a 60 seconds frequent crash-recovery for validator4 + delayed packets for the rest of validators **********"
   # randomly delay all packet transmissions for all conatiners with 6 seconds delay time and a variation of 0.5 seconds
@@ -117,6 +140,10 @@ function witness_events {
   wait
 }
 function command_witness {
+  if [ "$DOCKER_COMPOSE_FILE" != "docker-compose-example.yml" ]; then
+    echo "'$0 witness' can only be used with the --direct-sample sample.";
+    exit 1;
+  fi
   wait_bootstrap
   witness_events &
   command_logs
@@ -136,7 +163,13 @@ case "$COMMAND" in
   'validated') command_validated ;;
   'disturb') command_disturb ;;
   *)
-    echo "Usage: $0 COMMAND [--podman]"
+    echo "Usage: $0 COMMAND [flags]"
+    echo ""
+    echo "Flags:"
+    echo "  --docker        Use docker / docker-compose to run the samples (default)"
+    echo "  --podman        Use podman / podman-compose"
+    echo "  --direct-sample Run the 'direct' sample, witnessing events directly to a network of validators"
+    echo "  --irc-sample    Run the 'irc' sample, witnessing events submitted to an irc channel (localhost:6667#validated-stream)"
     echo ""
     echo "Commands:"
     echo "  run       Run the sample (equivalent to running start; validated & witness; stop)"

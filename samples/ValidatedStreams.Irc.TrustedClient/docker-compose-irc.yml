@@ -1,0 +1,92 @@
+version: "3.3"
+services:
+  ircd:
+    image: inspircd/inspircd-docker
+    ports:
+      - "6667:6667"
+    networks:
+     mynetwork:
+       ipv4_address: 172.19.0.11
+
+  validator1:
+    build: ../..
+    image: comradecoop/validated-streams
+    ports:
+      - "5556:6000"
+    command: --alice
+    networks:
+     mynetwork:
+       ipv4_address: 172.19.0.2
+  trustedclient1:
+    build:
+      context: ../..
+      dockerfile: samples/ValidatedStreams.Irc.TrustedClient/Dockerfile
+    image: comradecoop/validated-streams-irc-client
+    command: 'http://172.19.0.2:6000 irc://172.19.0.11:6667 #validated-stream bot-alice'
+    networks:
+     mynetwork:
+       ipv4_address: 172.19.0.12
+    depends_on:
+      - validator1
+      - ircd
+
+  validator2:
+    image: comradecoop/validated-streams
+    ports:
+      - "5557:6000"
+    command: --bob
+    networks:
+      mynetwork:
+        ipv4_address: 172.19.0.3
+  trustedclient2:
+    image: comradecoop/validated-streams-irc-client
+    command: 'http://172.19.0.3:6000 irc://172.19.0.11:6667 #validated-stream bot-bob'
+    networks:
+     mynetwork:
+       ipv4_address: 172.19.0.13
+    depends_on:
+      - validator2
+      - ircd
+
+  validator3:
+    image: comradecoop/validated-streams
+    ports:
+      - "5558:6000"
+    command: --charlie
+    networks:
+      mynetwork:
+        ipv4_address: 172.19.0.4
+  trustedclient3:
+    image: comradecoop/validated-streams-irc-client
+    command: 'http://172.19.0.4:6000 irc://172.19.0.11:6667 #validated-stream bot-charlie'
+    networks:
+     mynetwork:
+       ipv4_address: 172.19.0.14
+    depends_on:
+      - validator3
+      - ircd
+
+  validator4:
+    image: comradecoop/validated-streams
+    ports:
+      - "5559:6000"
+    command: --dave
+    networks:
+      mynetwork:
+        ipv4_address: 172.19.0.5
+  trustedclient4:
+    image: comradecoop/validated-streams-irc-client
+    command: 'http://172.19.0.5:6000 irc://172.19.0.11:6667 #validated-stream bot-dave'
+    networks:
+     mynetwork:
+       ipv4_address: 172.19.0.15
+    depends_on:
+      - validator4
+      - ircd
+
+networks:
+  mynetwork:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16

@@ -10,7 +10,7 @@ use pallet_validated_streams::ExtrinsicDetails;
 use sc_client_api::{BlockBackend, BlockchainEvents, HeaderBackend};
 use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
 use sc_transaction_pool_api::LocalTransactionPool;
-use sp_api::{BlockT, ProvideRuntimeApi};
+use sp_api::{BlockT, HeaderT, ProvideRuntimeApi};
 use sp_blockchain::HeaderMetadata;
 use sp_consensus_aura::AuraApi;
 use sp_keystore::CryptoStore;
@@ -42,6 +42,7 @@ where
 		+ ProvideRuntimeApi<Block>,
 	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
 	TxPool: LocalTransactionPool<Block = Block> + 'static,
+	<<Block as BlockT>::Header as HeaderT>::Number: Into<u32>,
 {
 	let (streams_gossip, streams_gossip_service) = StreamsGossip::create();
 
