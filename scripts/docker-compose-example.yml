@@ -14,7 +14,6 @@ services:
   validator2:
     stdin_open: true
     container_name: validator2
-    build: ..
     image: comradecoop/validated-streams
     ports:
       - "5557:6000"
@@ -25,7 +24,6 @@ services:
   validator3:
     stdin_open: true
     container_name: validator3
-    build: ..
     image: comradecoop/validated-streams
     ports:
       - "5558:6000"
@@ -36,7 +34,6 @@ services:
   validator4:
     stdin_open: true
     container_name: validator4
-    build: ..
     image: comradecoop/validated-streams
     ports:
       - "5559:6000"
@@ -47,7 +44,6 @@ services:
   syncnode:
     stdin_open: true
     container_name: syncnode
-    build: ..
     image: comradecoop/validated-streams
     ports:
       - "9944:9944"
