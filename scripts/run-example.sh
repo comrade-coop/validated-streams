@@ -56,16 +56,34 @@ function command_logs {
   $DOCKER_COMPOSE -f docker-compose-example.yml logs -f | grep -E "💤|🔁|👌|❌"
 }
 
-function command_partition {
+function command_disturb {
   command_stop
   command_start
   wait_bootstrap
   witness_events &
   command_logs &
-  echo "🔌 Disconnecting Validator 4 from the network"
-  docker stop validator4
-  echo "🔗 Connecting Validator 4 back to the network"
-  docker start validator4
+  echo "********** 🔌 Applying a 60 seconds frequent crash-recovery for validator4 + delayed packets for the rest of validators **********"
+  # randomly delay all packet transmissions for all conatiners with 6 seconds delay time and a variation of 0.5 seconds
+  # which makes the delay sometimes more than block production time whilst also having frequent crash-recovery for validator4
+  for i in {1..4}; do
+    pumba --random netem --duration 8s delay -t 6000 --jitter 500 validator3 validator2 validator1 2>/dev/null &
+    docker pause validator4 >/dev/null
+    sleep 10
+    docker unpause validator4 >/dev/null
+    #show output of validator4
+    sleep 4
+  done
+  echo "********** 🔌 Applying packet loss for 30 seconds **********"
+  # make validator4 lose 90% of all its packets and select randomly one of the rest of validators and lose 50% of packets
+  for i in {1..15}; do
+    pumba --random netem --duration 3s loss -p 50 validator3 validator2 validator1 2> /dev/null &
+    pumba netem --duration 3s loss -p 90 validator4 2> /dev/null
+  done
+  echo "********** 😵 Emulating a 1 minute crash-recovery fault for validator4 **********"
+  docker pause validator4 >/dev/null
+  sleep 60
+  echo "********** 🔗 Restoring validator4 **************"
+  docker unpause validator4 >/dev/null
   wait
 }
 function wait_bootstrap {
@@ -85,7 +103,7 @@ function wait_bootstrap {
   done
 }
 function witness_events {
-  echo "Witnessing 10000 events"
+  echo "Witnessing events"
   for i in {1..10000}; do
     # create a random hash every time
     hash_value=$(openssl rand -base64 32)
@@ -93,7 +111,7 @@ function witness_events {
       "event_id": "'"$hash_value"'"
     }'
     for server in "${validators[@]}"; do
-      grpcurl -plaintext -import-path ../proto -proto streams.proto -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent >/dev/null 2>&1 #redirect all errors to null
+      grpcurl -plaintext -import-path ../proto -proto streams.proto -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent >/dev/null 2>&1 & #redirect all errors to null
     done
   done
   wait
@@ -116,7 +134,7 @@ case "$COMMAND" in
   'logs') command_logs ;;
   'witness') command_witness ;;
   'validated') command_validated ;;
-  'partition') command_partition ;;
+  'disturb') command_disturb ;;
   *)
     echo "Usage: $0 COMMAND [--podman]"
     echo ""
@@ -128,6 +146,6 @@ case "$COMMAND" in
     echo "  validated Show the events finalized by the example network"
     echo "  logs      Display logs from the example network"
     echo "  stop      Stop the example network"
-    echo "  partition Start the network partition example"
+    echo "  disturb   Start the network Resiliency example"
     exit 64 ;;
 esac

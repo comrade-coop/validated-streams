@@ -8,7 +8,9 @@ Validated Streams also acts as a fundamental building block of [Apocryph](https:
 Prerequisites:
 
 * [Docker](https://docs.docker.com/get-docker/) with [docker-compose](https://docs.docker.com/compose/install/) ([Podman](https://github.com/containers/podman) with [podman-compose](https://github.com/containers/podman-compose) should work too)
-- [grpcurl](https://github.com/fullstorydev/grpcurl)
+* [grpcurl](https://github.com/fullstorydev/grpcurl)
+* [pumba](https://github.com/alexei-led/pumba/releases) for Network Resilience example
+    * when downloading pumba binary from [release](https://github.com/alexei-led/pumba/releases), Ensure that the "pumba" command is accessible in the system's path.
 
 1. Witnessing events:
 
@@ -41,12 +43,12 @@ Running the example:
     ./scripts/run-example.sh build
     ./scripts/run-example.sh run
     ```
-2. Network Partition example:
+2. Network Resilience Testing:
 
-    To simulate a network partition, this command will isolate validator 4 from the network therefore it will unwitness some events. after a while, it will reconnect it to the network. The validator will initially reject the blocks (since it does not have enough proofs for the events within) and then catch up with the rest of the network.
+    The following example applies packet loss, frequent crash-recovery, and delayed packets to emulate challenging and poor network conditions. It tests the behavior and resilience of validators within the network under these adverse scenarios.
 
     ```
-    ./scripts/run-example.sh partition
+    ./scripts/run-example.sh disturb
     ```
 ## Architecture
 ![Diagram of Validated Streams, with Stream service ingesting events from an application, passing them to a gossip, which then leads to on-chain transactions, that, after block finalization, get forwarded back to the application. (validated-streams.drawio.png)](https://user-images.githubusercontent.com/5276727/211316562-ad73fdd0-0dec-4543-884e-fe60cb09ee7a.png)
