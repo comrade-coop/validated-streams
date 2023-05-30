@@ -86,6 +86,8 @@ impl EventServiceBlockState {
 	}
 }
 
+/// A trait wrapping the [EventService]'s functionallity of witnessing an event, called by the
+/// trusted client (e.g. through GRPC).
 #[async_trait]
 pub trait EventWitnessHandler {
 	/// receives client requests for handling incoming witnessed events

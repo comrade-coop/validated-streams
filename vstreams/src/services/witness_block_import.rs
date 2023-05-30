@@ -130,8 +130,12 @@ where
 							"Block contains unwitnessed events".to_string(),
 						))
 					} else {
-						if extrinsic_ids.len() > 0{
-							log::info!("👌 block {} contains {} events, All have been witnessed", block.post_hash(),extrinsic_ids.len());
+						if extrinsic_ids.len() > 0 {
+							log::info!(
+								"👌 block {} contains {} events, All have been witnessed",
+								block.post_hash(),
+								extrinsic_ids.len()
+							);
 						}
 					},
 				Err(e) => {
