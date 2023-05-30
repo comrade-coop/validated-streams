@@ -15,7 +15,8 @@ Prerequisites:
 1. Witnessing events:
 
     We have set up a demonstration of a private chain comprised of four nodes (hence, the minimum number of nodes required to witness an event is 3 nodes) and a client that sends random events to them.
-Running the example:
+    Running the example:
+
     1. Build the docker image of a validated streams node (this might take a while the first time)
         ```bash
         docker build -t comradecoop/validated-streams .
@@ -50,8 +51,37 @@ Running the example:
     ```
     ./scripts/run-example.sh disturb
     ```
+3. Witnessing events from IRC:
+
+    Finally, to demonstrate an more realistic usecase of Validated Streams, we have set up an example of a validators listening on an IRC channel, submitting events from it to a blockchain, and reporting back to users when those events have been finalized. As it is, extending the example to support a token economics or to verify user identities is left as an exercise to the reader.
+    Running the example:
+
+    1. Build the necessary docker images:
+        ```
+        ./scripts/run-example.sh build --irc-sample
+        ```
+    2. Start the local network of validators, trusted clients, and an IRC server:
+        ```
+        ./scripts/run-example.sh start --irc-sample
+        ```
+    3. Connect to the local IRC server at [`localhost:6667`](irc://localhost:6667/validated-stream) (non-TLS), join `#validated-stream` and send a message. Sample interaction:
+        ```
+        * Now talking on #validated-stream
+        <user> bot-bob: help
+        <bot-bob> user: !w[itness] <data> -- create and witness a validated-streams event
+        <user> !w this is a test event for the README
+        <bot-charlie> user: witnessing BE807ED3F92D7C8228302829F829B827E2F7C8338B17A736CAF8AF18403E68F1...
+        <bot-charlie> user: BE807ED3F92D7C8228302829F829B827E2F7C8338B17A736CAF8AF18403E68F1 validated!
+        ```
+
+        Empirical testing shows that events are validated in roughly ~16 seconds by the sample network.
+    4. Stop the network when you are finished:
+        ```
+        ./scripts/run-example.sh stop --irc-sample
+        ```
+
 ## Architecture
-![Diagram of Validated Streams, with Stream service ingesting events from an application, passing them to a gossip, which then leads to on-chain transactions, that, after block finalization, get forwarded back to the application. (validated-streams.drawio.png)](https://user-images.githubusercontent.com/5276727/211316562-ad73fdd0-0dec-4543-884e-fe60cb09ee7a.png)
+![Diagram of Validated Streams, with a grpc service ingesting events from an application, passing them to a gossip, which then leads to on-chain transactions, that, after block finalization, get forwarded back to the application. (validated-streams.drawio.png)](https://user-images.githubusercontent.com/5276727/211316562-ad73fdd0-0dec-4543-884e-fe60cb09ee7a.png)
 
 Each of validator is a Substrate node that has an attached trusted client(s). The client submits hashes representing events that have been witnessed locally. Since a malicious client would be able to fabricate or censor data at whim, it is necessary that the operators of validators don't trust other validators (or third parties in general) with the task of running trusted clients, but run their own, perhaps even collocating it with the validator node.
 
@@ -64,7 +94,7 @@ The communication of hashes between the trusted client and validator node occurs
 It should be noted that the trusted client only submits hashes, and a separate solution (such as IPFS) would be required to retrieve the actual event contents.
 
 > __Note__
-It is important to note that Validated Streams will only work in chains where the total number/weight of validators is known, such as proof-of-stake or private/consortium chains. Further Research may be able to lift this limitation in the future.
+It is important to note that Validated Streams will only work in chains where the total number/weight of validators is known, such as proof-of-stake or private/consortium chains. Further research may be able to lift this limitation in the future.
 
 ## On-chain proofs
 
