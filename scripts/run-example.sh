@@ -86,7 +86,7 @@ function command_disturb {
   fi
   command_logs &
   echo "********** 🔌 Applying a 60 seconds frequent crash-recovery for validator4 + delayed packets for the rest of validators **********"
-  # randomly delay all packet transmissions for all conatiners with 6 seconds delay time and a variation of 0.5 seconds
+  # randomly delay all packet transmissions for all containers with 6 seconds delay time and a variation of 0.5 seconds
   # which makes the delay sometimes more than block production time whilst also having frequent crash-recovery for validator4
   for i in {1..4}; do
     pumba --random netem --duration 8s delay -t 6000 --jitter 500 validator3 validator2 validator1 2>/dev/null &
