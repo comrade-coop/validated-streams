@@ -22,11 +22,11 @@ async fn wait_validators(validator_addr: String) {
         }
     }
 }
-async fn send_events(num: u32, increase_num: u32, validator_addr: String) {
+async fn send_events(from_num: u32, to_num: u32, validator_addr: String) {
     let mut client = StreamsClient::connect(validator_addr).await.unwrap();
     let mut events = Vec::new();
-    for i in num..num+increase_num {
-        let hash_bytes = Sha256::digest(&i.to_be_bytes());
+    for i in from_num+1..to_num+1{
+		let hash_bytes = Sha256::digest(&i.to_be_bytes());
         events.push(WitnessEventRequest{event_id:hash_bytes.to_vec()});
     }
     for event in events{
@@ -43,8 +43,7 @@ async fn witness_events(validator_addr: String,limit : u32, increase_factor:u32)
 	let mut total_events:u32 = 0;
 	let mut num_blocks = 0;
 	let mut num_events = INIT_NUM;
-	// INIT_NUM + first test event
-	let mut sent_event = INIT_NUM + 1;
+	let mut sent_events = INIT_NUM ;
 	let mut average_events_per_block = 0;
 	while let Some(response) = stream.message().await.unwrap() {
 		let current_block_txs = response.events.len() as u32;
@@ -64,14 +63,14 @@ async fn witness_events(validator_addr: String,limit : u32, increase_factor:u32)
 		// send new batch of txs to make sure we have more events in the tx pool than
 		// what the block can contain, this will be a balnaced approach of witnessing lots of events and
 		// also let the validator focus more on processing gossiped witnessed events from his peers
-		else if  (new_average < average_events_per_block) && (new_average != 0)  && (total_events >=  sent_event) && (num_events <= limit) {
+		else if  (new_average < average_events_per_block) && (new_average != 0)  && (total_events >=  sent_events) && (num_events <= limit) {
 			let new_num_events = num_events * increase_factor;
 			println!("\n🩸 Average number of events dropped, sending {} events", new_num_events - num_events);
-			num_events = new_num_events;
 			let validator_addr_clone = validator_addr.clone();
 			tokio::spawn(async move{send_events(num_events, new_num_events,validator_addr_clone.clone()).await});
-			sent_event += new_num_events;
-			println!("📩 Total number of events sent {}\n",sent_event);
+			num_events = new_num_events;
+			sent_events = new_num_events +1 ;
+			println!("📩 Total number of events sent {}\n",sent_events);
 		}
 		if num_events >= limit {
 			println!("\nMax TXS in Block:{}", max_block_txs);
