@@ -21,8 +21,8 @@ impl DebugLocalNetworkConfiguration {
 	}
 	*/
 	/// Returns the multiaddr gossip should listen at
-	pub fn self_multiaddr() -> Multiaddr {
-		format!("/ip4/{}/tcp/10000", local_ip().expect("failed getting local ip"))
+	pub fn self_multiaddr(gossip_port: u16) -> Multiaddr {
+		format!("/ip4/{}/tcp/{}", local_ip().expect("failed getting local ip"),gossip_port)
 			.parse()
 			.expect("failed getting self multi address")
 	}
@@ -36,7 +36,7 @@ impl DebugLocalNetworkConfiguration {
 		];
 		validators_multiaddrs
 			.into_iter()
-			.filter(|peer| *peer != Self::self_multiaddr())
+			.filter(|peer| *peer != Self::self_multiaddr(10000))
 			.collect()
 	}
 }

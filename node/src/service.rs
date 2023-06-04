@@ -200,6 +200,7 @@ fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
 pub fn new_full(
 	mut config: Configuration,
 	grpc_port: u16,
+	gossip_port: u16,
 	peers_multiaddr: Vec<Multiaddr>,
 	proofs_path: String,
 ) -> Result<TaskManager, ServiceError> {
@@ -224,6 +225,7 @@ pub fn new_full(
 		keystore_container.keystore(),
 		transaction_pool.clone(),
 		grpc_port,
+		gossip_port,
 		peers_multiaddr,
 	)?;
 

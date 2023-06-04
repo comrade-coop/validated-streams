@@ -218,6 +218,7 @@ pub fn run() -> sc_cli::Result<()> {
 					service::new_full(
 						config,
 						cli.run.grpc_port,
+						cli.run.gossip_port,
 						DebugLocalNetworkConfiguration::peers_multiaddrs(),
 						cli.run.proofs_path,
 					)
@@ -226,6 +227,7 @@ pub fn run() -> sc_cli::Result<()> {
 					service::new_full(
 						config,
 						cli.run.grpc_port,
+						cli.run.gossip_port,
 						cli.run.peers_multiaddr,
 						cli.run.proofs_path,
 					)

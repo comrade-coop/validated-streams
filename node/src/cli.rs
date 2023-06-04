@@ -6,6 +6,9 @@ pub struct RunCmd {
 	#[clap(long, default_value_t = 5555, value_parser = validate_port)]
 	/// grpc port for the current validated streams node
 	pub grpc_port: u16,
+	#[clap(long, default_value_t = 10000, value_parser = validate_port)]
+	/// gossip port for the current validated streams node
+	pub gossip_port: u16,
 	#[clap(long)]
 	/// multiaddresses of the boot nodes
 	pub peers_multiaddr: Vec<Multiaddr>,
