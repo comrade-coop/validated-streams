@@ -14,8 +14,10 @@ services:
   client:
     stdin_open: true
     container_name: tps_client
-    build: ../..
-    image: comradecoop/tps-client
+    build:
+      context: ../..
+      dockerfile: samples/TpsBench/Dockerfile
+    image: comradecoop/validated-streams-tps-bench
     command: "http://172.19.0.1:5556 2 3200"
     depends_on:
       - validator
