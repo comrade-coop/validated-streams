@@ -1,0 +1,8 @@
+FROM comradecoop/validated-streams-tps-bench as tps-bench
+FROM comradecoop/validated-streams
+COPY --from=tps-bench /bin/tps_bench /bin/tps_bench
+COPY ./scripts/tps_bench_setup.sh /bin/tps_bench_setup.sh
+WORKDIR /bin/
+RUN chmod +x tps_bench_setup
+ENTRYPOINT ["/bin/tps_bench_setup.sh", "/bin/stream_node", "/bin/tps_bench"]
+
