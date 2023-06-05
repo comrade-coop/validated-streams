@@ -44,12 +44,12 @@ if [ "$BOOTNODE" != "" ]; then
   if [[ "$BOOTNODE" =~ "/" ]]; then
     ADDR=$(echo "$BOOTNODE" | cut -d'/' -f3)
     ARGS+=(
-      --bootnodes $BOOTNODE
+      --bootnodes "$BOOTNODE"
       --peers-multiaddr "/ip4/$ADDR/tcp/15000"
     )
   else
     ARGS+=(
-      --node-key $BOOTNODE
+      --node-key "$BOOTNODE"
     )
   fi
 fi
