@@ -1,7 +1,6 @@
 //! A GRPC server for submitting event hashes from a trusted client.
 
 use crate::{chain_info::ChainInfo, services::events::EventWitnessHandler};
-use local_ip_address::local_ip;
 use std::pin::Pin;
 
 use futures::{stream, Stream, StreamExt};
@@ -56,7 +55,7 @@ where
 		event_witness: Arc<EventWitness>,
 		grpc_port: u16,
 	) -> Result<(), Error> {
-		log::info!("Server could be reached at {}", local_ip().unwrap().to_string());
+		log::info!("GRPC server can be reached at 0.0.0.0:{grpc_port}");
 		Server::builder()
 			.add_service(StreamsServer::new(ValidatedStreamsGrpc {
 				event_witness,
