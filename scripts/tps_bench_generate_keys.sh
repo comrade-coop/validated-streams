@@ -21,7 +21,7 @@ JQ_FILTERS+='| .genesis.runtime.aura.authorities = []'
 JQ_FILTERS+='| .genesis.runtime.grandpa.authorities = []'
 
 bootnode_key=$($NODE_COMMAND key generate-node-key 2>/dev/null)
-bootnode="/ip4/\$FIRST_MACHINE/tcp/30333/p2p/$(echo $bootnode_key | $NODE_COMMAND key inspect-node-key)"
+bootnode="/ip4/\$FIRST_MACHINE/tcp/30333/p2p/$(echo "$bootnode_key" | $NODE_COMMAND key inspect-node-key)"
 
 
 for ((i=1; i<=32; i++)); do
@@ -44,7 +44,7 @@ for ((i=1; i<=32; i++)); do
   echo "scripts/tps_bench_setup.sh \$NODE_COMMAND \$CLIENT_COMMAND $SPEC_PATH $i \"$secret_phrase\" $bootnode_or_key"
 done
 
-jq "$JQ_FILTERS" "$SPEC_PATH.init" > "$SPEC_PATH.full"
+jq "$JQ_FILTERS" "$SPEC_PATH.init" >"$SPEC_PATH.full"
 rm "$SPEC_PATH.init"
-$NODE_COMMAND build-spec --chain "$SPEC_PATH.full" --raw > $SPEC_PATH 2>/dev/null
+$NODE_COMMAND build-spec --chain "$SPEC_PATH.full" --raw >"$SPEC_PATH" 2>/dev/null
 #rm "$SPEC_PATH.full"
