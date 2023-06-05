@@ -155,23 +155,18 @@ pub mod pallet {
 			if source != TransactionSource::Local && source != TransactionSource::InBlock {
 				return Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
 			}
-			match call{
-				Self::Call::validate_event {
-					event_id: call_data,
-					proofs: _,
-				} => {
-					if Self::verify_event(*call_data) == true{ return Err(TransactionValidityError::Invalid(InvalidTransaction::Stale))}else{
+			match call {
+				Self::Call::validate_event { event_id: call_data, proofs: _ } =>
+					if Self::verify_event(*call_data) == true {
+						return Err(TransactionValidityError::Invalid(InvalidTransaction::Stale))
+					} else {
 						ValidTransaction::with_tag_prefix("validated_streams")
 							.and_provides(call.encode())
 							.and_provides(*call_data)
 							.propagate(false)
 							.build()
-					}
 					},
-					_ =>{
-						return Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
-					}
-
+				_ => return Err(TransactionValidityError::Invalid(InvalidTransaction::Call)),
 			}
 		}
 	}
