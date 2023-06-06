@@ -30,6 +30,7 @@ pub fn start<
 	keystore: Arc<dyn CryptoStore>,
 	tx_pool: Arc<TxPool>,
 	grpc_port: u16,
+	gossip_port: u16,
 	peers: Vec<Multiaddr>,
 ) -> Result<(), ServiceError>
 where
@@ -47,7 +48,7 @@ where
 	let (streams_gossip, streams_gossip_service) = StreamsGossip::create();
 
 	spawn_handle.clone().spawn_blocking("Event service", None, async move {
-		let self_addr = DebugLocalNetworkConfiguration::self_multiaddr();
+		let self_addr = DebugLocalNetworkConfiguration::self_multiaddr(gossip_port);
 		let events_service = Arc::new(
 			EventService::new(event_proofs, streams_gossip, keystore, tx_pool, client.clone())
 				.await,

@@ -8,7 +8,7 @@ services:
     ports:
       - "5556:6000"
       - "9944:9944"
-    command: --alice "--ws-port 9944" --unsafe-ws-external
+    command: --alice --ws-port 9944 --unsafe-ws-external
     networks:
      mynetwork:
        ipv4_address: 172.19.0.2

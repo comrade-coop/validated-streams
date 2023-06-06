@@ -5,8 +5,8 @@ members = [
 	"runtime",
 	"vstreams"
 ]
-exclude=[
-		"samples/TpsBench"
+exclude = [
+	"samples/TpsBench"
 ]
 [profile.release]
 panic = "unwind"
