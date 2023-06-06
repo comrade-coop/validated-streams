@@ -10,6 +10,7 @@ tonic = { version ="0.8", features = ["transport"] }
 prost = "0.11"
 sha2 = "0.10.6"
 log = "0.4.18"
+futures = "0.3.28"
 
 [build-dependencies]
 tonic-build = "0.8"

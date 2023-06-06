@@ -1,6 +1,6 @@
 #!/bin/bash
 function stop_processes {
-  pkill -f start_node
+  kill $(jobs -p) &> /dev/null
 }
 set -e
 
@@ -55,4 +55,8 @@ if [ "$BOOTNODE" != "" ]; then
 fi
 $NODE_COMMAND "${ARGS[@]}" &
 sleep 10
-$CLIENT_COMMAND http://127.0.0.1:6000 2 32000
+$CLIENT_COMMAND http://127.0.0.1:6000 2 2 10000
+sleep 10
+stop_processes
+
+wait
