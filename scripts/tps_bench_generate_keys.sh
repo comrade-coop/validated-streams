@@ -1,7 +1,7 @@
 #!/bin/bash
 
-if [ $# -lt 2 ] || [ $# -gt 2 ]; then
-  echo "USAGE: $0 <path/to/node> <path/to/chainspec-to-generate.json>"
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+  echo "USAGE: $0 <path/to/node> <path/to/chainspec-to-generate.json> [count]"
   echo "Example: $0 target/release/node chainSpecRaw.json"
   echo "The command would output a bunch of scripts/tps_bench_setup.sh command-line invocations that would need to be run later on each target machine."
   echo "Those invocations expect NODE_COMMAND, CLIENT_COMMAND and FIRST_MACHINE to be set to, respectively, the path to the validated streams node binary, the TPS benchmark binary, and the IP of the first machine."
@@ -10,6 +10,7 @@ fi
 
 NODE_COMMAND=$1
 SPEC_PATH=$2
+COUNT=${3:-32}
 
 $NODE_COMMAND build-spec --disable-default-bootnode > "$SPEC_PATH.init" 2>/dev/null
 
@@ -24,7 +25,7 @@ bootnode_key=$($NODE_COMMAND key generate-node-key 2>/dev/null)
 bootnode="/ip4/\$FIRST_MACHINE/tcp/30333/p2p/$(echo "$bootnode_key" | $NODE_COMMAND key inspect-node-key)"
 
 
-for ((i=1; i<=32; i++)); do
+for ((i=1; i<=$COUNT; i++)); do
   output=$($NODE_COMMAND key generate --scheme Sr25519 --password $i)
   secret_phrase=$(echo "$output" | awk -F ': ' '/Secret phrase:/ { gsub(/^ +/, "", $2); print $2 }')
   aura_key=$(echo "$output" | awk -F ': ' '/SS58 Address:/ { gsub(/ /, "", $2); print $2 }')
