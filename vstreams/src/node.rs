@@ -2,7 +2,7 @@
 
 use crate::{
 	chain_info::ChainInfo, configs::DebugLocalNetworkConfiguration, events::EventService,
-	gossip::StreamsGossip, proofs::EventProofs, server::ValidatedStreamsGrpc,
+	gossip::StreamsGossip, proofs::EventProofs, server,
 };
 use codec::Codec;
 use libp2p::Multiaddr;
@@ -58,7 +58,7 @@ where
 			.await;
 
 		spawn_handle.spawn_blocking("gRPC server", None, async move {
-			ValidatedStreamsGrpc::run(client, events_service, grpc_port).await.unwrap()
+			server::run(client, events_service, grpc_port).await.unwrap()
 		});
 	});
 	Ok(())
