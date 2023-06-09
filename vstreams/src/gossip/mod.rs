@@ -170,9 +170,8 @@ impl StreamsGossipService {
 				log::info!("{:?} subscribed to topic {:?}",peer_id, topic);
 			},
 			SwarmEvent::Behaviour(GossipsubEvent::Message {
-				propagation_source: _,
-				message_id: _,
 				message,
+				..
 			}) => {
 				handler.handle(message.data).await;
 			},

@@ -2,7 +2,7 @@
 
 use crate::errors::Error;
 use serde::{Deserialize, Serialize};
-use sp_core::{H256, offchain::OffchainStorage};
+use sp_core::{offchain::OffchainStorage, H256};
 use sp_runtime::app_crypto::CryptoTypePublicPair;
 use std::{
 	collections::{hash_map::Entry, HashMap},
@@ -242,19 +242,19 @@ impl<Storage: OffchainStorage> EventProofs for OffchainStorageEventProofs<Storag
 		);
 
 		loop {
-			let existing_bytes = self.storage.get(
-				OFFCHAIN_PREFIX,
-				event.event_id.as_ref()
-			);
-			let mut signers_list = existing_bytes.as_ref().map(|b| bincode::deserialize::<Vec<CryptoTypePublicPair>>(b.as_ref())).unwrap_or_else(|| Ok(vec!()))?;
+			let existing_bytes = self.storage.get(OFFCHAIN_PREFIX, event.event_id.as_ref());
+			let mut signers_list = existing_bytes
+				.as_ref()
+				.map(|b| bincode::deserialize::<Vec<CryptoTypePublicPair>>(b.as_ref()))
+				.unwrap_or_else(|| Ok(vec![]))?;
 			signers_list.push(event.pub_key.clone());
 			if self.storage.clone().compare_and_set(
 				&OFFCHAIN_PREFIX,
 				event.event_id.as_ref(),
 				existing_bytes.as_ref().map(|x| x.as_ref()),
-				&bincode::serialize(&signers_list)?
+				&bincode::serialize(&signers_list)?,
 			) {
-				break;
+				break
 			}
 		}
 		Ok(())
@@ -265,10 +265,16 @@ impl<Storage: OffchainStorage> EventProofs for OffchainStorageEventProofs<Storag
 		event_id: &H256,
 		validators: &[CryptoTypePublicPair],
 	) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error> {
-
-		Ok(validators.iter().flat_map(|pub_key| {
-			self.storage.get(&OFFCHAIN_PREFIX, &[event_id.as_ref(), &bincode::serialize(pub_key).unwrap()].concat()).map(|signature| (pub_key.clone(), signature))
-		})
+		Ok(validators
+			.iter()
+			.flat_map(|pub_key| {
+				self.storage
+					.get(
+						&OFFCHAIN_PREFIX,
+						&[event_id.as_ref(), &bincode::serialize(pub_key).unwrap()].concat(),
+					)
+					.map(|signature| (pub_key.clone(), signature))
+			})
 			.collect())
 	}
 
@@ -277,9 +283,14 @@ impl<Storage: OffchainStorage> EventProofs for OffchainStorageEventProofs<Storag
 		event_id: &H256,
 		validators: &[CryptoTypePublicPair],
 	) -> Result<u16, Error> {
-		Ok(validators.iter().map(|pub_key| {
-			self.storage.get(&OFFCHAIN_PREFIX, &[event_id.as_ref(), &bincode::serialize(pub_key).unwrap()].concat())
-		})
+		Ok(validators
+			.iter()
+			.map(|pub_key| {
+				self.storage.get(
+					&OFFCHAIN_PREFIX,
+					&[event_id.as_ref(), &bincode::serialize(pub_key).unwrap()].concat(),
+				)
+			})
 			.filter(|r| matches!(r, Some(_)))
 			.count() as u16)
 	}
@@ -290,11 +301,11 @@ impl<Storage: OffchainStorage> EventProofs for OffchainStorageEventProofs<Storag
 		validators: &[CryptoTypePublicPair],
 	) -> Result<(), Error> {
 		loop {
-			let existing_bytes = self.storage.get(
-				OFFCHAIN_PREFIX,
-				event_id.as_ref()
-			);
-			let mut signers_list = existing_bytes.as_ref().map(|b| bincode::deserialize::<Vec<CryptoTypePublicPair>>(b.as_ref())).unwrap_or_else(|| Ok(vec!()))?;
+			let existing_bytes = self.storage.get(OFFCHAIN_PREFIX, event_id.as_ref());
+			let mut signers_list = existing_bytes
+				.as_ref()
+				.map(|b| bincode::deserialize::<Vec<CryptoTypePublicPair>>(b.as_ref()))
+				.unwrap_or_else(|| Ok(vec![]))?;
 
 			signers_list.retain(|pub_key| {
 				if !validators.contains(&pub_key) {
@@ -312,9 +323,9 @@ impl<Storage: OffchainStorage> EventProofs for OffchainStorageEventProofs<Storag
 				OFFCHAIN_PREFIX,
 				event_id.as_ref(),
 				existing_bytes.as_ref().map(|x| x.as_ref()),
-				&bincode::serialize(&signers_list)?
+				&bincode::serialize(&signers_list)?,
 			) {
-				break;
+				break
 			}
 		}
 		Ok(())
