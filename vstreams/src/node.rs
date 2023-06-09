@@ -1,8 +1,8 @@
 //! A helper for starting all the components needed to run a validated streams node
 
 use crate::{
-	chain_info::ChainInfo, configs::DebugLocalNetworkConfiguration, gossip::StreamsGossip,
-	proofs::EventProofs, server::ValidatedStreamsGrpc, services::events::EventService,
+	chain_info::ChainInfo, configs::DebugLocalNetworkConfiguration, events::EventService,
+	gossip::StreamsGossip, proofs::EventProofs, server::ValidatedStreamsGrpc,
 };
 use codec::Codec;
 use libp2p::Multiaddr;

@@ -1,6 +1,6 @@
 //! A GRPC server for submitting event hashes from a trusted client.
 
-use crate::{chain_info::ChainInfo, services::events::EventWitnessHandler};
+use crate::{chain_info::ChainInfo, events::EventWitnessHandler};
 use std::pin::Pin;
 
 use futures::{stream, Stream, StreamExt};

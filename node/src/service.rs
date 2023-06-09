@@ -19,7 +19,7 @@ use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
 use vstreams::proofs::{EventProofs, RocksDbEventProofs};
 #[cfg(not(feature = "on-chain-proofs"))]
-use vstreams::services::witness_block_import::WitnessBlockImport;
+use vstreams::WitnessBlockImport;
 
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;

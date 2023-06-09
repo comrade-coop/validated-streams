@@ -1,7 +1,7 @@
 //! Block import which waits for all events to be witnessed before finalizing a block.
 #![cfg(not(feature = "on-chain-proofs"))]
 
-use crate::{proofs::EventProofs, services::events::verify_events_validity};
+use crate::{events::verify_events_validity, proofs::EventProofs};
 use codec::Codec;
 use futures::{future::Shared, FutureExt};
 use pallet_validated_streams::ExtrinsicDetails;
