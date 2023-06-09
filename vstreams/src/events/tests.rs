@@ -1,5 +1,6 @@
 use super::EventServiceBlockState;
 use crate::proofs::WitnessedEvent;
+use rstest::rstest;
 use sc_keystore::LocalKeystore;
 use sp_core::{sr25519::Public, H256};
 use sp_keystore::CryptoStore;
@@ -43,6 +44,21 @@ async fn test_verify_events() {
 	let no_validators_block_state = EventServiceBlockState::new(vec![]);
 	let result = no_validators_block_state.verify_witnessed_event_origin(witnessed_event);
 	assert!(result.is_err());
+}
+
+#[rstest]
+#[case(3, 2)]
+#[case(4, 3)]
+#[case(5, 4)]
+#[case(6, 4)]
+#[case(10, 7)]
+fn test_calculate_target(#[case] validator_count: u8, #[case] target: u16) {
+	let validators_list = (0..validator_count)
+		.map(|x| CryptoTypePublicPair::from(Public::from_h256(H256::repeat_byte(x))))
+		.collect();
+	let block_state = EventServiceBlockState::new(validators_list);
+
+	assert_eq!(block_state.target(), target);
 }
 
 async fn create_witnessed_event(

@@ -82,7 +82,8 @@ impl EventServiceBlockState {
 
 	/// calcultes the minimum number of validators to witness an event in order for it to be valid
 	pub fn target(&self) -> u16 {
-		(2 * ((self.validators.len() - 1) / 3) + 1) as u16
+		let total = self.validators.len();
+		(total - total / 3) as u16
 	}
 }
 

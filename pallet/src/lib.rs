@@ -131,7 +131,8 @@ pub mod pallet {
 					}
 				}
 
-				let target = (2 * ((authorities.len() - 1) / 3) + 1) as u16;
+				let total = authorities.len();
+				let target = (total - total / 3) as u16;
 				let mut proof_count = 0;
 				for (key, signature) in &proofs {
 					ensure!(key.verify(&event_id, signature), Error::<T>::InvalidProof);
