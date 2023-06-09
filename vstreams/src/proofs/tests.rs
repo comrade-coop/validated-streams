@@ -1,35 +1,61 @@
 use crate::proofs::{EventProofs, InMemoryEventProofs, RocksDbEventProofs, WitnessedEvent};
 use sp_core::{sr25519::Public, H256};
 use sp_runtime::app_crypto::CryptoTypePublicPair;
+use rstest::rstest;
 
-// Note: Could use rstest or a custom macro here, but it's simpler to just repeat everything for now
+fn in_memory_proofs() -> impl EventProofs {
+	InMemoryEventProofs::create()
+}
 
-#[test]
-fn test_add_event_proof_in_mem() {
-	test_add_event_proof(InMemoryEventProofs::create());
+fn rocksdb_proofs() -> impl EventProofs {
+	let _ = RocksDbEventProofs::destroy("/tmp/test");
+	RocksDbEventProofs::create("/tmp/test")
 }
-#[test]
-fn test_add_event_proof_rocksdb() {
-	let _ = RocksDbEventProofs::destroy("/tmp/test1");
-	test_add_event_proof(RocksDbEventProofs::create("/tmp/test1"));
+
+#[rstest]
+#[case(in_memory_proofs())]
+#[case(rocksdb_proofs())]
+fn test_add_event_proof(#[case] proofs: impl EventProofs) {
+	let event_id = H256::repeat_byte(1);
+	let witnessed_event = create_witnessed_event(event_id);
+
+	assert!(proofs.add_event_proof(&witnessed_event).is_ok());
+	// add again the same event
+	assert!(proofs.add_event_proof(&witnessed_event).is_ok());
 }
-#[test]
-fn test_get_proof_count_in_mem() {
-	test_get_proof_count(InMemoryEventProofs::create());
+
+#[rstest]
+#[case(in_memory_proofs())]
+#[case(rocksdb_proofs())]
+fn test_get_proof_count(#[case] proofs: impl EventProofs) {
+	let event_id = H256::repeat_byte(1);
+	let validator_list = get_validator_list();
+	let new_validator_list = get_new_validator_list();
+
+	assert_eq!(proofs.get_event_proof_count(&event_id, &validator_list), Ok(0));
+
+	let witnessed_event = create_witnessed_event(event_id);
+	let _ = proofs.add_event_proof(&witnessed_event);
+	assert_eq!(proofs.get_event_proof_count(&event_id, &validator_list), Ok(1));
+	assert_eq!(proofs.get_event_proof_count(&event_id, &new_validator_list), Ok(0));
 }
-#[test]
-fn test_get_proof_count_rocksdb() {
-	let _ = RocksDbEventProofs::destroy("/tmp/test2");
-	test_get_proof_count(RocksDbEventProofs::create("/tmp/test2"));
-}
-#[test]
-fn test_remove_stale_events_in_mem() {
-	test_remove_stale_events(InMemoryEventProofs::create());
-}
-#[test]
-fn test_remove_stale_events_rocksdb() {
-	let _ = RocksDbEventProofs::destroy("/tmp/test3");
-	test_remove_stale_events(RocksDbEventProofs::create("/tmp/test3"));
+
+#[rstest]
+#[case(in_memory_proofs())]
+#[case(rocksdb_proofs())]
+fn test_remove_stale_events(#[case] proofs: impl EventProofs) {
+	let event_id = H256::repeat_byte(1);
+	let witnessed_event = create_witnessed_event(event_id);
+	let validator_list = get_validator_list();
+	let new_validator_list = get_new_validator_list();
+
+	let _ = proofs.add_event_proof(&witnessed_event);
+
+	assert!(proofs.purge_event_stale_signatures(&event_id, &validator_list).is_ok());
+	assert_eq!(proofs.get_event_proof_count(&event_id, &validator_list), Ok(1));
+
+	assert!(proofs.purge_event_stale_signatures(&event_id, &new_validator_list).is_ok());
+	assert_eq!(proofs.get_event_proof_count(&event_id, &validator_list), Ok(0));
 }
 
 fn get_validator_list() -> [CryptoTypePublicPair; 1] {
@@ -44,41 +70,4 @@ fn create_witnessed_event(event_id: H256) -> WitnessedEvent {
 		pub_key: CryptoTypePublicPair::from(Public::from_h256(H256::repeat_byte(1))),
 		signature: vec![],
 	}
-}
-
-fn test_add_event_proof<P: EventProofs>(proofs: P) {
-	let event_id = H256::repeat_byte(1);
-	let witnessed_event = create_witnessed_event(event_id);
-
-	assert!(proofs.add_event_proof(&witnessed_event).is_ok());
-	// add again the same event
-	assert!(proofs.add_event_proof(&witnessed_event).is_ok());
-}
-
-fn test_get_proof_count<P: EventProofs>(proofs: P) {
-	let event_id = H256::repeat_byte(1);
-	let validator_list = get_validator_list();
-	let new_validator_list = get_new_validator_list();
-
-	assert_eq!(proofs.get_event_proof_count(&event_id, &validator_list), Ok(0));
-
-	let witnessed_event = create_witnessed_event(event_id);
-	let _ = proofs.add_event_proof(&witnessed_event);
-	assert_eq!(proofs.get_event_proof_count(&event_id, &validator_list), Ok(1));
-	assert_eq!(proofs.get_event_proof_count(&event_id, &new_validator_list), Ok(0));
-}
-
-fn test_remove_stale_events<P: EventProofs>(proofs: P) {
-	let event_id = H256::repeat_byte(1);
-	let witnessed_event = create_witnessed_event(event_id);
-	let validator_list = get_validator_list();
-	let new_validator_list = get_new_validator_list();
-
-	let _ = proofs.add_event_proof(&witnessed_event);
-
-	assert!(proofs.purge_event_stale_signatures(&event_id, &validator_list).is_ok());
-	assert_eq!(proofs.get_event_proof_count(&event_id, &validator_list), Ok(1));
-
-	assert!(proofs.purge_event_stale_signatures(&event_id, &new_validator_list).is_ok());
-	assert_eq!(proofs.get_event_proof_count(&event_id, &validator_list), Ok(0));
 }

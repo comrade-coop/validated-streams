@@ -46,6 +46,7 @@ tokio = { version = "1.0", features = ["full"] }
 tonic = "0.8"
 # local dependencies
 pallet-validated-streams = { version = "0.1.0", path = "../pallet" }
+rstest = "0.17.0"
 
 [build-dependencies]
 tonic-build = "0.8"
@@ -56,8 +57,4 @@ sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/subs
 [features]
 default = []
 on-chain-proofs = ["pallet-validated-streams/on-chain-proofs"]
-runtime-benchmarks = [
-	"pallet-validated-streams/runtime-benchmarks",
-	"frame-benchmarking/runtime-benchmarks",
-	"frame-benchmarking-cli/runtime-benchmarks",
-]
+runtime-benchmarks = ["pallet-validated-streams/runtime-benchmarks", "frame-benchmarking/runtime-benchmarks", "frame-benchmarking-cli/runtime-benchmarks"]
