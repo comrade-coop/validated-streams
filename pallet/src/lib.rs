@@ -213,7 +213,6 @@ pub mod pallet {
 				event_id: H256,
 				event_proofs: Option<BTreeMap<Public, Signature>>,
 			) -> Block::Extrinsic;
-			fn is_witnessed_event_extrinsic(extrinsic: Block::Extrinsic) -> bool; // Use ValidateUnsigned instead?
 		}
 	}
 }

@@ -422,12 +422,6 @@ impl_runtime_apis! {
 				.into(),
 			}
 		}
-		fn is_witnessed_event_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> bool {
-			matches!(&extrinsic.function, RuntimeCall::ValidatedStreams(pallet_validated_streams::Call::<Runtime>::validate_event {
-				event_id: _,
-				proofs: _,
-			}))
-		}
 	}
 	impl sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block> for Runtime {
 		fn validate_transaction(
