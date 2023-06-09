@@ -1,20 +1,31 @@
-use crate::proofs::{EventProofs, InMemoryEventProofs, RocksDbEventProofs, WitnessedEvent};
+use crate::proofs::{EventProofs, InMemoryEventProofs, RocksDbEventProofs, OffchainStorageEventProofs, WitnessedEvent};
 use sp_core::{sr25519::Public, H256};
 use sp_runtime::app_crypto::CryptoTypePublicPair;
+use sp_runtime::offchain::testing::TestPersistentOffchainDB;
 use rstest::rstest;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn in_memory_proofs() -> impl EventProofs {
 	InMemoryEventProofs::create()
 }
 
+
+static ROCKSDB_INSTANCE: AtomicUsize = AtomicUsize::new(1);
 fn rocksdb_proofs() -> impl EventProofs {
-	let _ = RocksDbEventProofs::destroy("/tmp/test");
-	RocksDbEventProofs::create("/tmp/test")
+	let path = format!("/tmp/testvstreamsrocksdb{}", ROCKSDB_INSTANCE.fetch_add(1, Ordering::SeqCst));
+	let _ = RocksDbEventProofs::destroy(&path);
+	RocksDbEventProofs::create(&path)
 }
+
+fn offchain_proofs() -> impl EventProofs {
+	OffchainStorageEventProofs::create(TestPersistentOffchainDB::new())
+}
+
 
 #[rstest]
 #[case(in_memory_proofs())]
 #[case(rocksdb_proofs())]
+#[case(offchain_proofs())]
 fn test_add_event_proof(#[case] proofs: impl EventProofs) {
 	let event_id = H256::repeat_byte(1);
 	let witnessed_event = create_witnessed_event(event_id);
@@ -27,6 +38,7 @@ fn test_add_event_proof(#[case] proofs: impl EventProofs) {
 #[rstest]
 #[case(in_memory_proofs())]
 #[case(rocksdb_proofs())]
+#[case(offchain_proofs())]
 fn test_get_proof_count(#[case] proofs: impl EventProofs) {
 	let event_id = H256::repeat_byte(1);
 	let validator_list = get_validator_list();
@@ -43,6 +55,7 @@ fn test_get_proof_count(#[case] proofs: impl EventProofs) {
 #[rstest]
 #[case(in_memory_proofs())]
 #[case(rocksdb_proofs())]
+#[case(offchain_proofs())]
 fn test_remove_stale_events(#[case] proofs: impl EventProofs) {
 	let event_id = H256::repeat_byte(1);
 	let witnessed_event = create_witnessed_event(event_id);
