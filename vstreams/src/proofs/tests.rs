@@ -10,7 +10,7 @@ fn test_add_event_proof_in_mem() {
 }
 #[test]
 fn test_add_event_proof_rocksdb() {
-	let _ = std::fs::remove_dir_all("/tmp/test1");
+	let _ = RocksDbEventProofs::destroy("/tmp/test1");
 	test_add_event_proof(RocksDbEventProofs::create("/tmp/test1"));
 }
 #[test]
@@ -19,7 +19,7 @@ fn test_get_proof_count_in_mem() {
 }
 #[test]
 fn test_get_proof_count_rocksdb() {
-	let _ = std::fs::remove_dir_all("/tmp/test2");
+	let _ = RocksDbEventProofs::destroy("/tmp/test2");
 	test_get_proof_count(RocksDbEventProofs::create("/tmp/test2"));
 }
 #[test]
@@ -28,7 +28,7 @@ fn test_remove_stale_events_in_mem() {
 }
 #[test]
 fn test_remove_stale_events_rocksdb() {
-	let _ = std::fs::remove_dir_all("/tmp/test3");
+	let _ = RocksDbEventProofs::destroy("/tmp/test3");
 	test_remove_stale_events(RocksDbEventProofs::create("/tmp/test3"));
 }
 

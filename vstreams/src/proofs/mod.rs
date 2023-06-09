@@ -144,6 +144,12 @@ impl RocksDbEventProofs {
 	pub fn create(path: &str) -> Self {
 		Self { db: rocksdb::DB::open_default(path).expect("open") }
 	}
+
+	#[cfg(test)]
+	pub fn destroy(path: &str) -> Result<(), Error> {
+		rocksdb::DB::destroy(&rocksdb::Options::default(), path)?;
+		Ok(())
+	}
 }
 
 impl EventProofs for RocksDbEventProofs {
@@ -160,7 +166,7 @@ impl EventProofs for RocksDbEventProofs {
 		event_id: &H256,
 		validators: &[CryptoTypePublicPair],
 	) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error> {
-		// NOTE: to get all proofs, no matter validators list:
+		// NOTE: to get all proofs, no matter who signed them:
 		// self.db.prefix_iterator(event_id).map(|r| { r.map(|(key, signature)| { let pub_key =
 		// bincode::deserialize(&key[H256::len_bytes()..]).unwrap(); (pub_key, signature.into())
 		// }).map_err(|e| e.into())}).collect()
