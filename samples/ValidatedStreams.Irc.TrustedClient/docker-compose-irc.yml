@@ -13,7 +13,7 @@ services:
     image: comradecoop/validated-streams
     ports:
       - "5556:6000"
-    command: --alice
+    command: --alice --node-key fd404d5a8b5dd7222673c3f4983807cf467f95e23b6d326d72f3c985ed0e1608 --grpc-addr 172.19.0.2:6000
     networks:
      mynetwork:
        ipv4_address: 172.19.0.2
@@ -34,7 +34,7 @@ services:
     image: comradecoop/validated-streams
     ports:
       - "5557:6000"
-    command: --bob
+    command: --bob --bootnodes /ip4/172.19.0.2/tcp/30333/p2p/12D3KooWGPJmTWV21XHG6FxVtxXCPCcCwdP5opj4aVsU9jK3ACkB --grpc-addr 172.19.0.3:6000
     networks:
       mynetwork:
         ipv4_address: 172.19.0.3
@@ -52,7 +52,7 @@ services:
     image: comradecoop/validated-streams
     ports:
       - "5558:6000"
-    command: --charlie
+    command: --charlie --bootnodes /ip4/172.19.0.2/tcp/30333/p2p/12D3KooWGPJmTWV21XHG6FxVtxXCPCcCwdP5opj4aVsU9jK3ACkB --grpc-addr 172.19.0.4:6000
     networks:
       mynetwork:
         ipv4_address: 172.19.0.4
@@ -70,7 +70,7 @@ services:
     image: comradecoop/validated-streams
     ports:
       - "5559:6000"
-    command: --dave
+    command: --dave --bootnodes /ip4/172.19.0.2/tcp/30333/p2p/12D3KooWGPJmTWV21XHG6FxVtxXCPCcCwdP5opj4aVsU9jK3ACkB --grpc-addr 172.19.0.5:6000
     networks:
       mynetwork:
         ipv4_address: 172.19.0.5

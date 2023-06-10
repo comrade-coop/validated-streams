@@ -149,7 +149,7 @@ impl StreamsGossipService {
 		match order {
 			StreamsGossipOrder::SendMessage(topic, message) => {
 				if let Err(e) = swarm.behaviour_mut().publish(topic, message.clone()) {
-					log::debug!("Failed Gossiping message with Error: {:?}", e);
+					log::info!("Failed Gossiping message with Error: {:?}", e);
 				}
 				handler.handle(message).await;
 			},
@@ -159,7 +159,7 @@ impl StreamsGossipService {
 			StreamsGossipOrder::Listen(listen_addr) => {
 				log::info!("Listening on {:?}", listen_addr);
 				if let Err(e) = swarm.listen_on(listen_addr) {
-					log::debug!("failed listening on provided Address: {:?}", e);
+					log::info!("Failed listening on provided Address: {:?}", e);
 				}
 			},
 		}

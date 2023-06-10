@@ -73,6 +73,21 @@ where
 		)
 		.await;
 
+		streams_gossip.clone().connect_to(network_configuration
+			.boot_nodes
+			.iter()
+			.map(|a| vs_network_configuration.gossip_port.adjust_multiaddr(a.multiaddr.clone()))
+			.map(|mut addr| {
+				// Remove any /p2p/.. parts since we are using different keys
+				match addr.pop() {
+					Some(libp2p::core::multiaddr::Protocol::P2p(_)) => {},
+					Some(x) => addr.push(x),
+					None => {},
+				}
+				addr
+			})
+			.collect()).await;
+
 		streams_gossip_service.run(event_gossip_handler).await;
 	});
 

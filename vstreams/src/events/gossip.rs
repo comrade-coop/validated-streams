@@ -164,7 +164,9 @@ where
 	async fn handle(&self, message_data: Vec<u8>) {
 		match bincode::deserialize::<WitnessedEvent>(message_data.as_slice()) {
 			Ok(witnessed_event) => {
-				self.handle_witnessed_event(witnessed_event).await.ok();
+				if let Err(e) = self.handle_witnessed_event(witnessed_event).await {
+					log::error!("failed processing message: {:?}", e)
+				}
 			},
 			Err(e) => log::error!("failed deserilizing message data due to error:{:?}", e),
 		}
