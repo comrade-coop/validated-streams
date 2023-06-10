@@ -15,7 +15,9 @@ pub use in_memory::InMemoryEventProofs;
 pub mod offchain;
 pub use offchain::OffchainStorageEventProofs;
 
-mod rocksdb;
+#[cfg(feature = "rocksdb")]
+pub mod rocksdb;
+#[cfg(feature = "rocksdb")]
 pub use self::rocksdb::RocksDbEventProofs;
 
 /// Represents an event that has been witnessed along with its signature
