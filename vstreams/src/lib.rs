@@ -1,7 +1,7 @@
 //! Implementation of the validated streams protocol
 #![feature(async_closure)]
 #![warn(missing_docs)]
-pub mod configs;
+pub mod config;
 pub mod errors;
 pub mod events;
 pub mod gossip;

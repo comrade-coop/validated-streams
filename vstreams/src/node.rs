@@ -1,16 +1,17 @@
 //! A helper for starting all the components needed to run a validated streams node
 
 use crate::{
-	configs::DebugLocalNetworkConfiguration,
+	config::ValidatedStreamsNetworkConfiguration,
 	events::{EventGossipHandler, EventValidator, EventWitnesser},
 	gossip::StreamsGossip,
 	proofs::EventProofsTrait,
 	server,
 };
 use codec::Codec;
-use libp2p::Multiaddr;
+use futures::future;
 use pallet_validated_streams::ExtrinsicDetails;
 use sc_client_api::{BlockBackend, BlockchainEvents, HeaderBackend};
+use sc_network::config::NetworkConfiguration;
 use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
 use sc_transaction_pool_api::LocalTransactionPool;
 use sp_api::{BlockT, HeaderT, ProvideRuntimeApi};
@@ -33,9 +34,8 @@ pub fn start<
 	client: Arc<Client>,
 	keystore: Arc<dyn CryptoStore>,
 	tx_pool: Arc<TxPool>,
-	grpc_port: u16,
-	gossip_port: u16,
-	peers: Vec<Multiaddr>,
+	vs_network_configuration: ValidatedStreamsNetworkConfiguration,
+	network_configuration: NetworkConfiguration,
 ) -> Result<(), ServiceError>
 where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
@@ -49,19 +49,31 @@ where
 {
 	let (streams_gossip, streams_gossip_service) = StreamsGossip::create();
 
-	let self_addr = DebugLocalNetworkConfiguration::self_multiaddr(gossip_port);
 	let event_gossip_handler =
 		Arc::new(EventGossipHandler::new(client.clone(), event_proofs, tx_pool));
 
-	let event_witnesser = Arc::new(EventWitnesser::new(client.clone(), streams_gossip, keystore));
+	let event_witnesser =
+		Arc::new(EventWitnesser::new(client.clone(), streams_gossip.clone(), keystore));
 	let event_validator = Arc::new(EventValidator::new(client));
 
-	spawn_handle.spawn_blocking("gRPC server", None, async move {
-		server::run(event_witnesser, event_validator, grpc_port).await.unwrap()
+	spawn_handle.spawn_blocking("Validated Streams gRPC server", None, async move {
+		server::run(event_witnesser, event_validator, vs_network_configuration.grpc_addr)
+			.await
+			.unwrap()
 	});
 
-	spawn_handle.spawn_blocking("Events service", None, async move {
-		streams_gossip_service.run(self_addr, peers, event_gossip_handler).await;
+	spawn_handle.spawn_blocking("Validated Streams gossip", None, async move {
+		future::join_all(
+			network_configuration
+				.listen_addresses
+				.iter()
+				.map(|a| vs_network_configuration.gossip_port.adjust_multiaddr(a.clone()))
+				.map(|a| (streams_gossip.clone(), a)) // (eh.)
+				.map(async move |(mut streams_gossip, a)| streams_gossip.listen(a).await),
+		)
+		.await;
+
+		streams_gossip_service.run(event_gossip_handler).await;
 	});
 
 	Ok(())

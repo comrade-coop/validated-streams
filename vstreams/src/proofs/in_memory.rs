@@ -1,7 +1,7 @@
 //! Validated streams event proof types and storage
 
+use super::{EventProofsTrait, WitnessedEvent};
 use crate::errors::Error;
-use super::{WitnessedEvent, EventProofsTrait};
 
 use sp_core::H256;
 use sp_runtime::app_crypto::CryptoTypePublicPair;
@@ -19,6 +19,11 @@ impl InMemoryEventProofs {
 	/// Create a new [InMemoryEventProofs] instance
 	pub fn new() -> InMemoryEventProofs {
 		InMemoryEventProofs { proofs: Mutex::new(HashMap::new()) }
+	}
+}
+impl Default for InMemoryEventProofs {
+	fn default() -> Self {
+		Self::new()
 	}
 }
 impl EventProofsTrait for InMemoryEventProofs {
@@ -74,4 +79,3 @@ impl EventProofsTrait for InMemoryEventProofs {
 		Ok(())
 	}
 }
-

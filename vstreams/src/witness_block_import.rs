@@ -74,7 +74,8 @@ impl<
 		Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 		SyncingService: SyncOracle + Send + Sync,
 		AuthorityId: Codec + Send + Sync + 'static,
-	> BlockImport<Block> for WitnessBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
+	> BlockImport<Block>
+	for WitnessBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
 where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
@@ -86,10 +87,7 @@ where
 		&mut self,
 		block: BlockCheckParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
-		return self
-			.parent_block_import
-			.check_block(block)
-			.await
+		return self.parent_block_import.check_block(block).await
 	}
 
 	async fn import_block(
@@ -99,10 +97,7 @@ where
 		let sync_service = self.sync_service.clone().await.unwrap();
 		if sync_service.is_major_syncing() {
 			log::info!("🔁 Node is Syncing");
-			return self
-				.parent_block_import
-				.import_block(block)
-				.await
+			return self.parent_block_import.import_block(block).await
 		}
 
 		if let Some(block_extrinsics) = &block.body {
@@ -141,9 +136,6 @@ where
 			}
 		}
 
-		return self
-			.parent_block_import
-			.import_block(block)
-			.await
+		return self.parent_block_import.import_block(block).await
 	}
 }

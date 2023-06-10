@@ -33,7 +33,7 @@ impl StreamsGossipHandler for MockGossipHandler {
 #[tokio::test]
 pub async fn test_self_message() {
 	let (mut streams_gossip, service) = StreamsGossip::create();
-	let (_, mock_peer_service) = StreamsGossip::create();
+	let (mut mock_peer_gossip, mock_peer_service) = StreamsGossip::create();
 	let tokio_handle = tokio::runtime::Handle::current();
 	let task_manager = TaskManager::new(tokio_handle, None).unwrap();
 	let self_addr: Multiaddr = "/ip4/127.0.0.1/tcp/10001".to_string().parse().unwrap();
@@ -42,15 +42,17 @@ pub async fn test_self_message() {
 	let handler_peer_mock = Arc::new(MockGossipHandler { messages: Mutex::new(Vec::new()) });
 	let witnessed_event = create_witnessed_event();
 	//connections to self should be rejected
-	task_manager.spawn_handle().spawn(
-		"Test",
-		None,
-		service.run(self_addr.clone(), vec![self_addr.clone()], handler_self.clone()),
-	);
+
+	streams_gossip.listen(self_addr.clone()).await;
+	streams_gossip.connect_to(vec![self_addr.clone()]).await;
+	task_manager
+		.spawn_handle()
+		.spawn("Test", None, service.run(handler_self.clone()));
+	mock_peer_gossip.listen(peer_mock_addr.clone()).await;
 	task_manager.spawn_handle().spawn(
 		"Test2",
 		None,
-		mock_peer_service.run(peer_mock_addr.clone(), vec![], handler_peer_mock.clone()),
+		mock_peer_service.run(handler_peer_mock.clone()),
 	);
 
 	// wait for the two peers to start

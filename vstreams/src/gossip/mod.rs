@@ -26,6 +26,7 @@ pub mod tests;
 enum StreamsGossipOrder {
 	SendMessage(IdentTopic, Vec<u8>),
 	DialPeers(Vec<Multiaddr>),
+	Listen(Multiaddr),
 }
 
 /// A struct which can be used to send messages to a libp2p pubsub gossip network.
@@ -46,8 +47,11 @@ enum StreamsGossipOrder {
 /// }
 /// # async fn async_stuff() { // Only doctest compilation, as actual usage blocks forever
 /// let (gossip, service) = StreamsGossip::create();
-/// # let spawn_handle = sc_service::TaskManager::new(tokio::runtime::Handle::current(), None).unwrap().spawn_handle();
-/// service.start(spawn_handle, "/ip4/0.0.0.0/tcp/10000".parse().unwrap(), vec!(), Arc::new(ExampleHandler {})).await;
+/// gossip.clone().listen("/ip4/0.0.0.0/tcp/10000".parse().unwrap());
+/// gossip.clone().connect_to(vec![ "/ip4/0.0.0.0/tcp/10001".parse().unwrap() ]);
+/// tokio::spawn(async move {
+///     service.run(Arc::new(ExampleHandler {})).await;
+/// });
 /// // Later...
 /// gossip.clone().publish(IdentTopic::new("some_topic"), vec!(0, 1, 2, 3)).await;
 /// # }
@@ -92,6 +96,11 @@ impl StreamsGossip {
 		self.send_order(StreamsGossipOrder::DialPeers(peers)).await;
 	}
 
+	/// Listen on an address
+	pub async fn listen(&mut self, address: Multiaddr) {
+		self.send_order(StreamsGossipOrder::Listen(address)).await;
+	}
+
 	/// Sends an order to the internal channel between the StreamsGossip and
 	/// StreamsGossipService::run -- thus creating a rough Actor model out of the two.
 	async fn send_order(&mut self, order: StreamsGossipOrder) {
@@ -107,20 +116,12 @@ impl StreamsGossipService {
 	/// initial_peers, and passing all received messages to a handler
 	// Subscribes to topics, dials the bootstrap peers, and starts listening for messages
 	// Then runs spawns a background loop that handles incoming events
-	pub async fn run<H: StreamsGossipHandler + Send + Sync + 'static>(
-		self,
-		listen_addr: Multiaddr,
-		initial_peers: Vec<Multiaddr>,
-		handler: Arc<H>,
-	) {
+	pub async fn run<H: StreamsGossipHandler + Send + Sync + 'static>(self, handler: Arc<H>) {
 		let mut swarm = Self::create_swarm();
+
 		for topic in H::get_topics() {
 			swarm.behaviour_mut().subscribe(&topic).ok();
 		}
-		log::info!("Listening on {:?}", listen_addr);
-		swarm.listen_on(listen_addr).expect("failed listening on provided Address");
-
-		Self::dial_peers(&mut swarm, &initial_peers);
 
 		Self::run_loop(&mut swarm, self.rc, handler.as_ref()).await;
 	}
@@ -154,6 +155,12 @@ impl StreamsGossipService {
 			},
 			StreamsGossipOrder::DialPeers(peers) => {
 				Self::dial_peers(swarm, &peers);
+			},
+			StreamsGossipOrder::Listen(listen_addr) => {
+				log::info!("Listening on {:?}", listen_addr);
+				if let Err(e) = swarm.listen_on(listen_addr) {
+					log::debug!("failed listening on provided Address: {:?}", e);
+				}
 			},
 		}
 	}

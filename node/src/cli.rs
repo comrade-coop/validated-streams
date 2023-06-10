@@ -1,28 +1,12 @@
-use libp2p::Multiaddr;
 #[derive(Debug, clap::Parser)]
 #[group(skip)]
 pub struct RunCmd {
 	#[clap(flatten)]
 	pub base: sc_cli::RunCmd,
-	#[clap(long, default_value_t = 5555, value_parser = validate_port)]
-	/// grpc port for the current validated streams node
-	pub grpc_port: u16,
-	#[clap(long, default_value_t = 10000, value_parser = validate_port)]
-	/// gossip port for the current validated streams node
-	pub gossip_port: u16,
-	#[clap(long)]
-	/// multiaddresses of the boot nodes
-	pub peers_multiaddr: Vec<Multiaddr>,
+	#[clap(flatten)]
+	pub validated_streams_params: vstreams::config::ValidatedStreamsNetworkParams,
 }
 
-fn validate_port(p: &str) -> Result<u16, String> {
-	let port = p.parse::<u16>().map_err(|_| "Invalid port number")?;
-	if port >= 1024 {
-		Ok(port)
-	} else {
-		Err("Port number must be between 1024 and 65535".to_owned())
-	}
-}
 #[derive(Debug, clap::Parser)]
 pub struct Cli {
 	#[clap(subcommand)]

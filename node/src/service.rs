@@ -1,13 +1,12 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
-use libp2p::Multiaddr;
 use node_runtime::{self, opaque::Block, RuntimeApi};
-use sc_client_api::{BlockBackend, Backend};
+use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_consensus_grandpa::SharedVoterState;
 use sc_executor::NativeElseWasmExecutor;
+use sc_keystore::LocalKeystore;
 #[cfg(not(feature = "on-chain-proofs"))]
 use sc_network_sync::SyncingService;
-use sc_keystore::LocalKeystore;
 use sc_service::{
 	error::Error as ServiceError, Configuration, TFullClient, TaskManager, WarpSyncParams,
 };
@@ -16,9 +15,9 @@ use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-use vstreams::proofs::OffchainStorageEventProofs;
 #[cfg(not(feature = "on-chain-proofs"))]
 use vstreams::WitnessBlockImport;
+use vstreams::{config::ValidatedStreamsNetworkConfiguration, proofs::OffchainStorageEventProofs};
 
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
@@ -80,9 +79,7 @@ type FullPartialComponentsOther = (
 );
 
 /// Build the services a client is composed of, but don't run it yet
-pub fn new_partial(
-	config: &Configuration
-) -> Result<FullPartialComponents, ServiceError> {
+pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, ServiceError> {
 	if config.keystore_remote.is_some() {
 		return Err(ServiceError::Other("Remote Keystores are not supported.".into()))
 	}
@@ -135,7 +132,11 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let event_proofs = Arc::new(OffchainStorageEventProofs::new(backend.offchain_storage().ok_or_else(|| ServiceError::Other("Offchain storage is required.".into()))?));
+	let event_proofs = Arc::new(OffchainStorageEventProofs::new(
+		backend
+			.offchain_storage()
+			.ok_or_else(|| ServiceError::Other("Offchain storage is required.".into()))?,
+	));
 
 	#[cfg(feature = "on-chain-proofs")]
 	let block_import = grandpa_block_import.clone();
@@ -198,9 +199,7 @@ fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
 /// Builds a new service for a full client.
 pub fn new_full(
 	mut config: Configuration,
-	grpc_port: u16,
-	gossip_port: u16,
-	peers_multiaddr: Vec<Multiaddr>,
+	validated_streams_config: ValidatedStreamsNetworkConfiguration,
 ) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
 		client,
@@ -222,9 +221,8 @@ pub fn new_full(
 		client.clone(),
 		keystore_container.keystore(),
 		transaction_pool.clone(),
-		grpc_port,
-		gossip_port,
-		peers_multiaddr,
+		validated_streams_config,
+		config.network.clone(),
 	)?;
 
 	if let Some(url) = &config.keystore_remote {

@@ -1,13 +1,11 @@
 //! Validated streams event proof types and storage
 
+use super::{EventProofsTrait, WitnessedEvent};
 use crate::errors::Error;
-use super::{WitnessedEvent, EventProofsTrait};
 
 use sp_core::{offchain::OffchainStorage, H256};
 use sp_runtime::app_crypto::CryptoTypePublicPair;
-use std::{
-	collections::{HashMap},
-};
+use std::collections::HashMap;
 
 /// persistent database for storing event proofs based on [OffchainStorage]
 pub struct OffchainStorageEventProofs<Storage: OffchainStorage> {

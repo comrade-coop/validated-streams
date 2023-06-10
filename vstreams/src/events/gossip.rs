@@ -37,7 +37,8 @@ pub struct EventGossipHandler<TxPool, Client, EventProofs, AuthorityId> {
 	phantom: PhantomData<AuthorityId>,
 }
 
-impl<TxPool, Client, EventProofs, AuthorityId> EventGossipHandler<TxPool, Client, EventProofs, AuthorityId>
+impl<TxPool, Client, EventProofs, AuthorityId>
+	EventGossipHandler<TxPool, Client, EventProofs, AuthorityId>
 where
 	TxPool: LocalTransactionPool,
 	Client: ProvideRuntimeApi<TxPool::Block>
@@ -52,11 +53,7 @@ where
 	Client::Api: ExtrinsicDetails<TxPool::Block> + AuraApi<TxPool::Block, AuthorityId>,
 {
 	/// Creates a new EventGossipHandler
-	pub fn new(
-		client: Arc<Client>,
-		event_proofs: Arc<EventProofs>,
-		tx_pool: Arc<TxPool>,
-	) -> Self {
+	pub fn new(client: Arc<Client>, event_proofs: Arc<EventProofs>, tx_pool: Arc<TxPool>) -> Self {
 		Self { client, event_proofs, tx_pool, phantom: PhantomData }
 	}
 

@@ -4,9 +4,9 @@ use crate::{
 	errors::Error,
 	traits::{EventValidatorTrait, EventWitnesserTrait},
 };
-use futures::{stream, Stream};
+use futures::{future, stream, Stream};
 use sp_core::H256;
-use std::{pin::Pin, sync::Arc};
+use std::{net::SocketAddr, pin::Pin, sync::Arc};
 use tonic::{transport::Server, Request, Response, Status};
 use validated_streams_proto::{
 	streams_server::{Streams, StreamsServer},
@@ -27,18 +27,25 @@ pub async fn run<
 >(
 	event_witnesser: Arc<EventWitnesser>,
 	event_validator: Arc<EventValidator>,
-	grpc_port: u16,
+	grpc_addrs: Vec<SocketAddr>,
 ) -> Result<(), Error> {
-	log::info!("GRPC server can be reached at 0.0.0.0:{grpc_port}");
-	Server::builder()
-		.add_service(StreamsServer::new(ValidatedStreamsGrpc { event_witnesser, event_validator }))
-		.serve(
-			format!("[::0]:{grpc_port}")
-				.parse()
-				.expect("Failed parsing gRPC server Address"),
-		)
-		.await
-		.map_err(|e| Error::Other(e.to_string()))
+	log::info!(
+		"GRPC server can be reached at {}",
+		grpc_addrs.iter().fold(String::new(), |acc, &arg| format!("{acc}, {arg}"))
+	);
+
+	future::try_join_all(grpc_addrs.into_iter().map(|a| {
+		Server::builder()
+			.add_service(StreamsServer::new(ValidatedStreamsGrpc {
+				event_witnesser: event_witnesser.clone(),
+				event_validator: event_validator.clone(),
+			}))
+			.serve(a)
+	}))
+	.await
+	.map_err(|e| Error::Other(e.to_string()))?;
+
+	Ok(())
 }
 
 /// Implements a GRPC server for submitting event hashes from the trusted client.

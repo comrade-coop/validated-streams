@@ -1,13 +1,11 @@
 //! Validated streams event proof types and storage
 
+use super::{EventProofsTrait, WitnessedEvent};
 use crate::errors::Error;
-use super::{WitnessedEvent, EventProofsTrait};
 
-use sp_core::{H256};
+use sp_core::H256;
 use sp_runtime::app_crypto::CryptoTypePublicPair;
-use std::{
-	collections::{HashMap},
-};
+use std::collections::HashMap;
 
 /// persistent database for storing event proofs
 pub struct RocksDbEventProofs {
@@ -94,4 +92,3 @@ impl EventProofsTrait for RocksDbEventProofs {
 		Ok(())
 	}
 }
-

@@ -2,11 +2,9 @@
 
 use crate::errors::Error;
 use serde::{Deserialize, Serialize};
-use sp_core::{H256};
+use sp_core::H256;
 use sp_runtime::app_crypto::CryptoTypePublicPair;
-use std::{
-	collections::{HashMap},
-};
+use std::collections::HashMap;
 
 #[cfg(test)]
 pub mod tests;
@@ -62,4 +60,3 @@ pub trait EventProofsTrait {
 		validators: &[CryptoTypePublicPair],
 	) -> Result<(), Error>;
 }
-
