@@ -89,11 +89,7 @@ fn it_validates_event() {
 		);
 		//dispatch an extrinsic with an already validated event
 		assert_err!(
-			ValidatedStreams::validate_event(
-				RuntimeOrigin::root(),
-				event_id,
-				Some(proofs_map)
-			),
+			ValidatedStreams::validate_event(RuntimeOrigin::root(), event_id, Some(proofs_map)),
 			pallet_validated_streams::Error::<Test>::AlreadyValidated
 		);
 		//corrupt a signature
