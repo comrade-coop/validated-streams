@@ -107,7 +107,7 @@ pub mod onchain_mod {
 					.sign_with(AURA, &CryptoTypePublicPair::from(key), event_id.as_bytes())
 					.unwrap()
 					.unwrap();
-				(key.clone(), signature.as_slice().try_into().unwrap())
+				(*key, signature.as_slice().try_into().unwrap())
 			})
 			.collect::<BTreeMap<_, _>>()
 			.try_into()

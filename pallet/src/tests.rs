@@ -92,7 +92,7 @@ fn it_validates_event() {
 			ValidatedStreams::validate_event(
 				RuntimeOrigin::root(),
 				event_id,
-				Some(proofs_map.clone())
+				Some(proofs_map)
 			),
 			pallet_validated_streams::Error::<Test>::AlreadyValidated
 		);
