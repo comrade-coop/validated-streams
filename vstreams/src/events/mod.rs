@@ -2,7 +2,7 @@
 
 use crate::{
 	errors::Error,
-	proofs::{EventProofs, WitnessedEvent},
+	proofs::{EventProofsTrait, WitnessedEvent},
 };
 use codec::Codec;
 use pallet_validated_streams::ExtrinsicDetails;
@@ -83,17 +83,17 @@ impl EventServiceBlockState {
 /// calculates the target from the latest finalized block and checks whether each event in ids
 /// reaches the target, it returns a result that contains only the events that did Not reach
 /// the target yet or completely unwitnessed events
-pub fn verify_events_validity<
-	Block: BlockT,
-	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
-	AuthorityId: Codec + Send + Sync + 'static,
->(
+pub fn verify_events_validity<Block, EventProofs, Client, AuthorityId>(
 	client: Arc<Client>,
 	authorities_block_id: <Block as BlockT>::Hash,
-	event_proofs: Arc<dyn EventProofs + Send + Sync>,
+	event_proofs: Arc<EventProofs>,
 	ids: Vec<H256>,
 ) -> Result<Vec<H256>, Error>
 where
+	Block: BlockT,
+	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+	AuthorityId: Codec + Send + Sync + 'static,
+	EventProofs: EventProofsTrait + Send + Sync,
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
 {

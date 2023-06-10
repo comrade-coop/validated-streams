@@ -1,4 +1,4 @@
-//! Substrate Node Template CLI library.
+//! A sample Substrate node supporting the Validated Streams consensus primitive.
 #![warn(missing_docs)]
 mod chain_spec;
 #[macro_use]

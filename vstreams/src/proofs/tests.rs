@@ -1,5 +1,5 @@
 use super::{
-	EventProofs, InMemoryEventProofs, OffchainStorageEventProofs, RocksDbEventProofs,
+	EventProofsTrait, InMemoryEventProofs, OffchainStorageEventProofs, RocksDbEventProofs,
 	WitnessedEvent,
 };
 use rstest::rstest;
@@ -10,27 +10,27 @@ use std::{
 	sync::atomic::{AtomicUsize, Ordering},
 };
 
-fn in_memory_proofs() -> impl EventProofs {
-	InMemoryEventProofs::create()
+fn in_memory_proofs() -> impl EventProofsTrait {
+	InMemoryEventProofs::new()
 }
 
 static ROCKSDB_INSTANCE: AtomicUsize = AtomicUsize::new(1);
-fn rocksdb_proofs() -> impl EventProofs {
+fn rocksdb_proofs() -> impl EventProofsTrait {
 	let path =
 		format!("/tmp/testvstreamsrocksdb{}", ROCKSDB_INSTANCE.fetch_add(1, Ordering::SeqCst));
 	let _ = RocksDbEventProofs::destroy(&path);
 	RocksDbEventProofs::create(&path)
 }
 
-fn offchain_proofs() -> impl EventProofs {
-	OffchainStorageEventProofs::create(TestPersistentOffchainDB::new())
+fn offchain_proofs() -> impl EventProofsTrait {
+	OffchainStorageEventProofs::new(TestPersistentOffchainDB::new())
 }
 
 #[rstest]
 #[case(in_memory_proofs())]
 #[case(rocksdb_proofs())]
 #[case(offchain_proofs())]
-fn test_add_event_proof(#[case] proofs: impl EventProofs) {
+fn test_add_event_proof(#[case] proofs: impl EventProofsTrait) {
 	let event_id = H256::repeat_byte(1);
 	let witnessed_event = create_witnessed_event(event_id);
 
@@ -43,7 +43,7 @@ fn test_add_event_proof(#[case] proofs: impl EventProofs) {
 #[case(in_memory_proofs())]
 #[case(rocksdb_proofs())]
 #[case(offchain_proofs())]
-fn test_get_proof_count(#[case] proofs: impl EventProofs) {
+fn test_get_proof_count(#[case] proofs: impl EventProofsTrait) {
 	let event_id = H256::repeat_byte(1);
 	let validator_list = get_validator_list();
 	let new_validator_list = get_new_validator_list();
@@ -60,7 +60,7 @@ fn test_get_proof_count(#[case] proofs: impl EventProofs) {
 #[case(in_memory_proofs())]
 #[case(rocksdb_proofs())]
 #[case(offchain_proofs())]
-fn test_get_proof_proofs(#[case] proofs: impl EventProofs) {
+fn test_get_proof_proofs(#[case] proofs: impl EventProofsTrait) {
 	let event_id = H256::repeat_byte(1);
 	let validator_list = get_validator_list();
 	let new_validator_list = get_new_validator_list();
@@ -80,7 +80,7 @@ fn test_get_proof_proofs(#[case] proofs: impl EventProofs) {
 #[case(in_memory_proofs())]
 #[case(rocksdb_proofs())]
 #[case(offchain_proofs())]
-fn test_remove_stale_events(#[case] proofs: impl EventProofs) {
+fn test_remove_stale_events(#[case] proofs: impl EventProofsTrait) {
 	let event_id = H256::repeat_byte(1);
 	let witnessed_event = create_witnessed_event(event_id);
 	let validator_list = get_validator_list();

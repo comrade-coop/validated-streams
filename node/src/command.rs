@@ -66,7 +66,7 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, import_queue, .. } =
-					service::new_partial(&config, cli.run.proofs_path)?;
+					service::new_partial(&config)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
@@ -74,7 +74,7 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, .. } =
-					service::new_partial(&config, cli.run.proofs_path)?;
+					service::new_partial(&config)?;
 				Ok((cmd.run(client, config.database), task_manager))
 			})
 		},
@@ -82,7 +82,7 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, .. } =
-					service::new_partial(&config, cli.run.proofs_path)?;
+					service::new_partial(&config)?;
 				Ok((cmd.run(client, config.chain_spec), task_manager))
 			})
 		},
@@ -90,7 +90,7 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, import_queue, .. } =
-					service::new_partial(&config, cli.run.proofs_path)?;
+					service::new_partial(&config)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
@@ -102,7 +102,7 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, backend, .. } =
-					service::new_partial(&config, cli.run.proofs_path)?;
+					service::new_partial(&config)?;
 				let aux_revert = Box::new(|client, _, blocks| {
 					sc_consensus_grandpa::revert(client, blocks)?;
 					Ok(())
@@ -130,7 +130,7 @@ pub fn run() -> sc_cli::Result<()> {
 					},
 					BenchmarkCmd::Block(cmd) => {
 						let PartialComponents { client, .. } =
-							service::new_partial(&config, cli.run.proofs_path)?;
+							service::new_partial(&config)?;
 						cmd.run(client)
 					},
 					#[cfg(not(feature = "runtime-benchmarks"))]
@@ -149,7 +149,7 @@ pub fn run() -> sc_cli::Result<()> {
 					},
 					BenchmarkCmd::Overhead(cmd) => {
 						let PartialComponents { client, .. } =
-							service::new_partial(&config, cli.run.proofs_path)?;
+							service::new_partial(&config)?;
 						let ext_builder = RemarkBuilder::new(client.clone());
 
 						cmd.run(
@@ -162,7 +162,7 @@ pub fn run() -> sc_cli::Result<()> {
 					},
 					BenchmarkCmd::Extrinsic(cmd) => {
 						let PartialComponents { client, .. } =
-							service::new_partial(&config, cli.run.proofs_path)?;
+							service::new_partial(&config)?;
 						// Register the *Remark* and *TKA* builders.
 						let ext_factory = ExtrinsicFactory(vec![
 							Box::new(RemarkBuilder::new(client.clone())),
@@ -214,25 +214,17 @@ pub fn run() -> sc_cli::Result<()> {
 		None => {
 			let runner = cli.create_runner(&cli.run.base)?;
 			runner.run_node_until_exit(|config| async move {
-				if cli.run.peers_multiaddr.is_empty() {
-					service::new_full(
-						config,
-						cli.run.grpc_port,
-						cli.run.gossip_port,
-						DebugLocalNetworkConfiguration::peers_multiaddrs(),
-						cli.run.proofs_path,
-					)
-					.map_err(sc_cli::Error::Service)
-				} else {
-					service::new_full(
-						config,
-						cli.run.grpc_port,
-						cli.run.gossip_port,
-						cli.run.peers_multiaddr,
-						cli.run.proofs_path,
-					)
-					.map_err(sc_cli::Error::Service)
-				}
+				service::new_full(
+					config,
+					cli.run.grpc_port,
+					cli.run.gossip_port,
+					if !cli.run.peers_multiaddr.is_empty() {
+						cli.run.peers_multiaddr
+					} else {
+						DebugLocalNetworkConfiguration::peers_multiaddrs()
+					},
+				)
+				.map_err(sc_cli::Error::Service)
 			})
 		},
 	}

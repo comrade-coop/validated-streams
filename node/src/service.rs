@@ -1,13 +1,12 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 use libp2p::Multiaddr;
 use node_runtime::{self, opaque::Block, RuntimeApi};
-use sc_client_api::BlockBackend;
+use sc_client_api::{BlockBackend, Backend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_consensus_grandpa::SharedVoterState;
 use sc_executor::NativeElseWasmExecutor;
 #[cfg(not(feature = "on-chain-proofs"))]
 use sc_network_sync::SyncingService;
-
 use sc_keystore::LocalKeystore;
 use sc_service::{
 	error::Error as ServiceError, Configuration, TFullClient, TaskManager, WarpSyncParams,
@@ -17,7 +16,7 @@ use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-use vstreams::proofs::{EventProofs, RocksDbEventProofs};
+use vstreams::proofs::OffchainStorageEventProofs;
 #[cfg(not(feature = "on-chain-proofs"))]
 use vstreams::WitnessBlockImport;
 
@@ -61,7 +60,7 @@ type FullPartialComponentsOther = (
 	sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
-	Arc<dyn EventProofs + Send + Sync>,
+	Arc<OffchainStorageEventProofs<<FullBackend as Backend<Block>>::OffchainStorage>>,
 );
 
 #[cfg(not(feature = "on-chain-proofs"))]
@@ -70,19 +69,19 @@ type FullPartialComponentsOther = (
 		Block,
 		sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 		FullClient,
+		OffchainStorageEventProofs<<FullBackend as Backend<Block>>::OffchainStorage>,
 		SyncingService<Block>,
 		AuraId,
 	>,
 	Box<dyn FnOnce(Arc<SyncingService<Block>>)>,
 	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
-	Arc<dyn EventProofs + Send + Sync>,
+	Arc<OffchainStorageEventProofs<<FullBackend as Backend<Block>>::OffchainStorage>>,
 );
 
 /// Build the services a client is composed of, but don't run it yet
 pub fn new_partial(
-	config: &Configuration,
-	proofs_path: String,
+	config: &Configuration
 ) -> Result<FullPartialComponents, ServiceError> {
 	if config.keystore_remote.is_some() {
 		return Err(ServiceError::Other("Remote Keystores are not supported.".into()))
@@ -136,7 +135,7 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let event_proofs = Arc::new(RocksDbEventProofs::create(&proofs_path));
+	let event_proofs = Arc::new(OffchainStorageEventProofs::new(backend.offchain_storage().ok_or_else(|| ServiceError::Other("Offchain storage is required.".into()))?));
 
 	#[cfg(feature = "on-chain-proofs")]
 	let block_import = grandpa_block_import.clone();
@@ -202,7 +201,6 @@ pub fn new_full(
 	grpc_port: u16,
 	gossip_port: u16,
 	peers_multiaddr: Vec<Multiaddr>,
-	proofs_path: String,
 ) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
 		client,
@@ -216,7 +214,7 @@ pub fn new_full(
 			other: (block_import, grandpa_link, mut telemetry, event_proofs),
 		#[cfg(not(feature = "on-chain-proofs"))]
 			other: (block_import, provide_sync_service, grandpa_link, mut telemetry, event_proofs),
-	} = new_partial(&config, proofs_path)?;
+	} = new_partial(&config)?;
 
 	vstreams::node::start(
 		task_manager.spawn_handle(),

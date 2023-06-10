@@ -34,7 +34,7 @@ pub struct WitnessedEvent {
 }
 
 /// Storage for Event proofs
-pub trait EventProofs {
+pub trait EventProofsTrait {
 	/// adds an event proof to the given witnessed event, creating the event if it does not exist
 	fn add_event_proof(&self, event: &WitnessedEvent) -> Result<(), Error>;
 

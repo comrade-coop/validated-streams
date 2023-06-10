@@ -4,7 +4,7 @@ use crate::{
 	configs::DebugLocalNetworkConfiguration,
 	events::{EventGossipHandler, EventValidator, EventWitnesser},
 	gossip::StreamsGossip,
-	proofs::EventProofs,
+	proofs::EventProofsTrait,
 	server,
 };
 use codec::Codec;
@@ -23,12 +23,13 @@ use std::sync::Arc;
 /// Starts the gossip, event service, and the gRPC server for the current validated streams node.
 pub fn start<
 	Block: BlockT,
-	TxPool,
+	TxPool: LocalTransactionPool<Block = Block> + 'static,
 	Client: Sync + Send + 'static,
+	EventProofs: EventProofsTrait + Sync + Send + 'static,
 	AuthorityId: Codec + Send + Sync + 'static,
 >(
 	spawn_handle: SpawnTaskHandle,
-	event_proofs: Arc<dyn EventProofs + Send + Sync>,
+	event_proofs: Arc<EventProofs>,
 	client: Arc<Client>,
 	keystore: Arc<dyn CryptoStore>,
 	tx_pool: Arc<TxPool>,
@@ -38,14 +39,12 @@ pub fn start<
 ) -> Result<(), ServiceError>
 where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
-	Client: ChainInfo<Block>
-		+ HeaderMetadata<Block>
+	Client: HeaderMetadata<Block>
 		+ BlockBackend<Block>
 		+ HeaderBackend<Block>
 		+ BlockchainEvents<Block>
 		+ ProvideRuntimeApi<Block>,
 	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
-	TxPool: LocalTransactionPool<Block = Block> + 'static,
 	<<Block as BlockT>::Header as HeaderT>::Number: Into<u32>,
 {
 	let (streams_gossip, streams_gossip_service) = StreamsGossip::create();

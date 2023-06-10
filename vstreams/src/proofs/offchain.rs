@@ -1,7 +1,7 @@
 //! Validated streams event proof types and storage
 
 use crate::errors::Error;
-use super::{WitnessedEvent, EventProofs};
+use super::{WitnessedEvent, EventProofsTrait};
 
 use sp_core::{offchain::OffchainStorage, H256};
 use sp_runtime::app_crypto::CryptoTypePublicPair;
@@ -23,7 +23,7 @@ impl<Storage: OffchainStorage> OffchainStorageEventProofs<Storage> {
 
 const OFFCHAIN_PREFIX: &[u8] = b"EventProofs";
 
-impl<Storage: OffchainStorage> EventProofs for OffchainStorageEventProofs<Storage> {
+impl<Storage: OffchainStorage> EventProofsTrait for OffchainStorageEventProofs<Storage> {
 	fn add_event_proof(&self, event: &WitnessedEvent) -> Result<(), Error> {
 		self.storage.clone().set(
 			OFFCHAIN_PREFIX,

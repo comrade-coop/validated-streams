@@ -1,7 +1,7 @@
 //! Block import which waits for all events to be witnessed before finalizing a block.
 #![cfg(not(feature = "on-chain-proofs"))]
 
-use crate::{events::verify_events_validity, proofs::EventProofs};
+use crate::{events::verify_events_validity, proofs::EventProofsTrait};
 use codec::Codec;
 use futures::{future::Shared, FutureExt};
 use pallet_validated_streams::ExtrinsicDetails;
@@ -18,22 +18,22 @@ use tokio::sync::oneshot;
 /// Wrapper around a [sc_consensus::BlockImport] which waits for all events to be witnessed in an
 /// [EventProofs] instance before forwarding the block to the next import -- in effect preventing
 /// the finalization for blocks that lack sufficient signatures from the gossip.
-pub struct WitnessBlockImport<Block: BlockT, I, Client, SyncingService, AuthorityId> {
+pub struct WitnessBlockImport<Block: BlockT, I, Client, EventProofs, SyncingService, AuthorityId> {
 	parent_block_import: I,
 	client: Arc<Client>,
-	event_proofs: Arc<dyn EventProofs + Send + Sync>,
+	event_proofs: Arc<EventProofs>,
 	sync_service: Shared<oneshot::Receiver<Arc<SyncingService>>>,
 	phantom: std::marker::PhantomData<(Block, AuthorityId)>,
 }
 
-impl<Block: BlockT, I, Client, SyncingService, AuthorityId>
-	WitnessBlockImport<Block, I, Client, SyncingService, AuthorityId>
+impl<Block: BlockT, I, Client, EventProofs, SyncingService, AuthorityId>
+	WitnessBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
 {
 	/// Create a new [WitnessBlockImport]
 	pub fn new(
 		parent_block_import: I,
 		client: Arc<Client>,
-		event_proofs: Arc<dyn EventProofs + Send + Sync>,
+		event_proofs: Arc<EventProofs>,
 	) -> (Self, impl FnOnce(Arc<SyncingService>)) {
 		let (sync_service_sender, sync_service_receiver) = oneshot::channel();
 
@@ -52,8 +52,8 @@ impl<Block: BlockT, I, Client, SyncingService, AuthorityId>
 	}
 }
 
-impl<Block: BlockT, I: Clone, Client, SyncingService, AuthorityId> Clone
-	for WitnessBlockImport<Block, I, Client, SyncingService, AuthorityId>
+impl<Block: BlockT, I: Clone, Client, EventProofs, SyncingService, AuthorityId> Clone
+	for WitnessBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
 {
 	fn clone(&self) -> Self {
 		Self {
@@ -69,11 +69,12 @@ impl<Block: BlockT, I: Clone, Client, SyncingService, AuthorityId> Clone
 #[async_trait::async_trait]
 impl<
 		Block: BlockT,
-		I: BlockImport<Block> + Send + Sync,
+		I: BlockImport<Block, Error = ConsensusError> + Send + Sync,
+		EventProofs: EventProofsTrait + Send + Sync,
 		Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 		SyncingService: SyncOracle + Send + Sync,
 		AuthorityId: Codec + Send + Sync + 'static,
-	> BlockImport<Block> for WitnessBlockImport<Block, I, Client, SyncingService, AuthorityId>
+	> BlockImport<Block> for WitnessBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
 where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
@@ -89,7 +90,6 @@ where
 			.parent_block_import
 			.check_block(block)
 			.await
-			.map_err(|e| ConsensusError::ClientImport(format!("{e}")))
 	}
 
 	async fn import_block(
@@ -103,7 +103,6 @@ where
 				.parent_block_import
 				.import_block(block)
 				.await
-				.map_err(|e| ConsensusError::ClientImport(format!("{e}")))
 		}
 
 		if let Some(block_extrinsics) = &block.body {
@@ -146,6 +145,5 @@ where
 			.parent_block_import
 			.import_block(block)
 			.await
-			.map_err(|e| ConsensusError::ClientImport(format!("{e}")))
 	}
 }

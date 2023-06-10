@@ -3,7 +3,7 @@
 use crate::{
 	errors::Error,
 	gossip::StreamsGossipHandler,
-	proofs::{EventProofs, WitnessedEvent},
+	proofs::{EventProofsTrait, WitnessedEvent},
 };
 use async_trait::async_trait;
 use codec::Codec;
@@ -30,14 +30,14 @@ pub const WITNESSED_EVENTS_TOPIC: &str = "WitnessedEvent";
 
 /// Service that handles incoming gossip, maintains the [EventProofs] storage,
 /// and submits extrinsics for proofs that we have collected the necessary signatures for.
-pub struct EventGossipHandler<TxPool, Client, AuthorityId> {
-	event_proofs: Arc<dyn EventProofs>,
+pub struct EventGossipHandler<TxPool, Client, EventProofs, AuthorityId> {
+	event_proofs: Arc<EventProofs>,
 	tx_pool: Arc<TxPool>,
 	client: Arc<Client>,
 	phantom: PhantomData<AuthorityId>,
 }
 
-impl<TxPool, Client, AuthorityId> EventGossipHandler<TxPool, Client, AuthorityId>
+impl<TxPool, Client, EventProofs, AuthorityId> EventGossipHandler<TxPool, Client, EventProofs, AuthorityId>
 where
 	TxPool: LocalTransactionPool,
 	Client: ProvideRuntimeApi<TxPool::Block>
@@ -46,6 +46,7 @@ where
 		+ Send
 		+ Sync
 		+ 'static,
+	EventProofs: EventProofsTrait + Send + Sync + 'static,
 	AuthorityId: Codec + Send + Sync + 'static,
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ExtrinsicDetails<TxPool::Block> + AuraApi<TxPool::Block, AuthorityId>,
@@ -53,7 +54,7 @@ where
 	/// Creates a new EventGossipHandler
 	pub fn new(
 		client: Arc<Client>,
-		event_proofs: Arc<dyn EventProofs>,
+		event_proofs: Arc<EventProofs>,
 		tx_pool: Arc<TxPool>,
 	) -> Self {
 		Self { client, event_proofs, tx_pool, phantom: PhantomData }
@@ -144,8 +145,8 @@ where
 }
 
 #[async_trait]
-impl<TxPool, Client, AuthorityId> StreamsGossipHandler
-	for EventGossipHandler<TxPool, Client, AuthorityId>
+impl<TxPool, Client, EventProofs, AuthorityId> StreamsGossipHandler
+	for EventGossipHandler<TxPool, Client, EventProofs, AuthorityId>
 where
 	TxPool: LocalTransactionPool,
 	Client: ProvideRuntimeApi<TxPool::Block>
@@ -154,6 +155,7 @@ where
 		+ Send
 		+ Sync
 		+ 'static,
+	EventProofs: EventProofsTrait + Send + Sync + 'static,
 	AuthorityId: Codec + Send + Sync + 'static,
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ExtrinsicDetails<TxPool::Block> + AuraApi<TxPool::Block, AuthorityId>,

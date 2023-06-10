@@ -1,7 +1,7 @@
 //! Validated streams event proof types and storage
 
 use crate::errors::Error;
-use super::{WitnessedEvent, EventProofs};
+use super::{WitnessedEvent, EventProofsTrait};
 
 use sp_core::{H256};
 use sp_runtime::app_crypto::CryptoTypePublicPair;
@@ -28,7 +28,7 @@ impl RocksDbEventProofs {
 	}
 }
 
-impl EventProofs for RocksDbEventProofs {
+impl EventProofsTrait for RocksDbEventProofs {
 	fn add_event_proof(&self, event: &WitnessedEvent) -> Result<(), Error> {
 		self.db.put(
 			[event.event_id.as_ref(), &bincode::serialize(&event.pub_key)?].concat(),
