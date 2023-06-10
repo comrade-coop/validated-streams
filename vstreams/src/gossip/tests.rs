@@ -36,32 +36,21 @@ pub async fn test_self_message() {
 	let (_, mock_peer_service) = StreamsGossip::create();
 	let tokio_handle = tokio::runtime::Handle::current();
 	let task_manager = TaskManager::new(tokio_handle, None).unwrap();
-	let spawn_handle = task_manager.spawn_handle();
-	let peer_spawn_handle = task_manager.spawn_handle();
 	let self_addr: Multiaddr = "/ip4/127.0.0.1/tcp/10001".to_string().parse().unwrap();
 	let peer_mock_addr: Multiaddr = "/ip4/127.0.0.1/tcp/10002".to_string().parse().unwrap();
-	let mock_handler = Arc::new(MockGossipHandler { messages: Mutex::new(Vec::new()) });
+	let handler_self = Arc::new(MockGossipHandler { messages: Mutex::new(Vec::new()) });
+	let handler_peer_mock = Arc::new(MockGossipHandler { messages: Mutex::new(Vec::new()) });
 	let witnessed_event = create_witnessed_event();
 	//connections to self should be rejected
 	task_manager.spawn_handle().spawn(
 		"Test",
 		None,
-		service.start(
-			spawn_handle,
-			self_addr.clone(),
-			vec![self_addr.clone()],
-			mock_handler.clone(),
-		),
+		service.run(self_addr.clone(), vec![self_addr.clone()], handler_self.clone()),
 	);
 	task_manager.spawn_handle().spawn(
 		"Test2",
 		None,
-		mock_peer_service.start(
-			peer_spawn_handle,
-			peer_mock_addr.clone(),
-			vec![],
-			mock_handler.clone(),
-		),
+		mock_peer_service.run(peer_mock_addr.clone(), vec![], handler_peer_mock.clone()),
 	);
 
 	// wait for the two peers to start
@@ -76,8 +65,10 @@ pub async fn test_self_message() {
 
 	//wait for message to be received by the other peer
 	tokio::time::sleep(Duration::from_millis(1000)).await;
-	assert!(mock_handler.messages.lock().unwrap().len() == 1);
-	assert_eq!(mock_handler.messages.lock().unwrap().get(0).unwrap(), &witnessed_event);
+	assert!(handler_self.messages.lock().unwrap().len() == 1);
+	assert_eq!(handler_self.messages.lock().unwrap().get(0).unwrap(), &witnessed_event);
+	assert!(handler_peer_mock.messages.lock().unwrap().len() == 1);
+	assert_eq!(handler_peer_mock.messages.lock().unwrap().get(0).unwrap(), &witnessed_event);
 }
 fn create_witnessed_event() -> WitnessedEvent {
 	WitnessedEvent {

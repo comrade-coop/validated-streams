@@ -1,8 +1,11 @@
 //! A helper for starting all the components needed to run a validated streams node
 
 use crate::{
-	chain_info::ChainInfo, configs::DebugLocalNetworkConfiguration, events::EventService,
-	gossip::StreamsGossip, proofs::EventProofs, server,
+	configs::DebugLocalNetworkConfiguration,
+	events::{EventGossipHandler, EventValidator, EventWitnesser},
+	gossip::StreamsGossip,
+	proofs::EventProofs,
+	server,
 };
 use codec::Codec;
 use libp2p::Multiaddr;
@@ -47,19 +50,20 @@ where
 {
 	let (streams_gossip, streams_gossip_service) = StreamsGossip::create();
 
-	spawn_handle.clone().spawn_blocking("Event service", None, async move {
-		let self_addr = DebugLocalNetworkConfiguration::self_multiaddr(gossip_port);
-		let events_service = Arc::new(
-			EventService::new(event_proofs, streams_gossip, keystore, tx_pool, client.clone())
-				.await,
-		);
-		streams_gossip_service
-			.start(spawn_handle.clone(), self_addr, peers, events_service.clone())
-			.await;
+	let self_addr = DebugLocalNetworkConfiguration::self_multiaddr(gossip_port);
+	let event_gossip_handler =
+		Arc::new(EventGossipHandler::new(client.clone(), event_proofs, tx_pool));
 
-		spawn_handle.spawn_blocking("gRPC server", None, async move {
-			server::run(client, events_service, grpc_port).await.unwrap()
-		});
+	let event_witnesser = Arc::new(EventWitnesser::new(client.clone(), streams_gossip, keystore));
+	let event_validator = Arc::new(EventValidator::new(client));
+
+	spawn_handle.spawn_blocking("gRPC server", None, async move {
+		server::run(event_witnesser, event_validator, grpc_port).await.unwrap()
 	});
+
+	spawn_handle.spawn_blocking("Events service", None, async move {
+		streams_gossip_service.run(self_addr, peers, event_gossip_handler).await;
+	});
+
 	Ok(())
 }

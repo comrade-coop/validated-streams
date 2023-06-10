@@ -1,4 +1,4 @@
-use crate::proofs::{
+use super::{
 	EventProofs, InMemoryEventProofs, OffchainStorageEventProofs, RocksDbEventProofs,
 	WitnessedEvent,
 };
@@ -96,10 +96,10 @@ fn test_remove_stale_events(#[case] proofs: impl EventProofs) {
 }
 
 fn get_validator_list() -> [CryptoTypePublicPair; 1] {
-	return [CryptoTypePublicPair::from(Public::from_h256(H256::repeat_byte(1)))]
+	[CryptoTypePublicPair::from(Public::from_h256(H256::repeat_byte(1)))]
 }
 fn get_new_validator_list() -> [CryptoTypePublicPair; 1] {
-	return [CryptoTypePublicPair::from(Public::from_h256(H256::repeat_byte(2)))]
+	[CryptoTypePublicPair::from(Public::from_h256(H256::repeat_byte(2)))]
 }
 fn create_witnessed_event(event_id: H256) -> WitnessedEvent {
 	WitnessedEvent {

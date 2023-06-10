@@ -9,6 +9,7 @@ pub mod gossip;
 pub mod node;
 pub mod proofs;
 pub mod server;
+pub mod traits;
 pub mod witness_block_import;
 
 #[cfg(not(feature = "on-chain-proofs"))]

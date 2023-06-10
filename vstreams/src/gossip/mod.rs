@@ -17,7 +17,6 @@ use libp2p::{
 	swarm::SwarmEvent,
 	tcp, tls, Multiaddr, PeerId, Swarm, Transport,
 };
-use sc_service::SpawnTaskHandle;
 use std::sync::Arc;
 #[cfg(test)]
 pub mod tests;
@@ -108,9 +107,8 @@ impl StreamsGossipService {
 	/// initial_peers, and passing all received messages to a handler
 	// Subscribes to topics, dials the bootstrap peers, and starts listening for messages
 	// Then runs spawns a background loop that handles incoming events
-	pub async fn start<H: StreamsGossipHandler + Send + Sync + 'static>(
+	pub async fn run<H: StreamsGossipHandler + Send + Sync + 'static>(
 		self,
-		spawn_handle: SpawnTaskHandle,
 		listen_addr: Multiaddr,
 		initial_peers: Vec<Multiaddr>,
 		handler: Arc<H>,
@@ -119,15 +117,12 @@ impl StreamsGossipService {
 		for topic in H::get_topics() {
 			swarm.behaviour_mut().subscribe(&topic).ok();
 		}
-		let listen_addr =
-			swarm.listen_on(listen_addr).expect("failed listening on provided Address");
 		log::info!("Listening on {:?}", listen_addr);
+		swarm.listen_on(listen_addr).expect("failed listening on provided Address");
 
 		Self::dial_peers(&mut swarm, &initial_peers);
 
-		spawn_handle.spawn_blocking("StreamsGossip", None, async move {
-			Self::run_loop(&mut swarm, self.rc, handler.as_ref()).await;
-		});
+		Self::run_loop(&mut swarm, self.rc, handler.as_ref()).await;
 	}
 
 	/// Runs a select loop that handles events from the network and from orders
@@ -138,19 +133,24 @@ impl StreamsGossipService {
 	) -> ! {
 		loop {
 			select! {
-				order = rc.select_next_some() => Self::handle_incoming_order(swarm, order).await,
+				order = rc.select_next_some() => Self::handle_incoming_order(swarm, order, handler).await,
 				event = swarm.select_next_some() => Self::handle_incoming_event(swarm, event, handler).await,
 			}
 		}
 	}
 
 	/// Handles an incoming channel order
-	async fn handle_incoming_order(swarm: &mut Swarm<Gossipsub>, order: StreamsGossipOrder) {
+	async fn handle_incoming_order<H: StreamsGossipHandler + Send>(
+		swarm: &mut Swarm<Gossipsub>,
+		order: StreamsGossipOrder,
+		handler: &H,
+	) {
 		match order {
 			StreamsGossipOrder::SendMessage(topic, message) => {
-				if let Err(e) = swarm.behaviour_mut().publish(topic, message) {
-					log::info!("Failed Gossiping message with Error: {:?}", e);
+				if let Err(e) = swarm.behaviour_mut().publish(topic, message.clone()) {
+					log::debug!("Failed Gossiping message with Error: {:?}", e);
 				}
+				handler.handle(message).await;
 			},
 			StreamsGossipOrder::DialPeers(peers) => {
 				Self::dial_peers(swarm, &peers);
@@ -165,14 +165,11 @@ impl StreamsGossipService {
 		handler: &H,
 	) {
 		match event {
-			SwarmEvent::NewListenAddr { address, .. } => log::info!("Listening on {:?}", address),
-			SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id, topic}) => {
-				log::info!("{:?} subscribed to topic {:?}",peer_id, topic);
+			SwarmEvent::NewListenAddr { address, .. } => log::debug!("Listening on {:?}", address),
+			SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id, topic }) => {
+				log::debug!("{:?} subscribed to topic {:?}", peer_id, topic);
 			},
-			SwarmEvent::Behaviour(GossipsubEvent::Message {
-				message,
-				..
-			}) => {
+			SwarmEvent::Behaviour(GossipsubEvent::Message { message, .. }) => {
 				handler.handle(message.data).await;
 			},
 			_ => {}
