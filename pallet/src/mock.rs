@@ -94,7 +94,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
 }
 
-#[cfg(feature = "on-chain-proofs")]
+#[cfg(not(feature = "off-chain-proofs"))]
 pub mod onchain_mod {
 	use crate::mock::*;
 	pub use crate::Config;

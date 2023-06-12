@@ -55,7 +55,7 @@ sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/subs
 rstest = "0.17.0"
 
 [features]
-default = ["rocksdb"]
-on-chain-proofs = ["pallet-validated-streams/on-chain-proofs"]
+default = ["rocksdb", "off-chain-proofs"]
+off-chain-proofs = ["pallet-validated-streams/off-chain-proofs"]
 runtime-benchmarks = ["pallet-validated-streams/runtime-benchmarks", "frame-benchmarking/runtime-benchmarks", "frame-benchmarking-cli/runtime-benchmarks"]
 rocksdb = ["dep:rocksdb"]

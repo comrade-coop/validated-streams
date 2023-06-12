@@ -1,5 +1,5 @@
 //! Block import which waits for all events to be witnessed before finalizing a block.
-#![cfg(not(feature = "on-chain-proofs"))]
+#![cfg(feature = "off-chain-proofs")]
 
 use crate::{events::verify_events_validity, proofs::EventProofsTrait};
 use codec::Codec;

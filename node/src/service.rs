@@ -5,17 +5,17 @@ use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_consensus_grandpa::SharedVoterState;
 use sc_executor::NativeElseWasmExecutor;
 use sc_keystore::LocalKeystore;
-#[cfg(not(feature = "on-chain-proofs"))]
+#[cfg(feature = "off-chain-proofs")]
 use sc_network_sync::SyncingService;
 use sc_service::{
 	error::Error as ServiceError, Configuration, TFullClient, TaskManager, WarpSyncParams,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
-#[cfg(not(feature = "on-chain-proofs"))]
+#[cfg(feature = "off-chain-proofs")]
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-#[cfg(not(feature = "on-chain-proofs"))]
+#[cfg(feature = "off-chain-proofs")]
 use vstreams::WitnessBlockImport;
 use vstreams::{config::ValidatedStreamsNetworkConfiguration, proofs::OffchainStorageEventProofs};
 
@@ -54,7 +54,7 @@ type FullPartialComponents = sc_service::PartialComponents<
 	FullPartialComponentsOther,
 >;
 
-#[cfg(feature = "on-chain-proofs")]
+#[cfg(not(feature = "off-chain-proofs"))]
 type FullPartialComponentsOther = (
 	sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
@@ -62,7 +62,7 @@ type FullPartialComponentsOther = (
 	Arc<OffchainStorageEventProofs<<FullBackend as Backend<Block>>::OffchainStorage>>,
 );
 
-#[cfg(not(feature = "on-chain-proofs"))]
+#[cfg(feature = "off-chain-proofs")]
 type FullPartialComponentsOther = (
 	WitnessBlockImport<
 		Block,
@@ -138,9 +138,9 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 			.ok_or_else(|| ServiceError::Other("Offchain storage is required.".into()))?,
 	));
 
-	#[cfg(feature = "on-chain-proofs")]
+	#[cfg(not(feature = "off-chain-proofs"))]
 	let block_import = grandpa_block_import.clone();
-	#[cfg(not(feature = "on-chain-proofs"))]
+	#[cfg(feature = "off-chain-proofs")]
 	let (block_import, provide_sync_service) =
 		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
@@ -176,9 +176,9 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		#[cfg(feature = "on-chain-proofs")]
+		#[cfg(not(feature = "off-chain-proofs"))]
 		other: (block_import, grandpa_link, telemetry, event_proofs),
-		#[cfg(not(feature = "on-chain-proofs"))]
+		#[cfg(feature = "off-chain-proofs")]
 		other: (
 			block_import,
 			Box::new(provide_sync_service),
@@ -209,9 +209,9 @@ pub fn new_full(
 		mut keystore_container,
 		select_chain,
 		transaction_pool,
-		#[cfg(feature = "on-chain-proofs")]
+		#[cfg(not(feature = "off-chain-proofs"))]
 			other: (block_import, grandpa_link, mut telemetry, event_proofs),
-		#[cfg(not(feature = "on-chain-proofs"))]
+		#[cfg(feature = "off-chain-proofs")]
 			other: (block_import, provide_sync_service, grandpa_link, mut telemetry, event_proofs),
 	} = new_partial(&config)?;
 
@@ -260,7 +260,7 @@ pub fn new_full(
 			warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
 		})?;
 
-	#[cfg(not(feature = "on-chain-proofs"))]
+	#[cfg(feature = "off-chain-proofs")]
 	provide_sync_service(sync_service.clone());
 
 	if config.offchain_worker.enabled {

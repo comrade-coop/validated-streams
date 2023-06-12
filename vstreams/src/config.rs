@@ -13,7 +13,7 @@ pub type ValidatedStreamsNetworkConfiguration = ValidatedStreamsNetworkParams;
 pub struct ValidatedStreamsNetworkParams {
 	/// Address to listen to grpc calls for the current validated streams node
 	/// Ideally, only open to the local machine
-	#[clap(long, default_value = "127.0.0.1:5555")]
+	#[clap(long, default_value = "127.0.0.1:6000")]
 	pub grpc_addr: Vec<SocketAddr>,
 	/// port used for libp2p gossipsub in the validated streams code
 	/// note that the same addresses will be used as for the substrate network

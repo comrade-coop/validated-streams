@@ -28,8 +28,8 @@ sp-consensus-aura = { version = "0.10.0-dev", default-features = true, git = "ht
 rstest = "0.17.0"
 
 [features]
-default = ["std"]
+default = ["std", "off-chain-proofs"]
 std = ["codec/std", "frame-benchmarking/std", "frame-support/std", "frame-system/std", "scale-info/std"]
-on-chain-proofs = []
+off-chain-proofs = []
 runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks"]
 try-runtime = ["frame-support/try-runtime"]

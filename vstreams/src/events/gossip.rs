@@ -75,9 +75,9 @@ where
 			.get_event_proof_count(&witnessed_event.event_id, &block_state.validators)?;
 
 		if proof_count >= block_state.target() {
-			#[cfg(not(feature = "on-chain-proofs"))]
+			#[cfg(feature = "off-chain-proofs")]
 			let proofs = None;
-			#[cfg(feature = "on-chain-proofs")]
+			#[cfg(not(feature = "off-chain-proofs"))]
 			let proofs = Some(
 				self.event_proofs
 					.get_event_proofs(&witnessed_event.event_id, &block_state.validators)?,

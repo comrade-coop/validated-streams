@@ -69,8 +69,8 @@ substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/pa
 tonic-build = "0.8"
 
 [features]
-default = []
-on-chain-proofs = [ "vstreams/on-chain-proofs", "node-runtime/on-chain-proofs" ]
+default = ["off-chain-proofs"]
+off-chain-proofs = [ "vstreams/off-chain-proofs", "node-runtime/off-chain-proofs" ]
 runtime-benchmarks = [
 	"node-runtime/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",

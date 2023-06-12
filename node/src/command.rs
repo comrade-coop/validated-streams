@@ -137,7 +137,7 @@ pub fn run() -> sc_cli::Result<()> {
 					#[cfg(feature = "runtime-benchmarks")]
 					BenchmarkCmd::Storage(cmd) => {
 						let PartialComponents { client, backend, .. } =
-							service::new_partial(&config, cli.run.proofs_path)?;
+							service::new_partial(&config)?;
 						let db = backend.expose_db();
 						let storage = backend.expose_storage();
 

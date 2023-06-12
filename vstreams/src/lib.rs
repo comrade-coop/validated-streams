@@ -11,5 +11,5 @@ pub mod server;
 pub mod traits;
 pub mod witness_block_import;
 
-#[cfg(not(feature = "on-chain-proofs"))]
+#[cfg(feature = "off-chain-proofs")]
 pub use witness_block_import::WitnessBlockImport;

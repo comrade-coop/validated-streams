@@ -9,8 +9,8 @@ Prerequisites:
 
 * [Docker](https://docs.docker.com/get-docker/) with [docker-compose](https://docs.docker.com/compose/install/) ([Podman](https://github.com/containers/podman) with [podman-compose](https://github.com/containers/podman-compose) should work too)
 * [grpcurl](https://github.com/fullstorydev/grpcurl)
-* [pumba](https://github.com/alexei-led/pumba/releases) for Network Resilience example
-    * when downloading pumba binary from [release](https://github.com/alexei-led/pumba/releases), Ensure that the "pumba" command is accessible in the system's path.
+* [pumba](https://github.com/alexei-led/pumba/releases) for the network resilience example
+    * When downloading the `pumba` binary from [releases](https://github.com/alexei-led/pumba/releases), ensure that the "pumba" command is accessible in your system's PATH.
 
 1. Witnessing events:
 
@@ -107,20 +107,30 @@ cargo build --release --features on-chain-proofs
 ## Testing
 To run the tests, use the following commands in the root directory of the project:
 
-#### validated-streams crate:
-```
-cargo test -p vstreams
-```
+#### Validated-streams crate:
+* Default:
+  ```
+  cargo test -p vstreams
+  ```
+* Only with on-chain proofs:
+    ```
+    cargo test -p vstreams --no-default-features
+    ```
 #### Pallet:
 * Default:
 
     ```
     cargo test -p pallet-validated-streams
     ```
-* On-chain Proofs:
+* With on-chain proofs:
     ```
-    cargo test -p pallet-validated-streams --features on-chain-proofs
+    cargo test -p pallet-validated-streams --no-default-features
     ```
+    (off-chain proofs is a default feature, and happens to be the only default feature of the pallet)
+#### Integration tests:
+
+The other two crates, `runtime` and `node`, are mainly used in integration tests. We test them by running the `scripts/run-example.sh` script as described near the start of this README, and observing that the network produces validated events as an output.
+
 ## Benchmarking
 
 * default
@@ -128,13 +138,6 @@ cargo test -p vstreams
     cargo build --release --features runtime-benchmarks
     ```
 * On-chain proofs:
-
-    * add `on-chain-proofs` feature as a dependency to runtime-benchmakrs feature in `pallet/Cargo.toml`:
-        ```
-        runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks","on-chain-proofs"]
-        ```
-
-    * re-run the build command:
-        ```
-        cargo build --release --features runtime-benchmarks
-        ```
+    ```
+    cargo build --release --no-default-features --features runtime-benchmarks
+    ```

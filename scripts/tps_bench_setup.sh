@@ -36,8 +36,7 @@ ARGS=(
   --name "validator$ID"
   --password "$ID"
   --pool-limit 23000
-  --grpc-port 6000
-  --gossip-port 15000
+  --grpc-addr 127.0.0.1:6000
 )
 
 if [ "$BOOTNODE" != "" ]; then

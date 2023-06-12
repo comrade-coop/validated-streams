@@ -21,9 +21,9 @@ fn test_validate_unsigned() {
 		assert_ok!(ValidatedStreams::validate_unsigned(TransactionSource::Local, &call));
 		assert_ok!(ValidatedStreams::validate_unsigned(TransactionSource::InBlock, &call));
 
-		#[cfg(feature = "on-chain-proofs")]
+		#[cfg(not(feature = "off-chain-proofs"))]
 		let proofs_map = Some(crate::mock::onchain_mod::proofs(&event_id));
-		#[cfg(not(feature = "on-chain-proofs"))]
+		#[cfg(feature = "off-chain-proofs")]
 		let proofs_map = None;
 
 		assert_ok!(ValidatedStreams::validate_event(RuntimeOrigin::none(), event_id, proofs_map));
@@ -36,7 +36,7 @@ fn test_validate_unsigned() {
 
 /// dispatch an event to the streams StorageMap and check whether an en event has been raised
 /// then dispatch the same event to verify Error handling since duplicates are not allowed
-#[cfg(not(feature = "on-chain-proofs"))]
+#[cfg(feature = "off-chain-proofs")]
 #[test]
 fn it_adds_event() {
 	new_test_ext().execute_with(|| {
@@ -62,7 +62,7 @@ fn it_adds_event() {
 	})
 }
 
-#[cfg(feature = "on-chain-proofs")]
+#[cfg(not(feature = "off-chain-proofs"))]
 #[test]
 fn it_validates_event() {
 	use crate::mock::onchain_mod::*;
@@ -153,7 +153,7 @@ fn it_validates_event() {
 	})
 }
 
-#[cfg(feature = "on-chain-proofs")]
+#[cfg(not(feature = "off-chain-proofs"))]
 #[rstest::rstest]
 #[case(3, 3)]
 #[case(4, 3)]
