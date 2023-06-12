@@ -44,41 +44,14 @@ Prerequisites:
     ./scripts/run-example.sh build
     ./scripts/run-example.sh run
     ```
-2. Network Resilience Testing:
+2. Network resilience testing:
 
     The following example applies packet loss, frequent crash-recovery, and delayed packets to emulate challenging and poor network conditions. It tests the behavior and resilience of validators within the network under these adverse scenarios.
 
     ```
     ./scripts/run-example.sh disturb
     ```
-3. Witnessing events from IRC:
-
-    Finally, to demonstrate an more realistic usecase of Validated Streams, we have set up an example of a validators listening on an IRC channel, submitting events from it to a blockchain, and reporting back to users when those events have been finalized. As it is, extending the example to support a token economics or to verify user identities is left as an exercise to the reader.
-    Running the example:
-
-    1. Build the necessary docker images:
-        ```
-        ./scripts/run-example.sh build --irc-sample
-        ```
-    2. Start the local network of validators, trusted clients, and an IRC server:
-        ```
-        ./scripts/run-example.sh start --irc-sample
-        ```
-    3. Connect to the local IRC server at [`localhost:6667`](irc://localhost:6667/validated-stream) (non-TLS), join `#validated-stream` and send a message. Sample interaction:
-        ```
-        * Now talking on #validated-stream
-        <user> bot-bob: help
-        <bot-bob> user: !w[itness] <data> -- create and witness a validated-streams event
-        <user> !w this is a test event for the README
-        <bot-charlie> user: witnessing BE807ED3F92D7C8228302829F829B827E2F7C8338B17A736CAF8AF18403E68F1...
-        <bot-charlie> user: BE807ED3F92D7C8228302829F829B827E2F7C8338B17A736CAF8AF18403E68F1 validated!
-        ```
-
-        Empirical testing shows that events are validated in roughly ~16 seconds by the sample network.
-    4. Stop the network when you are finished:
-        ```
-        ./scripts/run-example.sh stop --irc-sample
-        ```
+3. Witnessing events from IRC: To demonstrate a more-realitic example, we have set up [a sample which witnesses events from an IRC network](samples/ValidatedStreams.Irc.TrustedClient/README.md).
 
 ## Architecture
 ![Diagram of Validated Streams, with a grpc service ingesting events from an application, passing them to a gossip, which then leads to on-chain transactions, that, after block finalization, get forwarded back to the application. (validated-streams.drawio.png)](https://user-images.githubusercontent.com/5276727/211316562-ad73fdd0-0dec-4543-884e-fe60cb09ee7a.png)

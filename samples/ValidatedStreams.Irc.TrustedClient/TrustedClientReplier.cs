@@ -23,10 +23,10 @@ namespace ValidatedStreams.Irc;
 /// the later we are going to send a reply. If anyone replies earlier, we cancel the timer -- since the reply is
 /// already in.
 /// In fact, we apply a nonlinear function to the order; that way, an attacker seeking to slow the replies down
-/// by adding a bunch of "fake" trusted clients, would need a non-linear amount of fake clients for only any given
+/// by adding a bunch of "fake" trusted clients, would need a non-linear amount of fake clients for only a linear
 /// increase in wait time. Here we use sqrt(x) as being less likely to swamp the user in case of attack than log(x-1).
-/// This has the drawback that unresponsive clients won't be removed from the list despite not sending messages,
-/// but on the plus side, it is a really simple way of solving the problem at hand.
+/// This implementation currently suffers the drawback that unresponsive clients won't be removed from the list
+/// despite failing to send messages, but on the plus side, it is kept simple and stateless.
 public class TrustedClientReplier
 {
     private ConcurrentDictionary<ByteString, Timer?> ReplyTimers = new();
