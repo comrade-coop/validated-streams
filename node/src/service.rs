@@ -16,7 +16,7 @@ use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
 #[cfg(feature = "off-chain-proofs")]
-use vstreams::WitnessBlockImport;
+use vstreams::ValidatedStreamsBlockImport;
 use vstreams::{config::ValidatedStreamsNetworkConfiguration, proofs::OffchainStorageEventProofs};
 
 type FullBackend = sc_service::TFullBackend<Block>;
@@ -64,7 +64,7 @@ type FullPartialComponentsOther = (
 
 #[cfg(feature = "off-chain-proofs")]
 type FullPartialComponentsOther = (
-	WitnessBlockImport<
+	ValidatedStreamsBlockImport<
 		Block,
 		sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 		FullClient,
@@ -142,7 +142,7 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 	let block_import = grandpa_block_import.clone();
 	#[cfg(feature = "off-chain-proofs")]
 	let (block_import, provide_sync_service) =
-		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
+		ValidatedStreamsBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
 	let import_queue =

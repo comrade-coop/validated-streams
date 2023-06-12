@@ -15,10 +15,10 @@ pub mod node;
 pub mod proofs;
 pub mod server;
 pub mod traits;
-pub mod witness_block_import;
+pub mod block_import;
 
 #[cfg(feature = "off-chain-proofs")]
-pub use witness_block_import::WitnessBlockImport;
+pub use block_import::ValidatedStreamsBlockImport;
 
 pub use config::ValidatedStreamsNetworkConfiguration;
 

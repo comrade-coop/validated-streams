@@ -22,7 +22,7 @@ use tokio::sync::oneshot;
 /// behind (as determined by [SyncingService::is_major_syncing]), the node will start forwarding
 /// blocks directly to the internal [BlockImport], regardless of signatures. This is intended to
 /// help in cases where a single missing event proof hangs the whole node.
-pub struct WitnessBlockImport<Block: BlockT, I, Client, EventProofs, SyncingService, AuthorityId> {
+pub struct ValidatedStreamsBlockImport<Block: BlockT, I, Client, EventProofs, SyncingService, AuthorityId> {
 	parent_block_import: I,
 	client: Arc<Client>,
 	event_proofs: Arc<EventProofs>,
@@ -31,9 +31,9 @@ pub struct WitnessBlockImport<Block: BlockT, I, Client, EventProofs, SyncingServ
 }
 
 impl<Block: BlockT, I, Client, EventProofs, SyncingService, AuthorityId>
-	WitnessBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
+	ValidatedStreamsBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
 {
-	/// Create a new [WitnessBlockImport]
+	/// Create a new [ValidatedStreamsBlockImport]
 	pub fn new(
 		parent_block_import: I,
 		client: Arc<Client>,
@@ -57,7 +57,7 @@ impl<Block: BlockT, I, Client, EventProofs, SyncingService, AuthorityId>
 }
 
 impl<Block: BlockT, I: Clone, Client, EventProofs, SyncingService, AuthorityId> Clone
-	for WitnessBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
+	for ValidatedStreamsBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
 {
 	fn clone(&self) -> Self {
 		Self {
@@ -79,7 +79,7 @@ impl<
 		SyncingService: SyncOracle + Send + Sync,
 		AuthorityId: Codec + Send + Sync + 'static,
 	> BlockImport<Block>
-	for WitnessBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
+	for ValidatedStreamsBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
 where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ValidatedStreamsApi<Block> + AuraApi<Block, AuthorityId>,
