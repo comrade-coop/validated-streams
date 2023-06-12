@@ -1,5 +1,5 @@
-//! A GRPC server for submitting event hashes from a trusted client.
-
+//! A GRPC server for easier use of a validated streams node by external trusted clients.
+/// See <https://github.com/comrade-coop/validated-streams/blob/master/proto/streams.proto> for the protobuf file and associated documentation. (or check [self::validated_streams_proto] out)
 use crate::{
 	errors::Error,
 	traits::{EventValidatorTrait, EventWitnesserTrait},
@@ -14,13 +14,13 @@ use validated_streams_proto::{
 	WitnessEventResponse,
 };
 
-/// The GRPC/protobuf module implemented by the GRPC server
+/// The protobuf module implemented by this server.
 pub mod validated_streams_proto {
 	#![allow(missing_docs)]
 	tonic::include_proto!("validated_streams");
 }
 
-/// Run a GRPC server with the ValidatedStreamsGrpc service.
+/// Run a GRPC server with the ValidatedStreamsGrpc service on the specified listen addresses.
 pub async fn run<
 	EventWitnesser: EventWitnesserTrait + Sync + Send + 'static,
 	EventValidator: EventValidatorTrait + Sync + Send + 'static,
@@ -48,14 +48,15 @@ pub async fn run<
 	Ok(())
 }
 
-/// Implements a GRPC server for submitting event hashes from the trusted client.
-/// See <https://github.com/comrade-coop/validated-streams/blob/master/proto/streams.proto>) for the protobuf file and associated documentation.
+/// Implements a GRPC serivce which allows submitting event hashes from the trusted client and
+/// streaming the finalized events out to the same.
 pub struct ValidatedStreamsGrpc<EventWitnesser, EventValidator> {
 	/// A [EventWitnesserTrait] instance.
 	pub event_witnesser: Arc<EventWitnesser>,
 	/// A [EventValidatorTrait] instance.
 	pub event_validator: Arc<EventValidator>,
 }
+
 #[tonic::async_trait]
 impl<
 		EventWitnesser: EventWitnesserTrait + Sync + Send + 'static,

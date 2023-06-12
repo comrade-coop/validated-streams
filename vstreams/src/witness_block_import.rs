@@ -4,7 +4,7 @@
 use crate::{events::verify_events_validity, proofs::EventProofsTrait};
 use codec::Codec;
 use futures::{future::Shared, FutureExt};
-use pallet_validated_streams::ExtrinsicDetails;
+use pallet_validated_streams::ValidatedStreamsApi;
 use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult};
 
 use sp_api::{HeaderT, ProvideRuntimeApi};
@@ -15,9 +15,13 @@ use sp_runtime::{app_crypto::CryptoTypePublicPair, traits::Block as BlockT};
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::oneshot;
 
-/// Wrapper around a [sc_consensus::BlockImport] which waits for all events to be witnessed in an
-/// [EventProofs] instance before forwarding the block to the next import -- in effect preventing
-/// the finalization for blocks that lack sufficient signatures from the gossip.
+/// Wrapper around a [BlockImport] which expects all events in the block to be witnessed in an
+/// [EventProofs] instance before allowing the block to pass to the the next import -- thus
+/// precluding nodes from building on top of blocks containing unwitnessed events and preventing the
+/// the finalization of blocks that lack sufficient signatures. Currently, when the node falls
+/// behind (as determined by [SyncingService::is_major_syncing]), the node will start forwarding
+/// blocks directly to the internal [BlockImport], regardless of signatures. This is intended to
+/// help in cases where a single missing event proof hangs the whole node.
 pub struct WitnessBlockImport<Block: BlockT, I, Client, EventProofs, SyncingService, AuthorityId> {
 	parent_block_import: I,
 	client: Arc<Client>,
@@ -78,7 +82,7 @@ impl<
 	for WitnessBlockImport<Block, I, Client, EventProofs, SyncingService, AuthorityId>
 where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
-	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
+	Client::Api: ValidatedStreamsApi<Block> + AuraApi<Block, AuthorityId>,
 {
 	type Error = ConsensusError;
 	type Transaction = I::Transaction;

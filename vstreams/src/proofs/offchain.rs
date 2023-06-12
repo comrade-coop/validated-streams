@@ -7,37 +7,39 @@ use sp_core::{offchain::OffchainStorage, H256};
 use sp_runtime::app_crypto::CryptoTypePublicPair;
 use std::collections::HashMap;
 
-/// persistent database for storing event proofs based on [OffchainStorage]
+///  A persistent database for storing event proofs in [OffchainStorage]
 pub struct OffchainStorageEventProofs<Storage: OffchainStorage> {
 	storage: Storage,
 }
 
 impl<Storage: OffchainStorage> OffchainStorageEventProofs<Storage> {
-	/// returns a OffchainStorageEventProofs instance that persists data in the provided [Storage]
+	/// The prefix under which data is persisted in the OffchainStorage
+	pub const OFFCHAIN_PREFIX: &[u8] = b"EventProofs";
+
+	/// Returns a OffchainStorageEventProofs instance that persists data in the provided
+	/// [OffchainStorage]
 	pub fn new(storage: Storage) -> Self {
 		Self { storage }
 	}
 }
 
-const OFFCHAIN_PREFIX: &[u8] = b"EventProofs";
-
 impl<Storage: OffchainStorage> EventProofsTrait for OffchainStorageEventProofs<Storage> {
 	fn add_event_proof(&self, event: &WitnessedEvent) -> Result<(), Error> {
 		self.storage.clone().set(
-			OFFCHAIN_PREFIX,
+			Self::OFFCHAIN_PREFIX,
 			&[event.event_id.as_ref(), &bincode::serialize(&event.pub_key)?].concat(),
 			&event.signature,
 		);
 
 		loop {
-			let existing_bytes = self.storage.get(OFFCHAIN_PREFIX, event.event_id.as_ref());
+			let existing_bytes = self.storage.get(Self::OFFCHAIN_PREFIX, event.event_id.as_ref());
 			let mut signers_list = existing_bytes
 				.as_ref()
 				.map(|b| bincode::deserialize::<Vec<CryptoTypePublicPair>>(b.as_ref()))
 				.unwrap_or_else(|| Ok(vec![]))?;
 			signers_list.push(event.pub_key.clone());
 			if self.storage.clone().compare_and_set(
-				OFFCHAIN_PREFIX,
+				Self::OFFCHAIN_PREFIX,
 				event.event_id.as_ref(),
 				existing_bytes.as_ref().map(|x| x.as_ref()),
 				&bincode::serialize(&signers_list)?,
@@ -58,7 +60,7 @@ impl<Storage: OffchainStorage> EventProofsTrait for OffchainStorageEventProofs<S
 			.flat_map(|pub_key| {
 				self.storage
 					.get(
-						OFFCHAIN_PREFIX,
+						Self::OFFCHAIN_PREFIX,
 						&[event_id.as_ref(), &bincode::serialize(pub_key).unwrap()].concat(),
 					)
 					.map(|signature| (pub_key.clone(), signature))
@@ -75,7 +77,7 @@ impl<Storage: OffchainStorage> EventProofsTrait for OffchainStorageEventProofs<S
 			.iter()
 			.map(|pub_key| {
 				self.storage.get(
-					OFFCHAIN_PREFIX,
+					Self::OFFCHAIN_PREFIX,
 					&[event_id.as_ref(), &bincode::serialize(pub_key).unwrap()].concat(),
 				)
 			})
@@ -89,7 +91,7 @@ impl<Storage: OffchainStorage> EventProofsTrait for OffchainStorageEventProofs<S
 		validators: &[CryptoTypePublicPair],
 	) -> Result<(), Error> {
 		loop {
-			let existing_bytes = self.storage.get(OFFCHAIN_PREFIX, event_id.as_ref());
+			let existing_bytes = self.storage.get(Self::OFFCHAIN_PREFIX, event_id.as_ref());
 			let mut signers_list = existing_bytes
 				.as_ref()
 				.map(|b| bincode::deserialize::<Vec<CryptoTypePublicPair>>(b.as_ref()))
@@ -98,7 +100,7 @@ impl<Storage: OffchainStorage> EventProofsTrait for OffchainStorageEventProofs<S
 			signers_list.retain(|pub_key| {
 				if !validators.contains(pub_key) {
 					self.storage.clone().remove(
-						OFFCHAIN_PREFIX,
+						Self::OFFCHAIN_PREFIX,
 						&[event_id.as_ref(), &bincode::serialize(pub_key).unwrap()].concat(),
 					);
 					false
@@ -108,7 +110,7 @@ impl<Storage: OffchainStorage> EventProofsTrait for OffchainStorageEventProofs<S
 			});
 
 			if self.storage.clone().compare_and_set(
-				OFFCHAIN_PREFIX,
+				Self::OFFCHAIN_PREFIX,
 				event_id.as_ref(),
 				existing_bytes.as_ref().map(|x| x.as_ref()),
 				&bincode::serialize(&signers_list)?,

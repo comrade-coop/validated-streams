@@ -1,25 +1,32 @@
-//! Configurations used by the Validated Streams node
+//! Configurations needed by the Validated Streams node
 
 use libp2p::{core::multiaddr::Protocol, Multiaddr};
 
 use std::{fmt, net::SocketAddr, str::FromStr};
 
-/// Network configuration for the Validated Streams node (type alias for now, might change under
-/// future refactorings)
+/// Network configuration for the Validated Streams node
+/// Currently this is a type alias to [ValidatedStreamsNetworkParams], but would be changed to its
+/// own struct as soon as there is extra validation to be done.
 pub type ValidatedStreamsNetworkConfiguration = ValidatedStreamsNetworkParams;
 
-/// Network configuration for the Validated Streams node
+/// Command-line parameters for the network configuration of the Validated Streams node
 #[derive(Debug, Clone, clap::Args)]
 pub struct ValidatedStreamsNetworkParams {
-	/// Address to listen to grpc calls for the current validated streams node
-	/// Ideally, only open to the local machine
+	/// Address to listen to GRPC calls from Validated Streams trusted clients
+	/// Do not expose to external machines or public-facing addresses as doing so is extremely
+	/// insecure and would result in anyone being able to trick this node into witnessing arbitrary
+	/// events.
 	#[clap(long, default_value = "127.0.0.1:6000")]
 	pub grpc_addr: Vec<SocketAddr>,
-	/// port used for libp2p gossipsub in the validated streams code
-	/// note that the same addresses will be used as for the substrate network
+
+	/// Port used for libp2p gossipsub by the Validated Streams consensus. The same addresses will
+	/// be used as those passed to the Substrate network (--listen-addr, --bootnodes) Can be either
+	/// a fixed port value (a number) or an offset from the default Substrate post (a sign-prefixed
+	/// number)
 	#[clap(long, default_value_t = PortOrOffset::Offset(10))]
 	pub gossip_port: PortOrOffset,
-	/// override for the bootnodes used for gossiping
+
+	/// Override for the bootnodes used for gossiping by the Validated Streams consensus.
 	#[clap(long)]
 	pub gossip_bootnodes: Vec<Multiaddr>,
 }

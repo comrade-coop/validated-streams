@@ -7,19 +7,20 @@ use sp_core::H256;
 use sp_runtime::app_crypto::CryptoTypePublicPair;
 use std::collections::HashMap;
 
-/// persistent database for storing event proofs
+/// A persistent database for storing event proofs.
 pub struct RocksDbEventProofs {
-	// <event id (32 bytes)> <public key (serialized CryptoTypePublicPair)> -> <signature>
+	// key value format:
+	// <event id (32 bytes)> <public key (serialized CryptoTypePublicPair)> -> <signature bytes>
 	db: rocksdb::DB,
 }
 
 impl RocksDbEventProofs {
-	/// returns a RocksDbEventProofs instance that persists data in the provided path
+	/// Returns a RocksDbEventProofs instance which persists data in the provided path
 	pub fn create(path: &str) -> Self {
 		Self { db: rocksdb::DB::open_default(path).expect("open") }
 	}
 
-	#[cfg(test)]
+	/// Clears ALL the data stored at the given path.
 	pub fn destroy(path: &str) -> Result<(), Error> {
 		rocksdb::DB::destroy(&rocksdb::Options::default(), path)?;
 		Ok(())

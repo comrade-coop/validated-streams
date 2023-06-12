@@ -5,7 +5,7 @@ use crate::{
 	proofs::{EventProofsTrait, WitnessedEvent},
 };
 use codec::Codec;
-use pallet_validated_streams::ExtrinsicDetails;
+use pallet_validated_streams::ValidatedStreamsApi;
 use sc_client_api::HeaderBackend;
 use sp_api::{BlockT, ProvideRuntimeApi};
 use sp_consensus_aura::AuraApi;
@@ -19,43 +19,43 @@ use std::sync::Arc;
 #[cfg(test)]
 pub mod tests;
 
-pub mod gossip;
-pub use gossip::EventGossipHandler;
+mod gossip;
+mod validate;
+mod witness;
 
-pub mod witness;
+pub use gossip::EventGossipHandler;
+pub use validate::EventValidator;
 pub use witness::EventWitnesser;
 
-pub mod validate;
-pub use validate::EventValidator;
-
-/// Internal struct holding the latest block state in the EventService
+/// Internal struct holding the list of the authorities at a particular block.
 #[derive(Clone, Debug)]
-struct EventServiceBlockState {
-	pub validators: Vec<CryptoTypePublicPair>,
+struct AuthoritiesList {
+	/// The list of authorities at the block.
+	pub authorities: Vec<CryptoTypePublicPair>,
 }
-impl EventServiceBlockState {
-	/// creates a new EventServiceBlockState
-	pub fn new(validators: Vec<CryptoTypePublicPair>) -> Self {
-		Self { validators }
+impl AuthoritiesList {
+	/// Creates a new [AuthoritiesList]
+	pub fn new(authorities: Vec<CryptoTypePublicPair>) -> Self {
+		Self { authorities }
 	}
 
-	/// verifies whether the received witnessed event was originited by one of the validators
-	/// than proceeds to retrieving the pubkey and the signature and checks the signature
+	/// Verifies that the witnessed event was signed by one of the authorities
+	/// than proceeds to check the signature
 	pub fn verify_witnessed_event_origin(
 		&self,
 		witnessed_event: WitnessedEvent,
 	) -> Result<WitnessedEvent, Error> {
-		if self.validators.contains(&witnessed_event.pub_key) {
+		if self.authorities.contains(&witnessed_event.pub_key) {
 			let pubkey =
 				Public::from_slice(witnessed_event.pub_key.1.as_slice()).map_err(|_| {
 					Error::BadWitnessedEventSignature(
-						"can't retrieve sr25519 keys from WitnessedEvent".to_string(),
+						"Can't retrieve sr25519 keys from WitnessedEvent".to_string(),
 					)
 				})?;
 			let signature = Signature::from_slice(witnessed_event.signature.as_slice())
 				.ok_or_else(|| {
 					Error::BadWitnessedEventSignature(
-						"can't create sr25519 signature from witnessed event".to_string(),
+						"Can't create sr25519 signature from witnessed event".to_string(),
 					)
 				})?;
 
@@ -63,38 +63,37 @@ impl EventServiceBlockState {
 				Ok(witnessed_event)
 			} else {
 				Err(Error::BadWitnessedEventSignature(
-					"incorrect gossip message signature".to_string(),
+					"Incorrect WitnessedEvent signature".to_string(),
 				))
 			}
 		} else {
 			Err(Error::BadWitnessedEventSignature(
-				"received a gossip message from a non validator".to_string(),
+				"WitnessedEvent was signed by non-validator".to_string(),
 			))
 		}
 	}
 
-	/// Calcultes the minimum number of validators to witness an event in order for it to be valid.
+	/// Calcultes the minimum number of authorities to witness an event in order for it to be valid.
 	/// --
-	/// Currently, this uses the formula floor(2/3 * n) + 1; the logic for that is slightly
+	/// Currently, this uses the formula floor(n * 2 / 3) + 1; the logic for that is slightly
 	/// convoluted but in short, GRANDPA tolerates `f` Byzantine failures as long as `f < 3n`, and
 	/// sticking with that same amount of tolerated failures, we want to know the minimum amount of
 	/// nodes to witness an event so that a majority of nodes can be considered to have witnessed
 	/// it. Conceptually, if every non-failing node votes for event A or event B, but not both, we
-	/// want the Validated Streams network to finalize A or B or neither, but not both. Since the
-	/// up-to-`f` Byzantine nodes can do vote for both A and B, the lowest amount of votes past
+	/// want the Validated Streams network to finalize A, B, or neither, but not both. Since the
+	/// up-to-`f` Byzantine nodes can vote for both A and B, the lowest amount of votes past
 	/// which A (or B) can be considered final is the number needed for a strict majority of the non
-	/// failing nodes + the number of double-voting nodes -- or (n - n//3)//2 + 1 + n//3, which just
-	/// so happens to equal n * 2 // 3 despite the rounding.
+	/// failing nodes plus the number of double-voting nodes -- or (n - n//3)//2 + 1 + n//3, which
+	/// just so happens to equal n * 2 // 3 after rounding.
 	pub fn target(&self) -> u16 {
-		let total = self.validators.len();
+		let total = self.authorities.len();
 		(total * 2 / 3 + 1) as u16
 	}
 }
 
-/// calculates the target from the latest finalized block and checks whether each event in ids
-/// reaches the target, it returns a result that contains only the events that did Not reach
-/// the target yet or completely unwitnessed events
-pub fn verify_events_validity<Block, EventProofs, Client, AuthorityId>(
+/// Returns the list of events that we do not have enough witnesses for, using the authorities in
+/// the given block.
+pub(crate) fn verify_events_validity<Block, EventProofs, Client, AuthorityId>(
 	client: Arc<Client>,
 	authorities_block_id: <Block as BlockT>::Hash,
 	event_proofs: Arc<EventProofs>,
@@ -106,13 +105,14 @@ where
 	AuthorityId: Codec + Send + Sync + 'static,
 	EventProofs: EventProofsTrait + Send + Sync,
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
-	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
+	Client::Api: ValidatedStreamsApi<Block> + AuraApi<Block, AuthorityId>,
 {
-	let block_state = get_block_state(client.as_ref(), authorities_block_id)?;
-	let target = block_state.target();
+	let authorities_list = get_authorities_list(client.as_ref(), authorities_block_id)?;
+	let target = authorities_list.target();
 	let mut unprepared_ids = Vec::new();
 	for id in ids {
-		let current_count = event_proofs.get_event_proof_count(&id, &block_state.validators)?;
+		let current_count =
+			event_proofs.get_event_proof_count(&id, &authorities_list.authorities)?;
 		if current_count < target {
 			unprepared_ids.push(id);
 		}
@@ -120,39 +120,39 @@ where
 	Ok(unprepared_ids)
 }
 
-/// updates the list of validators
-fn get_latest_block_state<Block, Client, AuthorityId>(
+/// Reads the latest finalized list of authorities. For use when pruining event proofs.
+fn get_latest_authorities_list<Block, Client, AuthorityId>(
 	client: &Client,
-) -> Result<EventServiceBlockState, Error>
+) -> Result<AuthoritiesList, Error>
 where
 	Block: BlockT,
 	Client: HeaderBackend<Block> + ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	AuthorityId: Codec + Send + Sync + 'static,
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
-	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
+	Client::Api: ValidatedStreamsApi<Block> + AuraApi<Block, AuthorityId>,
 {
-	get_block_state(client, client.info().finalized_hash)
+	get_authorities_list(client, client.info().finalized_hash)
 }
 
-/// updates the list of validators
-fn get_block_state<Block, Client, AuthorityId>(
+/// Reads the list of authorities from a block.
+// NOTE: Might benefit from a LRU cache.
+fn get_authorities_list<Block, Client, AuthorityId>(
 	client: &Client,
 	authorities_block_id: <Block as BlockT>::Hash,
-) -> Result<EventServiceBlockState, Error>
+) -> Result<AuthoritiesList, Error>
 where
 	Block: BlockT,
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	AuthorityId: Codec + Send + Sync + 'static,
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
-	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
+	Client::Api: ValidatedStreamsApi<Block> + AuraApi<Block, AuthorityId>,
 {
 	let public_keys = client
 		.runtime_api()
-		.authorities(authorities_block_id)
-		.map_err(|e| Error::Other(e.to_string()))?
+		.authorities(authorities_block_id)?
 		.iter()
 		.map(CryptoTypePublicPair::from)
 		.collect();
 
-	Ok(EventServiceBlockState::new(public_keys))
+	Ok(AuthoritiesList::new(public_keys))
 }

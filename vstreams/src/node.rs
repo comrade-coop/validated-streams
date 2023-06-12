@@ -1,15 +1,15 @@
-//! A helper for starting all the components needed to run a validated streams node
+//! A helper for starting all the components needed to run a full Validated Streams node
 
 use crate::{
 	config::ValidatedStreamsNetworkConfiguration,
 	events::{EventGossipHandler, EventValidator, EventWitnesser},
-	gossip::StreamsGossip,
+	gossip::Gossip,
 	proofs::EventProofsTrait,
 	server,
 };
 use codec::Codec;
 use futures::future;
-use pallet_validated_streams::ExtrinsicDetails;
+use pallet_validated_streams::ValidatedStreamsApi;
 use sc_client_api::{BlockBackend, BlockchainEvents, HeaderBackend};
 use sc_network::config::NetworkConfiguration;
 use sc_service::{error::Error as ServiceError, SpawnTaskHandle};
@@ -21,7 +21,9 @@ use sp_keystore::CryptoStore;
 use sp_runtime::app_crypto::CryptoTypePublicPair;
 use std::sync::Arc;
 
-/// Starts the gossip, event service, and the gRPC server for the current validated streams node.
+/// Start all the services of the Validated Streams node.
+/// This functions starts the gossip, event service, and the gRPC server for the current node, and
+/// configures their ports using the passed configuration.
 pub fn start<
 	Block: BlockT,
 	TxPool: LocalTransactionPool<Block = Block> + 'static,
@@ -44,10 +46,10 @@ where
 		+ HeaderBackend<Block>
 		+ BlockchainEvents<Block>
 		+ ProvideRuntimeApi<Block>,
-	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
+	Client::Api: ValidatedStreamsApi<Block> + AuraApi<Block, AuthorityId>,
 	<<Block as BlockT>::Header as HeaderT>::Number: Into<u32>,
 {
-	let (streams_gossip, streams_gossip_service) = StreamsGossip::create();
+	let (streams_gossip, streams_gossip_service) = Gossip::create();
 
 	let event_gossip_handler =
 		Arc::new(EventGossipHandler::new(client.clone(), event_proofs, tx_pool));
@@ -62,38 +64,42 @@ where
 			.unwrap()
 	});
 
+	let gossip_listen_addresses = network_configuration
+		.listen_addresses
+		.iter()
+		.map(|addr| vs_network_configuration.gossip_port.adjust_multiaddr(addr.clone()))
+		.collect::<Vec<_>>();
+
+	let gossip_peers = if vs_network_configuration.gossip_bootnodes.len() > 0 {
+		vs_network_configuration.gossip_bootnodes
+	} else {
+		network_configuration
+			.boot_nodes
+			.iter()
+			.map(|addr| {
+				let mut addr =
+					vs_network_configuration.gossip_port.adjust_multiaddr(addr.multiaddr.clone());
+				// Remove the final /p2p/.. part as we are using different keys for gossip
+				match addr.pop() {
+					Some(libp2p::core::multiaddr::Protocol::P2p(_)) => {},
+					Some(x) => addr.push(x),
+					None => {},
+				}
+				addr
+			})
+			.collect()
+	};
+
 	spawn_handle.spawn_blocking("Validated Streams gossip", None, async move {
 		future::join_all(
-			network_configuration
-				.listen_addresses
-				.iter()
-				.map(|a| vs_network_configuration.gossip_port.adjust_multiaddr(a.clone()))
+			gossip_listen_addresses
+				.into_iter()
 				.map(|a| (streams_gossip.clone(), a)) // (eh.)
-				.map(async move |(mut streams_gossip, a)| streams_gossip.listen(a).await),
+				.map(async move |(mut streams_gossip, addr)| streams_gossip.listen(addr).await),
 		)
 		.await;
 
-		streams_gossip
-			.clone()
-			.connect_to(
-				network_configuration
-					.boot_nodes
-					.iter()
-					.map(|a| {
-						vs_network_configuration.gossip_port.adjust_multiaddr(a.multiaddr.clone())
-					})
-					.map(|mut addr| {
-						// Remove any /p2p/.. parts since we are using different keys
-						match addr.pop() {
-							Some(libp2p::core::multiaddr::Protocol::P2p(_)) => {},
-							Some(x) => addr.push(x),
-							None => {},
-						}
-						addr
-					})
-					.collect(),
-			)
-			.await;
+		streams_gossip.clone().connect_to(gossip_peers).await;
 
 		streams_gossip_service.run(event_gossip_handler).await;
 	});

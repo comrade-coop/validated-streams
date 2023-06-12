@@ -43,12 +43,12 @@ fn it_adds_event() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		let event_id = H256::repeat_byte(0);
-		assert!(!ValidatedStreams::verify_event(event_id));
+		assert!(!ValidatedStreams::is_event_valid(event_id));
 		// Dispatch an extrinsic
 		// signature should not matter since it should pass through validate_unsigned.
 		assert_ok!(ValidatedStreams::validate_event(RuntimeOrigin::none(), event_id, None));
 		assert_eq!(ValidatedStreams::get_all_events(), vec![event_id]);
-		assert!(ValidatedStreams::verify_event(event_id));
+		assert!(ValidatedStreams::is_event_valid(event_id));
 		System::assert_last_event(
 			pallet_validated_streams::Event::ValidatedEvent { event_id }.into(),
 		);
@@ -71,7 +71,7 @@ fn it_validates_event() {
 		System::set_block_number(1);
 		let event_id = H256::repeat_byte(0);
 		let proofs_map = proofs(&event_id);
-		assert!(!ValidatedStreams::verify_event(event_id));
+		assert!(!ValidatedStreams::is_event_valid(event_id));
 		// Dispatch an extrinsic
 		// signature should not matter since it should pass through validate_unsigned.
 		assert_ok!(ValidatedStreams::validate_event(
@@ -80,7 +80,7 @@ fn it_validates_event() {
 			Some(proofs_map.clone())
 		));
 		assert_eq!(ValidatedStreams::get_all_events(), vec![event_id]);
-		assert!(ValidatedStreams::verify_event(event_id));
+		assert!(ValidatedStreams::is_event_valid(event_id));
 		System::assert_last_event(
 			pallet_validated_streams::Event::ValidatedEvent { event_id }.into(),
 		);
