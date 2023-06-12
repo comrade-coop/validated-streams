@@ -73,10 +73,21 @@ impl EventServiceBlockState {
 		}
 	}
 
-	/// calcultes the minimum number of validators to witness an event in order for it to be valid
+	/// Calcultes the minimum number of validators to witness an event in order for it to be valid.
+	/// --
+	/// Currently, this uses the formula floor(2/3 * n) + 1; the logic for that is slightly
+	/// convoluted but in short, GRANDPA tolerates `f` Byzantine failures as long as `f < 3n`, and
+	/// sticking with that same amount of tolerated failures, we want to know the minimum amount of
+	/// nodes to witness an event so that a majority of nodes can be considered to have witnessed
+	/// it. Conceptually, if every non-failing node votes for event A or event B, but not both, we
+	/// want the Validated Streams network to finalize A or B or neither, but not both. Since the
+	/// up-to-`f` Byzantine nodes can do vote for both A and B, the lowest amount of votes past
+	/// which A (or B) can be considered final is the number needed for a strict majority of the non
+	/// failing nodes + the number of double-voting nodes -- or (n - n//3)//2 + 1 + n//3, which just
+	/// so happens to equal n * 2 // 3 despite the rounding.
 	pub fn target(&self) -> u16 {
 		let total = self.validators.len();
-		(total - total / 3) as u16
+		(total * 2 / 3 + 1) as u16
 	}
 }
 

@@ -25,6 +25,7 @@ sp-std = { version = "5.0.0", default-features = false, git = "https://github.co
 sp-keystore = { version = "0.13.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 sc-keystore = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 sp-consensus-aura = { version = "0.10.0-dev", default-features = true, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+rstest = "0.17.0"
 
 [features]
 default = ["std"]

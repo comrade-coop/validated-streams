@@ -47,10 +47,10 @@ async fn test_verify_events() {
 }
 
 #[rstest]
-#[case(3, 2)]
+#[case(3, 3)]
 #[case(4, 3)]
 #[case(5, 4)]
-#[case(6, 4)]
+#[case(6, 5)]
 #[case(10, 7)]
 fn test_calculate_target(#[case] validator_count: u8, #[case] target: u16) {
 	let validators_list = (0..validator_count)

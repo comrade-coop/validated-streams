@@ -46,13 +46,13 @@ tokio = { version = "1.0", features = ["full"] }
 tonic = "0.8"
 # local dependencies
 pallet-validated-streams = { version = "0.1.0", path = "../pallet" }
-rstest = "0.17.0"
 
 [build-dependencies]
 tonic-build = "0.8"
 
 [dev-dependencies]
 sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+rstest = "0.17.0"
 
 [features]
 default = ["rocksdb"]

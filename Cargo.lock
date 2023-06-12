@@ -5109,6 +5109,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "rstest",
  "sc-keystore",
  "scale-info",
  "sp-api",

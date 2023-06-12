@@ -22,8 +22,6 @@ fn test_validate_unsigned() {
 		assert_ok!(ValidatedStreams::validate_unsigned(TransactionSource::InBlock, &call));
 
 		#[cfg(feature = "on-chain-proofs")]
-		crate::mock::onchain_mod::initialize();
-		#[cfg(feature = "on-chain-proofs")]
 		let proofs_map = Some(crate::mock::onchain_mod::proofs(&event_id));
 		#[cfg(not(feature = "on-chain-proofs"))]
 		let proofs_map = None;
@@ -72,7 +70,6 @@ fn it_validates_event() {
 		// Go past genesis block so events get deposited
 		System::set_block_number(1);
 		let event_id = H256::repeat_byte(0);
-		initialize();
 		let proofs_map = proofs(&event_id);
 		assert!(!ValidatedStreams::verify_event(event_id));
 		// Dispatch an extrinsic
@@ -153,5 +150,36 @@ fn it_validates_event() {
 			ValidatedStreams::validate_event(RuntimeOrigin::root(), event_id, None),
 			pallet_validated_streams::Error::<Test>::NoProofs
 		);
+	})
+}
+
+#[cfg(feature = "on-chain-proofs")]
+#[rstest::rstest]
+#[case(3, 3)]
+#[case(4, 3)]
+#[case(5, 4)]
+#[case(6, 5)]
+#[case(10, 7)]
+fn it_computes_target_correctly(#[case] total: u16, #[case] target: u16) {
+	use crate::mock::onchain_mod::*;
+	new_test_ext().execute_with(|| {
+		AuthoritiesCount::set(&total);
+		System::set_block_number(1);
+		let event_id = H256::repeat_byte(0);
+		let proofs_few = proofs_n(&event_id, target - 1);
+		assert_err!(
+			ValidatedStreams::validate_event(
+				RuntimeOrigin::root(),
+				event_id,
+				Some(proofs_few.clone())
+			),
+			pallet_validated_streams::Error::<Test>::NotEnoughProofs
+		);
+		let proofs_exact = proofs_n(&event_id, target);
+		assert_ok!(ValidatedStreams::validate_event(
+			RuntimeOrigin::none(),
+			event_id,
+			Some(proofs_exact.clone())
+		));
 	})
 }
