@@ -33,7 +33,7 @@ pub mod pallet {
 		sr25519::{Public, Signature},
 		H256,
 	};
-	#[cfg(feature = "on-chain-proofs")]
+	#[cfg(not(feature = "off-chain-proofs"))]
 	use sp_runtime::app_crypto::RuntimePublic;
 	pub use sp_runtime::traits::Extrinsic;
 	use sp_runtime::RuntimeAppPublic;
@@ -74,11 +74,11 @@ pub mod pallet {
 
 	type ProofsMap<T> = BoundedBTreeMap<Public, Signature, <T as Config>::VSMaxAuthorities>;
 
-	#[cfg(not(feature = "on-chain-proofs"))]
+	#[cfg(feature = "off-chain-proofs")]
 	#[pallet::storage]
 	pub(super) type Streams<T: Config> = StorageMap<_, Blake2_128Concat, T::Hash, T::BlockNumber>;
 
-	#[cfg(feature = "on-chain-proofs")]
+	#[cfg(not(feature = "off-chain-proofs"))]
 	#[pallet::storage]
 	pub(super) type OnStreams<T: Config> = StorageMap<_, Blake2_128Concat, T::Hash, ProofsMap<T>>;
 
@@ -101,7 +101,7 @@ pub mod pallet {
 		}
 	}
 	impl<T: Config> Pallet<T> {
-		#[cfg(not(feature = "on-chain-proofs"))]
+		#[cfg(feature = "off-chain-proofs")]
 		pub fn validate_event_impl(
 			_origin: OriginFor<T>,
 			event_id: T::Hash,
@@ -113,7 +113,7 @@ pub mod pallet {
 			Self::deposit_event(Event::ValidatedEvent { event_id });
 			Ok(())
 		}
-		#[cfg(feature = "on-chain-proofs")]
+		#[cfg(not(feature = "off-chain-proofs"))]
 		pub fn validate_event_impl(
 			_origin: OriginFor<T>,
 			event_id: T::Hash,
@@ -172,7 +172,7 @@ pub mod pallet {
 			}
 		}
 	}
-	#[cfg(not(feature = "on-chain-proofs"))]
+	#[cfg(feature = "off-chain-proofs")]
 	impl<T: Config> Pallet<T> {
 		/// This function is used to get all events from the Streams StorageMap.
 		pub fn get_all_events() -> Vec<T::Hash> {
@@ -190,7 +190,7 @@ pub mod pallet {
 			Streams::<T>::contains_key(event_id)
 		}
 	}
-	#[cfg(feature = "on-chain-proofs")]
+	#[cfg(not(feature = "off-chain-proofs"))]
 	impl<T: Config> Pallet<T> {
 		/// This function is used to get all events from the Streams StorageMap.
 		pub fn get_all_events() -> Vec<T::Hash> {
