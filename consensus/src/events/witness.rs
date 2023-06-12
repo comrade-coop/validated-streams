@@ -46,7 +46,7 @@ where
 
 		let supported_keys = self.keystore.supported_keys(AURA, block_state.authorities).await?;
 
-		let pub_key = supported_keys.get(0).ok_or_else(|| Error::NotAValidator)?;
+		let pub_key = supported_keys.get(0).ok_or(Error::NotAValidator)?;
 
 		let signature = self
 			.keystore

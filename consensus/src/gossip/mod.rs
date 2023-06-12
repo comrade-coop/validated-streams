@@ -33,7 +33,7 @@ enum GossipOrder {
 /// Cloning it is safe and reuses the same swarm and gossip network.
 /// # Example Usage
 /// ```
-/// # use vstreams::gossip::{Gossip, GossipHandler};
+/// # use consensus_validated_streams::gossip::{Gossip, GossipHandler};
 /// # use std::sync::Arc;
 /// # use async_trait::async_trait;
 /// use libp2p::gossipsub::IdentTopic;

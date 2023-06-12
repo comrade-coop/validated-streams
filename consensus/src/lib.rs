@@ -7,6 +7,7 @@
 
 #![feature(async_closure)]
 #![warn(missing_docs)]
+pub mod block_import;
 pub mod config;
 pub mod errors;
 pub mod events;
@@ -15,11 +16,10 @@ pub mod node;
 pub mod proofs;
 pub mod server;
 pub mod traits;
-pub mod block_import;
 
 #[cfg(feature = "off-chain-proofs")]
 pub use block_import::ValidatedStreamsBlockImport;
 
-pub use config::ValidatedStreamsNetworkConfiguration;
+pub use config::{ValidatedStreamsNetworkConfiguration, ValidatedStreamsNetworkParams};
 
 pub use node::start;

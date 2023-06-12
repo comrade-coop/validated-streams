@@ -70,7 +70,7 @@ where
 		.map(|addr| vs_network_configuration.gossip_port.adjust_multiaddr(addr.clone()))
 		.collect::<Vec<_>>();
 
-	let gossip_peers = if vs_network_configuration.gossip_bootnodes.len() > 0 {
+	let gossip_peers = if vs_network_configuration.gossip_bootnodes.is_empty() {
 		vs_network_configuration.gossip_bootnodes
 	} else {
 		network_configuration

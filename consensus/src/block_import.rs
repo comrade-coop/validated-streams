@@ -22,7 +22,14 @@ use tokio::sync::oneshot;
 /// behind (as determined by [SyncingService::is_major_syncing]), the node will start forwarding
 /// blocks directly to the internal [BlockImport], regardless of signatures. This is intended to
 /// help in cases where a single missing event proof hangs the whole node.
-pub struct ValidatedStreamsBlockImport<Block: BlockT, I, Client, EventProofs, SyncingService, AuthorityId> {
+pub struct ValidatedStreamsBlockImport<
+	Block: BlockT,
+	I,
+	Client,
+	EventProofs,
+	SyncingService,
+	AuthorityId,
+> {
 	parent_block_import: I,
 	client: Arc<Client>,
 	event_proofs: Arc<EventProofs>,

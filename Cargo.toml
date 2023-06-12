@@ -1,9 +1,9 @@
 [workspace]
 members = [
-	"node",
 	"pallet",
+	"consensus",
 	"runtime",
-	"vstreams"
+	"node"
 ]
 exclude = [
 	"samples/TpsBench"

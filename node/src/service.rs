@@ -1,4 +1,9 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
+#[cfg(feature = "off-chain-proofs")]
+use consensus_validated_streams::ValidatedStreamsBlockImport;
+use consensus_validated_streams::{
+	config::ValidatedStreamsNetworkConfiguration, proofs::OffchainStorageEventProofs,
+};
 use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
@@ -15,9 +20,6 @@ use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-#[cfg(feature = "off-chain-proofs")]
-use vstreams::ValidatedStreamsBlockImport;
-use vstreams::{config::ValidatedStreamsNetworkConfiguration, proofs::OffchainStorageEventProofs};
 
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
@@ -141,8 +143,11 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 	#[cfg(not(feature = "off-chain-proofs"))]
 	let block_import = grandpa_block_import.clone();
 	#[cfg(feature = "off-chain-proofs")]
-	let (block_import, provide_sync_service) =
-		ValidatedStreamsBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
+	let (block_import, provide_sync_service) = ValidatedStreamsBlockImport::new(
+		grandpa_block_import.clone(),
+		client.clone(),
+		event_proofs.clone(),
+	);
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
 	let import_queue =
@@ -215,7 +220,7 @@ pub fn new_full(
 			other: (block_import, provide_sync_service, grandpa_link, mut telemetry, event_proofs),
 	} = new_partial(&config)?;
 
-	vstreams::node::start(
+	consensus_validated_streams::start(
 		task_manager.spawn_handle(),
 		event_proofs,
 		client.clone(),
