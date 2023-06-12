@@ -71,13 +71,12 @@ impl fmt::Display for PortOrOffset {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
 			Self::Port(port) => fmt::Display::fmt(port, f),
-			Self::Offset(offset) => {
+			Self::Offset(offset) =>
 				if *offset >= 0 {
 					write!(f, "+{offset}")
 				} else {
 					write!(f, "-{}", -offset)
-				}
-			},
+				},
 		}
 	}
 }
