@@ -2,13 +2,14 @@
 
 use crate::{
 	config::ValidatedStreamsNetworkConfiguration,
-	events::{EventGossipHandler, EventValidator, EventWitnesser},
+	events::{EventGossipHandler, EventValidator, EventWitnesser, EventServiceBlockState},
 	gossip::StreamsGossip,
 	proofs::EventProofsTrait,
 	server,
 };
 use codec::Codec;
 use futures::future;
+use lru::LruCache;
 use pallet_validated_streams::ExtrinsicDetails;
 use sc_client_api::{BlockBackend, BlockchainEvents, HeaderBackend};
 use sc_network::config::NetworkConfiguration;
@@ -19,8 +20,7 @@ use sp_blockchain::HeaderMetadata;
 use sp_consensus_aura::AuraApi;
 use sp_keystore::CryptoStore;
 use sp_runtime::app_crypto::CryptoTypePublicPair;
-use std::sync::Arc;
-
+use std::sync::{Arc, Mutex};
 /// Starts the gossip, event service, and the gRPC server for the current validated streams node.
 pub fn start<
 	Block: BlockT,
@@ -36,6 +36,7 @@ pub fn start<
 	tx_pool: Arc<TxPool>,
 	vs_network_configuration: ValidatedStreamsNetworkConfiguration,
 	network_configuration: NetworkConfiguration,
+    block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash,EventServiceBlockState>>>,
 ) -> Result<(), ServiceError>
 where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
@@ -50,10 +51,10 @@ where
 	let (streams_gossip, streams_gossip_service) = StreamsGossip::create();
 
 	let event_gossip_handler =
-		Arc::new(EventGossipHandler::new(client.clone(), event_proofs, tx_pool));
+		Arc::new(EventGossipHandler::new(block_state.clone(),client.clone(), event_proofs, tx_pool));
 
 	let event_witnesser =
-		Arc::new(EventWitnesser::new(client.clone(), streams_gossip.clone(), keystore));
+		Arc::new(EventWitnesser::new(client.clone(), streams_gossip.clone(), keystore, block_state.clone()));
 	let event_validator = Arc::new(EventValidator::new(client));
 
 	spawn_handle.spawn_blocking("Validated Streams gRPC server", None, async move {

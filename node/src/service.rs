@@ -14,11 +14,12 @@ use sc_telemetry::{Telemetry, TelemetryWorker};
 #[cfg(not(feature = "on-chain-proofs"))]
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-use std::{sync::Arc, time::Duration};
+use sp_core::H256;
+use std::{sync::{Arc, Mutex}, time::Duration, num::NonZeroUsize};
 #[cfg(not(feature = "on-chain-proofs"))]
 use vstreams::WitnessBlockImport;
-use vstreams::{config::ValidatedStreamsNetworkConfiguration, proofs::OffchainStorageEventProofs};
-
+use vstreams::{config::ValidatedStreamsNetworkConfiguration, proofs::OffchainStorageEventProofs, events::EventServiceBlockState};
+use lru::LruCache;
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
@@ -41,6 +42,9 @@ impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
 		node_runtime::native_version()
 	}
 }
+
+//LRU cache capacity
+const CACHE_CAPACITY:usize = 4;
 
 /// The TFullClient type
 pub type FullClient = TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
@@ -76,6 +80,7 @@ type FullPartialComponentsOther = (
 	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
 	Arc<OffchainStorageEventProofs<<FullBackend as Backend<Block>>::OffchainStorage>>,
+	Arc<Mutex<LruCache<H256,EventServiceBlockState>>>,
 );
 
 /// Build the services a client is composed of, but don't run it yet
@@ -138,11 +143,13 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 			.ok_or_else(|| ServiceError::Other("Offchain storage is required.".into()))?,
 	));
 
+	#[cfg(not(feature = "on-chain-proofs"))]
+    let block_state= Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(CACHE_CAPACITY).unwrap())));
 	#[cfg(feature = "on-chain-proofs")]
 	let block_import = grandpa_block_import.clone();
 	#[cfg(not(feature = "on-chain-proofs"))]
 	let (block_import, provide_sync_service) =
-		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone());
+		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone(),block_state.clone());
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
 	let import_queue =
@@ -185,6 +192,7 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 			grandpa_link,
 			telemetry,
 			event_proofs,
+			block_state.clone()
 		),
 	})
 }
@@ -212,7 +220,7 @@ pub fn new_full(
 		#[cfg(feature = "on-chain-proofs")]
 			other: (block_import, grandpa_link, mut telemetry, event_proofs),
 		#[cfg(not(feature = "on-chain-proofs"))]
-			other: (block_import, provide_sync_service, grandpa_link, mut telemetry, event_proofs),
+			other: (block_import, provide_sync_service, grandpa_link, mut telemetry, event_proofs,block_state),
 	} = new_partial(&config)?;
 
 	vstreams::node::start(
@@ -223,6 +231,7 @@ pub fn new_full(
 		transaction_pool.clone(),
 		validated_streams_config,
 		config.network.clone(),
+		block_state.clone()
 	)?;
 
 	if let Some(url) = &config.keystore_remote {

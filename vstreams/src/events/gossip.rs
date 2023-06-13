@@ -14,47 +14,53 @@ use sc_transaction_pool_api::{
 	error::{Error as PoolError, IntoPoolError},
 	LocalTransactionPool,
 };
-use sp_api::ProvideRuntimeApi;
+use sp_api::{BlockT, ProvideRuntimeApi};
 use sp_consensus_aura::AuraApi;
 use sp_core::{
 	sr25519::{Public, Signature},
 	ByteArray, H256,
 };
-
-use super::get_latest_block_state;
+use std::sync::Mutex;
+use super::{get_latest_block_state, EventServiceBlockState};
 use sp_runtime::{app_crypto::CryptoTypePublicPair, generic::BlockId};
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+extern crate lru;
 
+use lru::LruCache;
 /// The topic on which the [EventGossipHandler] listens.
 pub const WITNESSED_EVENTS_TOPIC: &str = "WitnessedEvent";
 
 /// Service that handles incoming gossip, maintains the [EventProofs] storage,
 /// and submits extrinsics for proofs that we have collected the necessary signatures for.
-pub struct EventGossipHandler<TxPool, Client, EventProofs, AuthorityId> {
+pub struct EventGossipHandler<TxPool, Client, EventProofs, AuthorityId, Block:BlockT> {
 	event_proofs: Arc<EventProofs>,
 	tx_pool: Arc<TxPool>,
 	client: Arc<Client>,
+	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash,EventServiceBlockState>>>,
 	phantom: PhantomData<AuthorityId>,
 }
 
-impl<TxPool, Client, EventProofs, AuthorityId>
-	EventGossipHandler<TxPool, Client, EventProofs, AuthorityId>
+impl<TxPool, Client, EventProofs, AuthorityId, Block>
+	EventGossipHandler<TxPool, Client, EventProofs, AuthorityId,Block>
 where
-	TxPool: LocalTransactionPool,
-	Client: ProvideRuntimeApi<TxPool::Block>
-		+ HeaderBackend<TxPool::Block>
-		+ BlockchainEvents<TxPool::Block>
+	TxPool: LocalTransactionPool + LocalTransactionPool<Block = Block>,
+	Client: ProvideRuntimeApi<Block>
+		+ HeaderBackend<Block>
+		+ BlockchainEvents<Block>
 		+ Send
 		+ Sync
 		+ 'static,
+	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
 	EventProofs: EventProofsTrait + Send + Sync + 'static,
 	AuthorityId: Codec + Send + Sync + 'static,
+	Block:BlockT,
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ExtrinsicDetails<TxPool::Block> + AuraApi<TxPool::Block, AuthorityId>,
 {
 	/// Creates a new EventGossipHandler
-	pub fn new(client: Arc<Client>, event_proofs: Arc<EventProofs>, tx_pool: Arc<TxPool>) -> Self {
-		Self { client, event_proofs, tx_pool, phantom: PhantomData }
+	pub fn new(block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash,EventServiceBlockState>>>, client: Arc<Client>, event_proofs: Arc<EventProofs>, tx_pool: Arc<TxPool>) -> Self {
+
+		Self { client, event_proofs, tx_pool, phantom: PhantomData, block_state}
 	}
 
 	/// every incoming WitnessedEvent event should go through this function for processing the
@@ -62,7 +68,7 @@ where
 	/// and if its not already added it checks whether it reached the required target or not, if it
 	/// did it submits it to the transaction pool
 	async fn handle_witnessed_event(&self, witnessed_event: WitnessedEvent) -> Result<bool, Error> {
-		let block_state = get_latest_block_state(self.client.as_ref())?;
+		let block_state = get_latest_block_state(self.block_state.clone(),self.client.as_ref())?;
 		let witnessed_event = block_state.verify_witnessed_event_origin(witnessed_event)?;
 
 		self.event_proofs.add_event_proof(&witnessed_event)?;
@@ -142,19 +148,20 @@ where
 }
 
 #[async_trait]
-impl<TxPool, Client, EventProofs, AuthorityId> StreamsGossipHandler
-	for EventGossipHandler<TxPool, Client, EventProofs, AuthorityId>
+impl<TxPool, Client, EventProofs, AuthorityId, Block> StreamsGossipHandler
+	for EventGossipHandler<TxPool, Client, EventProofs, AuthorityId, Block>
 where
-	TxPool: LocalTransactionPool,
-	Client: ProvideRuntimeApi<TxPool::Block>
-		+ HeaderBackend<TxPool::Block>
-		+ BlockchainEvents<TxPool::Block>
+	TxPool: LocalTransactionPool + LocalTransactionPool<Block = Block>,
+	Client: ProvideRuntimeApi<Block>
+		+ HeaderBackend<Block>
+		+ BlockchainEvents<Block>
 		+ Send
 		+ Sync
 		+ 'static,
 	EventProofs: EventProofsTrait + Send + Sync + 'static,
 	AuthorityId: Codec + Send + Sync + 'static,
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
+	Block: BlockT,
 	Client::Api: ExtrinsicDetails<TxPool::Block> + AuraApi<TxPool::Block, AuthorityId>,
 {
 	fn get_topics() -> Vec<IdentTopic> {

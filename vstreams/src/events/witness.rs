@@ -6,6 +6,7 @@ use crate::{
 use async_trait::async_trait;
 use codec::Codec;
 use libp2p::gossipsub::IdentTopic;
+use lru::LruCache;
 use pallet_validated_streams::ExtrinsicDetails;
 use sc_client_api::HeaderBackend;
 use sp_api::{BlockT, ProvideRuntimeApi};
@@ -13,26 +14,28 @@ use sp_consensus_aura::AuraApi;
 use sp_core::H256;
 use sp_keystore::CryptoStore;
 use sp_runtime::{app_crypto::CryptoTypePublicPair, key_types::AURA};
+use std::sync::Mutex;
 use std::{marker::PhantomData, sync::Arc};
-
-use super::{get_latest_block_state, gossip::WITNESSED_EVENTS_TOPIC};
+use super::{get_latest_block_state, gossip::WITNESSED_EVENTS_TOPIC, EventServiceBlockState};
 
 /// A utility which signs and submits proofs for events we have witnessed.
-pub struct EventWitnesser<Block, Client, AuthorityId> {
+pub struct EventWitnesser<Block:BlockT, Client, AuthorityId> {
 	client: Arc<Client>,
 	streams_gossip: StreamsGossip,
 	keystore: Arc<dyn CryptoStore>,
+    block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash,EventServiceBlockState>>>,
 	phantom: PhantomData<(Block, AuthorityId)>,
 }
 
-impl<Block, Client, AuthorityId> EventWitnesser<Block, Client, AuthorityId> {
+impl<Block, Client, AuthorityId> EventWitnesser<Block, Client, AuthorityId> where Block:BlockT{
 	/// Creates a new EventService
 	pub fn new(
 		client: Arc<Client>,
 		streams_gossip: StreamsGossip,
 		keystore: Arc<dyn CryptoStore>,
+    	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash,EventServiceBlockState>>>,
 	) -> Self {
-		Self { client, streams_gossip, keystore, phantom: PhantomData }
+		Self { client, streams_gossip, keystore, phantom: PhantomData, block_state}
 	}
 }
 
@@ -49,7 +52,7 @@ where
 	/// witnessed previously it adds it to the EventProofs and gossips the event for other
 	/// validators
 	async fn witness_event(&self, event_id: H256) -> Result<(), Error> {
-		let block_state = get_latest_block_state(self.client.as_ref())?;
+		let block_state = get_latest_block_state(self.block_state.clone(),self.client.as_ref())?;
 
 		let supported_keys = self
 			.keystore

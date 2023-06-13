@@ -5,6 +5,7 @@ use crate::{
 	proofs::{EventProofsTrait, WitnessedEvent},
 };
 use codec::Codec;
+use lru::LruCache;
 use pallet_validated_streams::ExtrinsicDetails;
 use sc_client_api::HeaderBackend;
 use sp_api::{BlockT, ProvideRuntimeApi};
@@ -14,7 +15,7 @@ use sp_core::{
 	ByteArray, H256,
 };
 use sp_runtime::app_crypto::{CryptoTypePublicPair, RuntimePublic};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 #[cfg(test)]
 pub mod tests;
@@ -30,7 +31,8 @@ pub use validate::EventValidator;
 
 /// Internal struct holding the latest block state in the EventService
 #[derive(Clone, Debug)]
-struct EventServiceBlockState {
+pub struct EventServiceBlockState {
+	/// list of validators represented by their public keys
 	pub validators: Vec<CryptoTypePublicPair>,
 }
 impl EventServiceBlockState {
@@ -84,6 +86,7 @@ impl EventServiceBlockState {
 /// reaches the target, it returns a result that contains only the events that did Not reach
 /// the target yet or completely unwitnessed events
 pub fn verify_events_validity<Block, EventProofs, Client, AuthorityId>(
+	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash,EventServiceBlockState>>>,
 	client: Arc<Client>,
 	authorities_block_id: <Block as BlockT>::Hash,
 	event_proofs: Arc<EventProofs>,
@@ -97,7 +100,7 @@ where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
 {
-	let block_state = get_block_state(client.as_ref(), authorities_block_id)?;
+	let block_state = get_block_state(block_state,client.as_ref(), authorities_block_id)?;
 	let target = block_state.target();
 	let mut unprepared_ids = Vec::new();
 	for id in ids {
@@ -111,6 +114,7 @@ where
 
 /// updates the list of validators
 fn get_latest_block_state<Block, Client, AuthorityId>(
+	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash,EventServiceBlockState>>>,
 	client: &Client,
 ) -> Result<EventServiceBlockState, Error>
 where
@@ -120,21 +124,27 @@ where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
 {
-	get_block_state(client, client.info().finalized_hash)
+	get_block_state(block_state,client, client.info().finalized_hash)
 }
 
 /// updates the list of validators
 fn get_block_state<Block, Client, AuthorityId>(
+	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash,EventServiceBlockState>>>,
 	client: &Client,
 	authorities_block_id: <Block as BlockT>::Hash,
-) -> Result<EventServiceBlockState, Error>
+	) -> Result<EventServiceBlockState, Error>
 where
-	Block: BlockT,
-	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
-	AuthorityId: Codec + Send + Sync + 'static,
-	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
-	Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
+Block: BlockT,
+Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
+AuthorityId: Codec + Send + Sync + 'static,
+CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
+Client::Api: ExtrinsicDetails<Block> + AuraApi<Block, AuthorityId>,
 {
+	if let Some(block_state) = block_state.lock().or(Err(Error::LockFail("BlockState".to_string())))?.get(&authorities_block_id) {
+		println!("HIT");
+        return Ok(block_state.clone());
+	}
+	println!("MISS");
 	let public_keys = client
 		.runtime_api()
 		.authorities(authorities_block_id)
@@ -142,6 +152,8 @@ where
 		.iter()
 		.map(CryptoTypePublicPair::from)
 		.collect();
+	let new_block_state= EventServiceBlockState::new(public_keys);
+	block_state.lock().or(Err(Error::LockFail("BlockState".to_string())))?.put(authorities_block_id,new_block_state.clone());
 
-	Ok(EventServiceBlockState::new(public_keys))
+	Ok(new_block_state)
 }

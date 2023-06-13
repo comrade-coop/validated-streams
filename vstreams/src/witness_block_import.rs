@@ -1,16 +1,17 @@
 //! Block import which waits for all events to be witnessed before finalizing a block.
 #![cfg(not(feature = "on-chain-proofs"))]
 
-use crate::{events::verify_events_validity, proofs::EventProofsTrait};
+use crate::{events::{verify_events_validity, EventServiceBlockState}, proofs::EventProofsTrait};
 use codec::Codec;
 use futures::{future::Shared, FutureExt};
+use lru::LruCache;
 use pallet_validated_streams::ExtrinsicDetails;
 use sc_consensus::{BlockCheckParams, BlockImport, BlockImportParams, ImportResult};
 
 use sp_api::{HeaderT, ProvideRuntimeApi};
 use sp_consensus::{Error as ConsensusError, SyncOracle};
 use sp_consensus_aura::AuraApi;
-
+use std::sync::Mutex;
 use sp_runtime::{app_crypto::CryptoTypePublicPair, traits::Block as BlockT};
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::oneshot;
@@ -23,6 +24,7 @@ pub struct WitnessBlockImport<Block: BlockT, I, Client, EventProofs, SyncingServ
 	client: Arc<Client>,
 	event_proofs: Arc<EventProofs>,
 	sync_service: Shared<oneshot::Receiver<Arc<SyncingService>>>,
+	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash,EventServiceBlockState>>>,
 	phantom: std::marker::PhantomData<(Block, AuthorityId)>,
 }
 
@@ -34,6 +36,7 @@ impl<Block: BlockT, I, Client, EventProofs, SyncingService, AuthorityId>
 		parent_block_import: I,
 		client: Arc<Client>,
 		event_proofs: Arc<EventProofs>,
+    	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash,EventServiceBlockState>>>,
 	) -> (Self, impl FnOnce(Arc<SyncingService>)) {
 		let (sync_service_sender, sync_service_receiver) = oneshot::channel();
 
@@ -43,6 +46,7 @@ impl<Block: BlockT, I, Client, EventProofs, SyncingService, AuthorityId>
 				client,
 				event_proofs,
 				sync_service: sync_service_receiver.shared(),
+				block_state,
 				phantom: PhantomData,
 			},
 			move |sync_service| {
@@ -61,6 +65,7 @@ impl<Block: BlockT, I: Clone, Client, EventProofs, SyncingService, AuthorityId> 
 			client: self.client.clone(),
 			event_proofs: self.event_proofs.clone(),
 			sync_service: self.sync_service.clone(),
+			block_state: self.block_state.clone(),
 			phantom: PhantomData,
 		}
 	}
@@ -109,6 +114,7 @@ where
 				.ok()
 				.unwrap_or_default();
 			match verify_events_validity(
+				self.block_state.clone(),
 				self.client.clone(),
 				parent_block_id,
 				self.event_proofs.clone(),
@@ -132,6 +138,7 @@ where
 					},
 				Err(e) => {
 					log::error!("the following Error happened while verifying block events in the event_proofs:{}",e);
+					return Err(ConsensusError::ClientImport(e.to_string()))
 				},
 			}
 		}

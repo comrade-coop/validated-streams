@@ -3721,7 +3721,7 @@ dependencies = [
  "libp2p-core",
  "libp2p-swarm",
  "log",
- "lru",
+ "lru 0.8.1",
  "prost",
  "prost-build",
  "prost-codec",
@@ -4188,6 +4188,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lru"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03f1160296536f10c833a82dca22267d5486734230d47bf00bf435885814ba1e"
+dependencies = [
+ "hashbrown 0.13.2",
+]
+
+[[package]]
 name = "lru-cache"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4644,6 +4653,7 @@ dependencies = [
  "futures",
  "jsonrpsee 0.16.2",
  "libp2p",
+ "lru 0.10.0",
  "node-runtime",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
@@ -6603,7 +6613,7 @@ name = "sc-executor"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.40#98f2e3451c9143278ec53c6718940aeabcd3b68a"
 dependencies = [
- "lru",
+ "lru 0.8.1",
  "parity-scale-codec",
  "parking_lot 0.12.1",
  "sc-executor-common",
@@ -6715,7 +6725,7 @@ dependencies = [
  "libp2p",
  "linked_hash_set",
  "log",
- "lru",
+ "lru 0.8.1",
  "mockall",
  "parity-scale-codec",
  "parking_lot 0.12.1",
@@ -6799,7 +6809,7 @@ dependencies = [
  "futures-timer",
  "libp2p",
  "log",
- "lru",
+ "lru 0.8.1",
  "sc-network",
  "sc-network-common",
  "sc-peerset",
@@ -6842,7 +6852,7 @@ dependencies = [
  "futures-timer",
  "libp2p",
  "log",
- "lru",
+ "lru 0.8.1",
  "mockall",
  "parity-scale-codec",
  "prost",
@@ -7870,7 +7880,7 @@ source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.4
 dependencies = [
  "futures",
  "log",
- "lru",
+ "lru 0.8.1",
  "parity-scale-codec",
  "parking_lot 0.12.1",
  "sp-api",
@@ -9869,6 +9879,7 @@ dependencies = [
  "hex",
  "libp2p",
  "log",
+ "lru 0.10.0",
  "pallet-validated-streams",
  "parity-scale-codec",
  "prost",

@@ -20,6 +20,7 @@ codec = { package = "parity-scale-codec", version = "3.2.2", default-features = 
 frame-system = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 libp2p = { version = "0.50.0" }
+lru = "0.10.0"
 pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
