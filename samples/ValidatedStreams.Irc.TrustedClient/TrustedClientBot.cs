@@ -8,13 +8,19 @@ using Polly;
 
 namespace ValidatedStreams.Irc;
 
+/// A class encapsulating the bot's main loop of operations.
 public class TrustedClientBot
 {
+    /// A help command sent at the bot.
     public static Regex HelpCommandRegex = new Regex(@"^(?<nickname>[^!@: ]+).+ help.*$");
+    /// The witness command sent to all bots in the channel.
     public static Regex WitnessCommandRegex = new Regex(@"^!w(?:itness)? (?<data>.+)$");
     public static string WitnessCommandHelpText = "{0}: !w[itness] <data> -- create and witness a validated-streams event";
-    static (Regex, string) ValidateReply = (new Regex(@"^(?<nickname>[^!@: ]+|<unknown user>): (?<eventId>[A-Z0-9]+) validated!$"), "{1}: {0} validated!");
+    /// The immediate reply we sent when receiving a witness command.
     static (Regex, string) WitnessReply = (new Regex(@"^(?<nickname>[^!@: ]+): witnessing (?<eventId>[A-Z0-9]+)\.\.\.$"), "{1}: witnessing {0}...");
+    /// The confirmation reply we sent when receiving the validated event back.
+    static (Regex, string) ValidateReply = (new Regex(@"^(?<nickname>[^!@: ]+|<unknown user>): (?<eventId>[A-Z0-9]+) validated!$"), "{1}: {0} validated!");
+    /// The format for the bot's username, so that we can find the other bots in the user list.
     public static (Regex, string) UsernameFormat = (new Regex(@"vs-.*"), "vs-{0}");
 
     private IrcChannel IrcChannel;

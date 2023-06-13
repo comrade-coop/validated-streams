@@ -1,4 +1,4 @@
-use super::{StreamsGossip, StreamsGossipHandler};
+use super::{Gossip, GossipHandler};
 use crate::proofs::WitnessedEvent;
 use async_trait::async_trait;
 use libp2p::{gossipsub::IdentTopic, Multiaddr};
@@ -13,7 +13,7 @@ pub struct MockGossipHandler {
 	messages: Mutex<Vec<WitnessedEvent>>,
 }
 #[async_trait]
-impl StreamsGossipHandler for MockGossipHandler {
+impl GossipHandler for MockGossipHandler {
 	fn get_topics() -> Vec<libp2p::gossipsub::IdentTopic> {
 		vec![IdentTopic::new("WitnessedEvent")]
 	}
@@ -29,11 +29,11 @@ impl StreamsGossipHandler for MockGossipHandler {
 }
 /// test receiving messages from other peers by creating a mock service that listens on a different
 /// Multiaddr and test that messages sent from self should not be received
-/// which means the length of messages should be 1 (because the StreamsGossipHandler would be )
+/// which means the length of messages should be 1 (because the GossipHandler would be )
 #[tokio::test]
 pub async fn test_self_message() {
-	let (mut streams_gossip, service) = StreamsGossip::create();
-	let (mut mock_peer_gossip, mock_peer_service) = StreamsGossip::create();
+	let (mut streams_gossip, service) = Gossip::create();
+	let (mut mock_peer_gossip, mock_peer_service) = Gossip::create();
 	let tokio_handle = tokio::runtime::Handle::current();
 	let task_manager = TaskManager::new(tokio_handle, None).unwrap();
 	let self_addr: Multiaddr = "/ip4/127.0.0.1/tcp/10001".to_string().parse().unwrap();
@@ -45,15 +45,15 @@ pub async fn test_self_message() {
 
 	streams_gossip.listen(self_addr.clone()).await;
 	streams_gossip.connect_to(vec![self_addr.clone()]).await;
-	task_manager
-		.spawn_handle()
-		.spawn("Test", None, service.run(handler_self.clone()));
+	let handler_self_c = handler_self.clone();
+	task_manager.spawn_handle().spawn("Test", None, async move {
+		service.run(handler_self_c).await;
+	});
 	mock_peer_gossip.listen(peer_mock_addr.clone()).await;
-	task_manager.spawn_handle().spawn(
-		"Test2",
-		None,
-		mock_peer_service.run(handler_peer_mock.clone()),
-	);
+	let handler_peer_mock_c = handler_peer_mock.clone();
+	task_manager.spawn_handle().spawn("Test2", None, async move {
+		mock_peer_service.run(handler_peer_mock_c).await;
+	});
 
 	// wait for the two peers to start
 	tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -72,6 +72,7 @@ pub async fn test_self_message() {
 	assert!(handler_peer_mock.messages.lock().unwrap().len() == 1);
 	assert_eq!(handler_peer_mock.messages.lock().unwrap().get(0).unwrap(), &witnessed_event);
 }
+
 fn create_witnessed_event() -> WitnessedEvent {
 	WitnessedEvent {
 		event_id: sp_core::H256::repeat_byte(0),

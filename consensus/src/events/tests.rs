@@ -1,4 +1,4 @@
-use super::EventServiceBlockState;
+use super::AuthoritiesList;
 use crate::proofs::WitnessedEvent;
 use rstest::rstest;
 use sc_keystore::LocalKeystore;
@@ -8,13 +8,13 @@ use sp_runtime::{app_crypto::CryptoTypePublicPair, key_types::AURA};
 
 #[tokio::test]
 async fn test_verify_events() {
-	//simple witnessed eventevent
+	// simple witnessed event
 	let keystore = LocalKeystore::in_memory();
 	let event_id = H256::repeat_byte(0);
 	let key = keystore.sr25519_generate_new(AURA, None).await.unwrap();
 	let witnessed_event = create_witnessed_event(event_id, &keystore, key).await;
 	let validators_list = vec![CryptoTypePublicPair::from(key)];
-	let block_state = EventServiceBlockState::new(validators_list);
+	let block_state = AuthoritiesList::new(validators_list);
 
 	let result = block_state.verify_witnessed_event_origin(witnessed_event.clone());
 	assert_eq!(result.unwrap(), witnessed_event);
@@ -41,22 +41,22 @@ async fn test_verify_events() {
 	assert!(result.is_err());
 
 	//receive an event from a non-validator
-	let no_validators_block_state = EventServiceBlockState::new(vec![]);
+	let no_validators_block_state = AuthoritiesList::new(vec![]);
 	let result = no_validators_block_state.verify_witnessed_event_origin(witnessed_event);
 	assert!(result.is_err());
 }
 
 #[rstest]
-#[case(3, 2)]
+#[case(3, 3)]
 #[case(4, 3)]
 #[case(5, 4)]
-#[case(6, 4)]
+#[case(6, 5)]
 #[case(10, 7)]
 fn test_calculate_target(#[case] validator_count: u8, #[case] target: u16) {
 	let validators_list = (0..validator_count)
 		.map(|x| CryptoTypePublicPair::from(Public::from_h256(H256::repeat_byte(x))))
 		.collect();
-	let block_state = EventServiceBlockState::new(validators_list);
+	let block_state = AuthoritiesList::new(validators_list);
 
 	assert_eq!(block_state.target(), target);
 }

@@ -4,7 +4,7 @@ pub struct RunCmd {
 	#[clap(flatten)]
 	pub base: sc_cli::RunCmd,
 	#[clap(flatten)]
-	pub validated_streams_params: vstreams::config::ValidatedStreamsNetworkParams,
+	pub validated_streams_params: consensus_validated_streams::ValidatedStreamsNetworkParams,
 }
 
 #[derive(Debug, clap::Parser)]

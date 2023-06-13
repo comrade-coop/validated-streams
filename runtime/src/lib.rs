@@ -387,7 +387,7 @@ impl_runtime_apis! {
 			data.check_extrinsics(&block)
 		}
 	}
-	impl pallet_validated_streams::ExtrinsicDetails<Block> for Runtime {
+	impl pallet_validated_streams::ValidatedStreamsApi<Block> for Runtime {
 		fn get_extrinsic_ids(extrinsics: &Vec<<Block as BlockT>::Extrinsic>) -> Vec<H256> {
 			let mut ids = Vec::new();
 			for extrinsic in extrinsics.iter() {

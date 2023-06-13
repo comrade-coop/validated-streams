@@ -20,32 +20,34 @@ pub mod rocksdb;
 #[cfg(feature = "rocksdb")]
 pub use self::rocksdb::RocksDbEventProofs;
 
-/// Represents an event that has been witnessed along with its signature
+/// Proof of event that has been witnessed; an event id and a signature
 /// Signatures do not have a defined cryptosystem, but are assumed to be sr25519 signatures by
 /// [super::services::events].
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WitnessedEvent {
 	/// The signature of the event
 	pub signature: Vec<u8>,
-	/// The public key used to produce the signature
+	/// The public key which was used to produce the signature
 	pub pub_key: CryptoTypePublicPair,
-	/// The id/hash of the event being witnessed
+	/// The id/hash of the event
 	pub event_id: H256,
 }
 
-/// Storage for Event proofs
+/// Storage for event proofs (for [WitnessedEvent]-s)
 pub trait EventProofsTrait {
-	/// adds an event proof to the given witnessed event, creating the event if it does not exist
+	/// Stores the provided event proof.
 	fn add_event_proof(&self, event: &WitnessedEvent) -> Result<(), Error>;
 
-	/// returns a `HashMap` containing the public keys and their corresponding signatures for the
-	/// given event id and validators
+	/// Returns a [HashMap] containing the public keys and their corresponding signatures for the
+	/// given event id and list of validators
 	fn get_event_proofs(
 		&self,
 		event_id: &H256,
 		validators: &[CryptoTypePublicPair],
 	) -> Result<HashMap<CryptoTypePublicPair, Vec<u8>>, Error>;
-	/// retrieve the proof count for the given event id
+
+	/// Retrieve count of proof for the given event id. Equivalent to
+	/// `self.get_event_proofs(event_id, validators)?.len()`, but possibly more optimal.
 	fn get_event_proof_count(
 		&self,
 		event_id: &H256,
@@ -54,8 +56,8 @@ pub trait EventProofsTrait {
 		Ok(self.get_event_proofs(event_id, validators)?.len() as u16)
 	}
 
-	/// remove stale signatures of the given event observed by previous validators based on the
-	/// updated list of validators and return the updated proof count
+	/// Remove proofs of the given event observed by validators not in the list of validators passed
+	/// in. Useful for maintaining the pool of event proofs whenever the validator set changes.
 	fn purge_event_stale_signatures(
 		&self,
 		event_id: &H256,

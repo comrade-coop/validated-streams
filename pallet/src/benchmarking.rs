@@ -11,7 +11,7 @@ use sp_core::{
 };
 use sp_io::crypto::{sr25519_generate, sr25519_sign};
 use sp_runtime::{app_crypto::RuntimePublic, RuntimeAppPublic};
-#[cfg(not(feature = "on-chain-proofs"))]
+#[cfg(feature = "off-chain-proofs")]
 benchmarks! {
 	validate_event {
 		let event_id: T::Hash = T::Hash::default();
@@ -25,7 +25,7 @@ benchmarks! {
 		crate::mock::Test
 	)
 }
-#[cfg(feature = "on-chain-proofs")]
+#[cfg(not(feature = "off-chain-proofs"))]
 benchmarks! {
 	on_chain_proofs {
 		let event_id = H256::default();

@@ -3,7 +3,9 @@ using Google.Protobuf;
 
 namespace ValidatedStreams.Irc;
 
-public class TrustedClientUserTracker // In practice, would use IPFS for this
+/// A class tracking the user that has submitted a certain event.
+/// A more practical implementation would use IPFS for this, but this one is good enough for example purposes.
+public class TrustedClientUserTracker
 {
     ConcurrentDictionary<ByteString, string> users = new();
 

@@ -8,26 +8,42 @@ use frame_system as system;
 use sc_keystore::LocalKeystore;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{sr25519::Public, ByteArray, H256};
+pub use sp_keystore::SyncCryptoStore;
+pub use sp_runtime::key_types::AURA;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
 use std::sync::Mutex;
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-type Block = frame_system::mocking::MockBlock<Test>;
+
 pub static KEYSTORE: Lazy<LocalKeystore> = Lazy::new(LocalKeystore::in_memory);
 pub static PAIRS: Mutex<Vec<Public>> = Mutex::new(Vec::new());
+
+fn get_pairs(pairs: &mut Vec<Public>, count: u16) -> impl Iterator<Item = &Public> {
+	for _ in pairs.len()..count as usize {
+		pairs.push(KEYSTORE.sr25519_generate_new(AURA, None).unwrap());
+	}
+	pairs.iter().take(count as usize)
+}
+
+type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+type Block = frame_system::mocking::MockBlock<Test>;
+
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
-pub enum Test where
-Block = Block,
-NodeBlock = Block,
-UncheckedExtrinsic = UncheckedExtrinsic,
-{
-	System: frame_system,
-	ValidatedStreams: pallet_validated_streams,
-}
+	pub enum Test where
+		Block = Block,
+		NodeBlock = Block,
+		UncheckedExtrinsic = UncheckedExtrinsic,
+	{
+		System: frame_system,
+		ValidatedStreams: pallet_validated_streams,
+	}
 );
+
+frame_support::parameter_types! {
+	pub storage AuthoritiesCount: u16 = 4;
+}
 
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -65,10 +81,7 @@ impl pallet_validated_streams::Config for Test {
 	type VSMaxAuthorities = ConstU32<32>;
 
 	fn authorities() -> BoundedVec<Self::VSAuthorityId, Self::VSMaxAuthorities> {
-		let pairs = PAIRS.lock().unwrap();
-		// let key = KEYSTORE.keys(AURA).unwrap().get(i).unwrap().clone();
-		pairs
-			.iter()
+		get_pairs(PAIRS.lock().unwrap().as_mut(), AuthoritiesCount::get())
 			.map(|pair| AuraId::from_slice(pair.as_slice()).unwrap())
 			.collect::<Vec<_>>()
 			.try_into()
@@ -80,28 +93,25 @@ impl pallet_validated_streams::Config for Test {
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
 }
-#[cfg(feature = "on-chain-proofs")]
+
+#[cfg(not(feature = "off-chain-proofs"))]
 pub mod onchain_mod {
 	use crate::mock::*;
 	pub use crate::Config;
 	pub use frame_support::BoundedBTreeMap;
 	pub use sp_core::{crypto::CryptoTypePublicPair, sr25519::Signature};
-	pub use sp_keystore::SyncCryptoStore;
-	pub use sp_runtime::key_types::AURA;
 	use std::collections::BTreeMap;
-
-	pub fn initialize() {
-		let mut pairs = PAIRS.lock().unwrap();
-		for _ in pairs.len()..4 {
-			pairs.push(KEYSTORE.sr25519_generate_new(AURA, None).unwrap());
-		}
-	}
 	pub fn proofs(
 		event_id: &H256,
 	) -> BoundedBTreeMap<Public, Signature, <Test as Config>::VSMaxAuthorities> {
-		let pairs = PAIRS.lock().unwrap();
-		pairs
-			.iter()
+		proofs_n(event_id, AuthoritiesCount::get())
+	}
+
+	pub fn proofs_n(
+		event_id: &H256,
+		count: u16,
+	) -> BoundedBTreeMap<Public, Signature, <Test as Config>::VSMaxAuthorities> {
+		get_pairs(PAIRS.lock().unwrap().as_mut(), count)
 			.map(|key| {
 				let signature = KEYSTORE
 					.sign_with(AURA, &CryptoTypePublicPair::from(key), event_id.as_bytes())

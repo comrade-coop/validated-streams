@@ -12,11 +12,10 @@ use std::{
 
 /// An in-memory store of event proofs.
 pub struct InMemoryEventProofs {
-	// maps event ids to provided senders of event proofs
 	proofs: Mutex<HashMap<H256, HashMap<CryptoTypePublicPair, Vec<u8>>>>,
 }
 impl InMemoryEventProofs {
-	/// Create a new [InMemoryEventProofs] instance
+	/// Create an empty [InMemoryEventProofs] instances.
 	pub fn new() -> InMemoryEventProofs {
 		InMemoryEventProofs { proofs: Mutex::new(HashMap::new()) }
 	}
@@ -72,10 +71,9 @@ impl EventProofsTrait for InMemoryEventProofs {
 	) -> Result<(), Error> {
 		let mut proofs =
 			self.proofs.lock().or(Err(Error::LockFail("InMemoryProofs".to_string())))?;
-		let event_proofs = proofs
-			.get_mut(event_id)
-			.ok_or_else(|| Error::Other("Event not found".to_string()))?;
-		event_proofs.retain(|k, _| validators.contains(k));
+		if let Some(event_proofs) = proofs.get_mut(event_id) {
+			event_proofs.retain(|k, _| validators.contains(k));
+		}
 		Ok(())
 	}
 }

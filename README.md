@@ -9,8 +9,8 @@ Prerequisites:
 
 * [Docker](https://docs.docker.com/get-docker/) with [docker-compose](https://docs.docker.com/compose/install/) ([Podman](https://github.com/containers/podman) with [podman-compose](https://github.com/containers/podman-compose) should work too)
 * [grpcurl](https://github.com/fullstorydev/grpcurl)
-* [pumba](https://github.com/alexei-led/pumba/releases) for Network Resilience example
-    * when downloading pumba binary from [release](https://github.com/alexei-led/pumba/releases), Ensure that the "pumba" command is accessible in the system's path.
+* [pumba](https://github.com/alexei-led/pumba/releases) for the network resilience example
+    * When downloading the `pumba` binary from [releases](https://github.com/alexei-led/pumba/releases), ensure that the "pumba" command is accessible in your system's PATH.
 
 1. Witnessing events:
 
@@ -44,41 +44,14 @@ Prerequisites:
     ./scripts/run-example.sh build
     ./scripts/run-example.sh run
     ```
-2. Network Resilience Testing:
+2. Network resilience testing:
 
     The following example applies packet loss, frequent crash-recovery, and delayed packets to emulate challenging and poor network conditions. It tests the behavior and resilience of validators within the network under these adverse scenarios.
 
     ```
     ./scripts/run-example.sh disturb
     ```
-3. Witnessing events from IRC:
-
-    Finally, to demonstrate an more realistic usecase of Validated Streams, we have set up an example of a validators listening on an IRC channel, submitting events from it to a blockchain, and reporting back to users when those events have been finalized. As it is, extending the example to support a token economics or to verify user identities is left as an exercise to the reader.
-    Running the example:
-
-    1. Build the necessary docker images:
-        ```
-        ./scripts/run-example.sh build --irc-sample
-        ```
-    2. Start the local network of validators, trusted clients, and an IRC server:
-        ```
-        ./scripts/run-example.sh start --irc-sample
-        ```
-    3. Connect to the local IRC server at [`localhost:6667`](irc://localhost:6667/validated-stream) (non-TLS), join `#validated-stream` and send a message. Sample interaction:
-        ```
-        * Now talking on #validated-stream
-        <user> bot-bob: help
-        <bot-bob> user: !w[itness] <data> -- create and witness a validated-streams event
-        <user> !w this is a test event for the README
-        <bot-charlie> user: witnessing BE807ED3F92D7C8228302829F829B827E2F7C8338B17A736CAF8AF18403E68F1...
-        <bot-charlie> user: BE807ED3F92D7C8228302829F829B827E2F7C8338B17A736CAF8AF18403E68F1 validated!
-        ```
-
-        Empirical testing shows that events are validated in roughly ~16 seconds by the sample network.
-    4. Stop the network when you are finished:
-        ```
-        ./scripts/run-example.sh stop --irc-sample
-        ```
+3. Witnessing events from IRC: To demonstrate a more-realitic example, we have set up [a sample which witnesses events from an IRC network](samples/ValidatedStreams.Irc.TrustedClient/README.md).
 
 ## Architecture
 ![Diagram of Validated Streams, with a grpc service ingesting events from an application, passing them to a gossip, which then leads to on-chain transactions, that, after block finalization, get forwarded back to the application. (validated-streams.drawio.png)](https://user-images.githubusercontent.com/5276727/211316562-ad73fdd0-0dec-4543-884e-fe60cb09ee7a.png)
@@ -107,20 +80,30 @@ cargo build --release --features on-chain-proofs
 ## Testing
 To run the tests, use the following commands in the root directory of the project:
 
-#### validated-streams crate:
-```
-cargo test -p vstreams
-```
+#### Validated-streams crate:
+* Default:
+  ```
+  cargo test -p vstreams
+  ```
+* Only with on-chain proofs:
+    ```
+    cargo test -p vstreams --no-default-features
+    ```
 #### Pallet:
 * Default:
 
     ```
     cargo test -p pallet-validated-streams
     ```
-* On-chain Proofs:
+* With on-chain proofs:
     ```
-    cargo test -p pallet-validated-streams --features on-chain-proofs
+    cargo test -p pallet-validated-streams --no-default-features
     ```
+    (off-chain proofs is a default feature, and happens to be the only default feature of the pallet)
+#### Integration tests:
+
+The other two crates, `runtime` and `node`, are mainly used in integration tests. We test them by running the `scripts/run-example.sh` script as described near the start of this README, and observing that the network produces validated events as an output.
+
 ## Benchmarking
 
 * default
@@ -128,13 +111,6 @@ cargo test -p vstreams
     cargo build --release --features runtime-benchmarks
     ```
 * On-chain proofs:
-
-    * add `on-chain-proofs` feature as a dependency to runtime-benchmakrs feature in `pallet/Cargo.toml`:
-        ```
-        runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks","on-chain-proofs"]
-        ```
-
-    * re-run the build command:
-        ```
-        cargo build --release --features runtime-benchmarks
-        ```
+    ```
+    cargo build --release --no-default-features --features runtime-benchmarks
+    ```

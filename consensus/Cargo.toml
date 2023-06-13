@@ -1,5 +1,5 @@
 [package]
-name = "vstreams"
+name = "consensus-validated-streams"
 version = "0.1.0"
 edition = "2021"
 
@@ -47,16 +47,16 @@ tokio = { version = "1.0", features = ["full"] }
 tonic = "0.8"
 # local dependencies
 pallet-validated-streams = { version = "0.1.0", path = "../pallet" }
-rstest = "0.17.0"
 
 [build-dependencies]
 tonic-build = "0.8"
 
 [dev-dependencies]
 sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
+rstest = "0.17.0"
 
 [features]
-default = ["rocksdb"]
-on-chain-proofs = ["pallet-validated-streams/on-chain-proofs"]
+default = ["rocksdb", "off-chain-proofs"]
+off-chain-proofs = ["pallet-validated-streams/off-chain-proofs"]
 runtime-benchmarks = ["pallet-validated-streams/runtime-benchmarks", "frame-benchmarking/runtime-benchmarks", "frame-benchmarking-cli/runtime-benchmarks"]
 rocksdb = ["dep:rocksdb"]

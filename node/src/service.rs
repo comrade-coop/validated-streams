@@ -1,25 +1,32 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
+#[cfg(feature = "off-chain-proofs")]
+use consensus_validated_streams::ValidatedStreamsBlockImport;
+use consensus_validated_streams::{
+	config::ValidatedStreamsNetworkConfiguration, events::AuthoritiesList,
+	proofs::OffchainStorageEventProofs,
+};
+use lru::LruCache;
 use node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_consensus_grandpa::SharedVoterState;
 use sc_executor::NativeElseWasmExecutor;
 use sc_keystore::LocalKeystore;
-#[cfg(not(feature = "on-chain-proofs"))]
+#[cfg(feature = "off-chain-proofs")]
 use sc_network_sync::SyncingService;
 use sc_service::{
 	error::Error as ServiceError, Configuration, TFullClient, TaskManager, WarpSyncParams,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
-#[cfg(not(feature = "on-chain-proofs"))]
+#[cfg(feature = "off-chain-proofs")]
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use sp_core::H256;
-use std::{sync::{Arc, Mutex}, time::Duration, num::NonZeroUsize};
-#[cfg(not(feature = "on-chain-proofs"))]
-use vstreams::WitnessBlockImport;
-use vstreams::{config::ValidatedStreamsNetworkConfiguration, proofs::OffchainStorageEventProofs, events::EventServiceBlockState};
-use lru::LruCache;
+use std::{
+	num::NonZeroUsize,
+	sync::{Arc, Mutex},
+	time::Duration,
+};
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
@@ -44,7 +51,7 @@ impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
 }
 
 //LRU cache capacity
-const CACHE_CAPACITY:usize = 4;
+const CACHE_CAPACITY: usize = 4;
 
 /// The TFullClient type
 pub type FullClient = TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
@@ -58,7 +65,7 @@ type FullPartialComponents = sc_service::PartialComponents<
 	FullPartialComponentsOther,
 >;
 
-#[cfg(feature = "on-chain-proofs")]
+#[cfg(not(feature = "off-chain-proofs"))]
 type FullPartialComponentsOther = (
 	sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
@@ -66,9 +73,9 @@ type FullPartialComponentsOther = (
 	Arc<OffchainStorageEventProofs<<FullBackend as Backend<Block>>::OffchainStorage>>,
 );
 
-#[cfg(not(feature = "on-chain-proofs"))]
+#[cfg(feature = "off-chain-proofs")]
 type FullPartialComponentsOther = (
-	WitnessBlockImport<
+	ValidatedStreamsBlockImport<
 		Block,
 		sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
 		FullClient,
@@ -80,7 +87,7 @@ type FullPartialComponentsOther = (
 	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
 	Arc<OffchainStorageEventProofs<<FullBackend as Backend<Block>>::OffchainStorage>>,
-	Arc<Mutex<LruCache<H256,EventServiceBlockState>>>,
+	Arc<Mutex<LruCache<H256, AuthoritiesList>>>,
 );
 
 /// Build the services a client is composed of, but don't run it yet
@@ -144,12 +151,16 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 	));
 
 	#[cfg(not(feature = "on-chain-proofs"))]
-    let block_state= Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(CACHE_CAPACITY).unwrap())));
+	let block_state = Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(CACHE_CAPACITY).unwrap())));
 	#[cfg(feature = "on-chain-proofs")]
 	let block_import = grandpa_block_import.clone();
 	#[cfg(not(feature = "on-chain-proofs"))]
-	let (block_import, provide_sync_service) =
-		WitnessBlockImport::new(grandpa_block_import.clone(), client.clone(), event_proofs.clone(),block_state.clone());
+	let (block_import, provide_sync_service) = ValidatedStreamsBlockImport::new(
+		grandpa_block_import.clone(),
+		client.clone(),
+		event_proofs.clone(),
+		block_state.clone(),
+	);
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 
 	let import_queue =
@@ -183,16 +194,16 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		#[cfg(feature = "on-chain-proofs")]
+		#[cfg(not(feature = "off-chain-proofs"))]
 		other: (block_import, grandpa_link, telemetry, event_proofs),
-		#[cfg(not(feature = "on-chain-proofs"))]
+		#[cfg(feature = "off-chain-proofs")]
 		other: (
 			block_import,
 			Box::new(provide_sync_service),
 			grandpa_link,
 			telemetry,
 			event_proofs,
-			block_state.clone()
+			block_state.clone(),
 		),
 	})
 }
@@ -217,13 +228,14 @@ pub fn new_full(
 		mut keystore_container,
 		select_chain,
 		transaction_pool,
-		#[cfg(feature = "on-chain-proofs")]
+		#[cfg(not(feature = "off-chain-proofs"))]
 			other: (block_import, grandpa_link, mut telemetry, event_proofs),
 		#[cfg(not(feature = "on-chain-proofs"))]
-			other: (block_import, provide_sync_service, grandpa_link, mut telemetry, event_proofs,block_state),
+			other:
+			(block_import, provide_sync_service, grandpa_link, mut telemetry, event_proofs, block_state),
 	} = new_partial(&config)?;
 
-	vstreams::node::start(
+	consensus_validated_streams::start(
 		task_manager.spawn_handle(),
 		event_proofs,
 		client.clone(),
@@ -231,7 +243,7 @@ pub fn new_full(
 		transaction_pool.clone(),
 		validated_streams_config,
 		config.network.clone(),
-		block_state.clone()
+		block_state.clone(),
 	)?;
 
 	if let Some(url) = &config.keystore_remote {
@@ -269,7 +281,7 @@ pub fn new_full(
 			warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
 		})?;
 
-	#[cfg(not(feature = "on-chain-proofs"))]
+	#[cfg(feature = "off-chain-proofs")]
 	provide_sync_service(sync_service.clone());
 
 	if config.offchain_worker.enabled {

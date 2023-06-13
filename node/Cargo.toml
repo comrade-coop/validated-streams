@@ -62,16 +62,16 @@ frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/parityte
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 
 # Local Dependencies
+consensus-validated-streams = { version = "0.1.0", path = "../consensus" }
 node-runtime = { version = "0.1.0", path = "../runtime" }
-vstreams = { version = "0.1.0", path = "../vstreams" }
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 tonic-build = "0.8"
 
 [features]
-default = []
-on-chain-proofs = [ "vstreams/on-chain-proofs", "node-runtime/on-chain-proofs" ]
+default = ["off-chain-proofs"]
+off-chain-proofs = [ "consensus-validated-streams/off-chain-proofs", "node-runtime/off-chain-proofs" ]
 runtime-benchmarks = [
 	"node-runtime/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",

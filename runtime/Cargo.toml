@@ -53,7 +53,7 @@ pallet-validated-streams = { version = "0.1.0", default-features = false, path =
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git", optional = true , branch = "polkadot-v0.9.40" }
 
 [features]
-default = ["std"]
+default = ["std", "off-chain-proofs"]
 std = [
 	"codec/std",
 	"frame-benchmarking?/std",
@@ -98,7 +98,7 @@ runtime-benchmarks = [
 	"pallet-validated-streams/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
-on-chain-proofs = [ "pallet-validated-streams/on-chain-proofs" ]
+off-chain-proofs = [ "pallet-validated-streams/off-chain-proofs" ]
 try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-support/try-runtime",

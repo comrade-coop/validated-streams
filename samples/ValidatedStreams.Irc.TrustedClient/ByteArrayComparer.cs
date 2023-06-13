@@ -1,5 +1,6 @@
 namespace ValidatedStreams.Irc;
 
+/// Utility class defining a total order over byte arrays.
 internal class ByteArrayComparer : IComparer<byte[]>
 {
     public int Compare(byte[]? x, byte[]? y)

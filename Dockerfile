@@ -3,8 +3,7 @@
 FROM rust:1-slim-bullseye AS build
 RUN apt-get update && apt-get install -y cmake libprotobuf-dev protobuf-compiler clang git iproute2
 COPY . /validated-streams/
-#RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/usr/local/rustup --mount=type=cache,target=/validated-streams/target cd /validated-streams/ && cargo fetch
-RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/usr/local/rustup --mount=type=cache,target=/validated-streams/target cd /validated-streams/ && cargo build --release -Z unstable-options --out-dir=out
+RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/usr/local/cargo/git --mount=type=cache,target=/usr/local/rustup --mount=type=cache,target=/validated-streams/target cd /validated-streams/ && cargo build --release -Z unstable-options --out-dir=out
 
 FROM debian:bullseye-slim AS runtime
 COPY --from=build /validated-streams/out/node /bin/stream_node
