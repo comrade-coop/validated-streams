@@ -4,7 +4,8 @@ target/
 scripts/docker_local_net.sh
 scripts/local_net.sh
 scripts/stream_node
-.git
+.git/*
+!.git/HEAD
 Dockerfile
 .dockerignore
 samples/*/bin/
@@ -12,4 +13,3 @@ samples/*/obj/
 samples/*/target/
 .vs/
 .vscode/
-!.git/HEAD

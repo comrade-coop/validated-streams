@@ -171,10 +171,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let decrease_factor = args.get(3).expect("bad increase factor").clone().parse::<f32>().unwrap();
 	let limit = args.get(4).expect("bad max events value").clone().parse::<u32>().unwrap();
 
-	let client = StreamsClient::connect(validator_addr.clone()).await.unwrap();
+	println!("Connecting to {validator_addr}...");
+
+	let client = loop {
+		if let Ok(val) = StreamsClient::connect(validator_addr.clone()).await {
+			break val;
+		} else {
+			tokio::time::sleep(Duration::from_secs(5)).await;
+		}
+	};
 
 	// wait until validator is up
-	println!("Connecting to {validator_addr}...");
 	wait_validators(client.clone()).await;
 	println!(
 		"Connected to {validator_addr}, Increase factor: {increase_factor}, Decrease factor: {decrease_factor}, Max events: {limit}"

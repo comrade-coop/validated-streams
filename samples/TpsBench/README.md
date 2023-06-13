@@ -4,9 +4,33 @@ Work in progress.
 
 ## Running the benchmark
 
+Prerequisites:
+* [Docker](https://docs.docker.com/get-docker/) with [docker-compose](https://docs.docker.com/compose/install/) (Podman might work too with some adjustments to the scripts, but has not been tested)
+* [jq](https://jqlang.github.io/jq/)
+
+Quick run with Docker Compose:
+
+```bash
+# (in repo root)
+scripts/tps_bench_build_volume.sh
+scripts/tps_bench_generate_keys.sh docker /tmp/chainSpecRaw.json compose-vol > /tmp/docker_compose_tps_bench.yml
+docker-compose -f /tmp/docker_compose_tps_bench.yml up
+```
+
+Explanation:
+
+1. `scripts/tps_bench_build_volume.sh` creates a docker volume called `vol-tps-bench` and fills it with build artifacts from the Debian Bullseye -based `comradecoop/validated-streams-tps-bench-full` image. It also builds `comradecoop/validated-streams`.
+2. `scripts/tps_bench_generate_keys.sh docker /tmp/chainSpecRaw.json compose-vol` uses the `comradecoop/validated-streams` image ("docker" argument) to generate and populate a chainspec, then produces a Docker Compose configuration that uses the `vol-tps-bench` volume to pass the binaries and chainspec to the Debian Bullseye official image.
+    * Note that the image used here _must_ have the same libc, or otherwise the binaries will simply fail to execute.
+    * We store the configuration in `target/` just so it is automatically .gitignore-d.
+3. `docker-compose` finally just launches the benchmark locally. If not running in docker swarm (or similar) expect less-than-ideal performance as all the nodes compete for CPU time.
+
+
+To run without Docker:
+
 1. Run `./scripts/tps_bench_generate_keys.sh`. E.g. with a release-build node in the usual target directory:
     ```bash
-    scripts/tps_bench_generate_keys.sh target/release/node chainSpecRaw.json
+    scripts/tps_bench_generate_keys.sh target/release/node chainSpecRaw.json setup
     ```
 
     (to generate keys for a smaller network, pass the number of nodes as a 4-th parameter.)
@@ -23,18 +47,4 @@ Work in progress.
     `$CLIENT_COMMAND` with the path to the `samples/TpsBench/target/XX/tps_bench` binary.
     `$FIRST_MACHINE` with the ip(v4) address of the first node of the list.
 
-Optional: to use Docker / etc.:
-
-1. Build `Dockerfile-combined` after building the two prerequisite Docker images:
-    ```bash
-    # (from the repo root)
-    docker build -t comradecoop/validated-streams .
-    docker build -t comradecoop/validated-streams-tps-bench . -f samples/TpsBench/Dockerfile
-    docker build -t comradecoop/validated-streams-tps-bench-full - < samples/TpsBench/Dockerfile-combined
-    ```
-2. After running `scripts/tps_bench_generate_keys.sh`, remove each of the generated `scripts/tps_bench_setup.sh $NODE_COMMAND $CLIENT_COMMAND` and pass the rest of the command line to the container running the combined docker image. Make sure to also mount te `chainSpecRaw.json` file and adjust its path. E.g.:
-    ```bash
-    docker run --rm -v $(pwd):/pwd:ro comradecoop/validated-streams-tps-bench-full /pwd/chainSpecRaw.json 2 "reward kingdom thing window globe aware impact athlete fantasy heart toy merit" /ip4/$FIRST_MACHINE/tcp/30333/p2p
-    ```
-
-Note: When running, make sure all the machines' clocks are roughly in sync (not more than a few seconds off), and start the code roughly simultaineously. Otherwise, you risk some of the nodes getting slashed and the benchmark not testing the whole network.
+Note: When running, make sure all the machines' clocks are roughly in sync (not more than a few seconds off), and start executing the code around the same time. Otherwise, you risk some of the nodes getting slashed and the benchmark not testing the whole network.

@@ -20,6 +20,7 @@ use sp_core::{
 	sr25519::{Public, Signature},
 	ByteArray, H256,
 };
+use sp_runtime::transaction_validity::InvalidTransaction;
 
 use super::get_latest_authorities_list;
 use sp_runtime::{app_crypto::CryptoTypePublicPair, generic::BlockId};
@@ -130,6 +131,7 @@ where
 			Ok(_) => Ok(()),
 			Err(x) => match x.into_pool_error() {
 				Ok(PoolError::AlreadyImported(_)) => Ok(()),
+				Ok(PoolError::InvalidTransaction(InvalidTransaction::Stale)) => Ok(()),
 				Ok(e) => Err(Error::Other(e.to_string())),
 				Err(e) => Err(Error::Other(e.to_string())),
 			},
