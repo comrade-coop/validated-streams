@@ -12,3 +12,4 @@ samples/*/obj/
 samples/*/target/
 .vs/
 .vscode/
+!.git/HEAD

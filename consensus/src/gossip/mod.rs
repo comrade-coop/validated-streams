@@ -152,6 +152,7 @@ impl GossipService {
 					log::info!("Failed Gossiping message with Error: {:?}", e);
 				}
 				handler.handle(message).await;
+				log::trace!("Gossiped a message!");
 			},
 			GossipOrder::DialPeers(peers) => {
 				Self::dial_peers(swarm, &peers);
@@ -172,9 +173,9 @@ impl GossipService {
 		handler: &H,
 	) {
 		match event {
-			SwarmEvent::NewListenAddr { address, .. } => log::debug!("Listening on {:?}", address),
+			SwarmEvent::NewListenAddr { address, .. } => log::info!("Listening on {:?}", address),
 			SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id, topic }) => {
-				log::debug!("{:?} subscribed to topic {:?}", peer_id, topic);
+				log::info!("{:?} subscribed to topic {:?}", peer_id, topic);
 			},
 			SwarmEvent::Behaviour(GossipsubEvent::Message { message, .. }) => {
 				handler.handle(message.data).await;
@@ -186,6 +187,7 @@ impl GossipService {
 	/// Connects to a slice of peers
 	fn dial_peers(swarm: &mut Swarm<Gossipsub>, peers: &[Multiaddr]) {
 		for peer in peers {
+			log::trace!("Dialing peer {:?}", peer);
 			match swarm.dial(peer.clone()) {
 				Err(e) => {
 					log::info!("Error dialing peer {:?}", e);

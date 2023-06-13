@@ -70,7 +70,7 @@ where
 		.map(|addr| vs_network_configuration.gossip_port.adjust_multiaddr(addr.clone()))
 		.collect::<Vec<_>>();
 
-	let gossip_peers = if vs_network_configuration.gossip_bootnodes.is_empty() {
+	let gossip_peers = if !vs_network_configuration.gossip_bootnodes.is_empty() {
 		vs_network_configuration.gossip_bootnodes
 	} else {
 		network_configuration
@@ -89,6 +89,7 @@ where
 			})
 			.collect()
 	};
+	log::info!("Gossip bootnodes: {:?}", gossip_peers);
 
 	spawn_handle.spawn_blocking("Validated Streams gossip", None, async move {
 		future::join_all(

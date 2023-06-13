@@ -44,15 +44,18 @@ where
 	async fn witness_event(&self, event_id: H256) -> Result<(), Error> {
 		let block_state = get_latest_authorities_list(self.client.as_ref())?;
 
+		log::trace!("To witness event {event_id} {}", event_id);
+
 		let supported_keys = self.keystore.supported_keys(AURA, block_state.authorities).await?;
 
 		let pub_key = supported_keys.get(0).ok_or(Error::NotAValidator)?;
-
 		let signature = self
 			.keystore
 			.sign_with(AURA, pub_key, event_id.as_bytes())
 			.await?
 			.ok_or_else(|| Error::SigningFailure("Failed getting a signature".to_string()))?;
+
+		log::trace!("Signed event {event_id} {}", event_id);
 
 		let witnessed_event = WitnessedEvent { signature, pub_key: pub_key.clone(), event_id };
 
