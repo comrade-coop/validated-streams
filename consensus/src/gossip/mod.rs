@@ -8,18 +8,27 @@ use futures::{
 };
 use libp2p::{
 	core::{muxing::StreamMuxerBox, transport::Boxed, upgrade},
-	gossipsub::{
-		self, error::GossipsubHandlerError, Gossipsub, GossipsubEvent, IdentTopic,
-		MessageAuthenticity,
-	},
+	gossipsub::{self, Gossipsub, GossipsubEvent, IdentTopic, MessageAuthenticity},
+	identify::{Behaviour as Identify, Event as IdentifyEvent},
 	identity::{self, Keypair},
+	kad::{record::store::MemoryStore, Kademlia},
+	mdns::tokio::Behaviour as MDns,
 	mplex,
-	swarm::SwarmEvent,
+	swarm::{NetworkBehaviour, SwarmEvent},
 	tcp, tls, Multiaddr, PeerId, Swarm, Transport,
 };
+
 use std::sync::Arc;
 #[cfg(test)]
 pub mod tests;
+
+#[derive(NetworkBehaviour)]
+struct GossipNetworkBehavior {
+	gossipsub: Gossipsub,
+	kademlia: Kademlia<MemoryStore>,
+	mdns: MDns,
+	identify: Identify,
+}
 
 /// Represents an internal message passed between the public Gossip interface and the
 /// internal GossipService handler
@@ -29,7 +38,7 @@ enum GossipOrder {
 	Listen(Multiaddr),
 }
 
-/// A struct which can be used to send messages to a libp2p gossipsub network.
+/// A struct which can be used to send messages to a libp2p gossipsub(+kademlia) network.
 /// Cloning it is safe and reuses the same swarm and gossip network.
 /// # Example Usage
 /// ```
@@ -120,7 +129,7 @@ impl GossipService {
 		let mut swarm = Self::create_swarm();
 
 		for topic in H::get_topics() {
-			swarm.behaviour_mut().subscribe(&topic).ok();
+			swarm.behaviour_mut().gossipsub.subscribe(&topic).ok();
 		}
 
 		Self::run_loop(&mut swarm, self.rc, handler.as_ref()).await
@@ -128,7 +137,7 @@ impl GossipService {
 
 	/// Runs a select loop that handles events from the network and from orders
 	async fn run_loop<H: GossipHandler + Send + Sync>(
-		swarm: &mut Swarm<Gossipsub>,
+		swarm: &mut Swarm<GossipNetworkBehavior>,
 		mut rc: Receiver<GossipOrder>,
 		handler: &H,
 	) -> ! {
@@ -142,13 +151,13 @@ impl GossipService {
 
 	/// Handles an incoming channel order
 	async fn handle_incoming_order<H: GossipHandler + Send>(
-		swarm: &mut Swarm<Gossipsub>,
+		swarm: &mut Swarm<GossipNetworkBehavior>,
 		order: GossipOrder,
 		handler: &H,
 	) {
 		match order {
 			GossipOrder::SendMessage(topic, message) => {
-				if let Err(e) = swarm.behaviour_mut().publish(topic, message.clone()) {
+				if let Err(e) = swarm.behaviour_mut().gossipsub.publish(topic, message.clone()) {
 					log::info!("Failed Gossiping message with Error: {:?}", e);
 				}
 				handler.handle(message).await;
@@ -168,24 +177,34 @@ impl GossipService {
 
 	/// Handles an incoming swarm event, passing message data to the handler
 	async fn handle_incoming_event<H: GossipHandler + Send>(
-		_swarm: &mut Swarm<Gossipsub>,
-		event: SwarmEvent<GossipsubEvent, GossipsubHandlerError>,
+		swarm: &mut Swarm<GossipNetworkBehavior>,
+		event: SwarmEvent<GossipNetworkBehaviorEvent, impl std::fmt::Display>,
 		handler: &H,
 	) {
 		match event {
 			SwarmEvent::NewListenAddr { address, .. } => log::info!("Listening on {:?}", address),
-			SwarmEvent::Behaviour(GossipsubEvent::Subscribed { peer_id, topic }) => {
+			SwarmEvent::Behaviour(GossipNetworkBehaviorEvent::Gossipsub(
+				GossipsubEvent::Subscribed { peer_id, topic },
+			)) => {
 				log::info!("{:?} subscribed to topic {:?}", peer_id, topic);
 			},
-			SwarmEvent::Behaviour(GossipsubEvent::Message { message, .. }) => {
+			SwarmEvent::Behaviour(GossipNetworkBehaviorEvent::Gossipsub(
+				GossipsubEvent::Message { message, .. },
+			)) => {
 				handler.handle(message.data).await;
 			},
+			SwarmEvent::Behaviour(GossipNetworkBehaviorEvent::Identify(
+				IdentifyEvent::Received { info, peer_id },
+			)) =>
+				for addr in info.listen_addrs {
+					swarm.behaviour_mut().kademlia.add_address(&peer_id, addr.clone());
+				},
 			_ => {},
 		}
 	}
 
 	/// Connects to a slice of peers
-	fn dial_peers(swarm: &mut Swarm<Gossipsub>, peers: &[Multiaddr]) {
+	fn dial_peers(swarm: &mut Swarm<GossipNetworkBehavior>, peers: &[Multiaddr]) {
 		for peer in peers {
 			log::trace!("Dialing peer {:?}", peer);
 			match swarm.dial(peer.clone()) {
@@ -200,7 +219,7 @@ impl GossipService {
 	}
 
 	/// Creates a new gossipsub swarm
-	fn create_swarm() -> Swarm<Gossipsub> {
+	fn create_swarm() -> Swarm<GossipNetworkBehavior> {
 		let key = Self::create_keys();
 		let transport = Self::get_transport(key.clone());
 		let behaviour = Self::get_behaviour(key.clone());
@@ -224,9 +243,19 @@ impl GossipService {
 	}
 
 	/// Assembles a gossipsub behaviour
-	fn get_behaviour(key: Keypair) -> Gossipsub {
-		let message_authenticity = MessageAuthenticity::Signed(key);
+	fn get_behaviour(key: Keypair) -> GossipNetworkBehavior {
+		let peer_id = PeerId::from(key.public());
 		let gossipsub_config = gossipsub::GossipsubConfig::default();
-		gossipsub::Gossipsub::new(message_authenticity, gossipsub_config).unwrap()
+		let mdns_config = libp2p::mdns::Config::default();
+		let identify_config =
+			libp2p::identify::Config::new("vstreams/1.0.0".to_string(), key.public());
+		let message_authenticity = MessageAuthenticity::Signed(key);
+
+		GossipNetworkBehavior {
+			gossipsub: gossipsub::Gossipsub::new(message_authenticity, gossipsub_config).unwrap(),
+			identify: Identify::new(identify_config),
+			kademlia: Kademlia::new(peer_id, MemoryStore::new(peer_id)),
+			mdns: MDns::new(mdns_config).expect("Failed to initialize mDNS"),
+		}
 	}
 }
