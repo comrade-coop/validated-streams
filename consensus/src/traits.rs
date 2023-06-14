@@ -18,7 +18,7 @@ pub trait EventWitnesserTrait {
 /// client.
 #[async_trait]
 pub trait EventValidatorTrait {
-	/// Get the list of events in a specific block. If the block is not ready yet, waits untill the
+	/// Get the list of events in a specific block. If the block is not ready yet, waits until the
 	/// block is finalized. To use as a stream of events, just query the events in successive block
 	/// numbers.
 	async fn get_finalized_block_events(&self, block_num: u32) -> Result<Vec<H256>, Error>;

@@ -48,7 +48,7 @@ pub async fn run<
 	Ok(())
 }
 
-/// Implements a GRPC serivce which allows submitting event hashes from the trusted client and
+/// Implements a GRPC service which allows submitting event hashes from the trusted client and
 /// streaming the finalized events out to the same.
 pub struct ValidatedStreamsGrpc<EventWitnesser, EventValidator> {
 	/// A [EventWitnesserTrait] instance.

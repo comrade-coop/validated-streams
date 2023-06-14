@@ -85,7 +85,7 @@ pub trait GossipHandler {
 
 	/// Handles a message received on any of the topics this [GossipHandler] is subscribed to,
 	/// *or* a message sent by the [Gossip] to other peers.
-	/// Currently, messages are not differenciated by topic or origin.
+	/// Currently, messages are not differentiated by topic or origin.
 	async fn handle(&self, message: Vec<u8>);
 }
 

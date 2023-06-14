@@ -1,4 +1,4 @@
-//! Service which proccesses all the incoming events
+//! Service which processes all the incoming events
 
 use super::{get_latest_authorities_list, AuthoritiesList};
 use crate::{
