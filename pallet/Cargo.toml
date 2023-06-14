@@ -1,9 +1,10 @@
 [package]
 name = "pallet-validated-streams"
 version = "0.1.0"
-description = "validated-streams"
+description = "Validated Streams pallet. See also consensus-validated-streams"
 edition = "2021"
 repository = "https://github.com/comrade-coop/validated-streams"
+license = "MIT"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -23,7 +24,6 @@ sp-std = { version = "5.0.0", default-features = false, git = "https://github.co
 
 [dev-dependencies]
 sp-keystore = { version = "0.13.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
-sc-keystore = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 sp-consensus-aura = { version = "0.10.0-dev", default-features = true, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.40" }
 rstest = "0.17.0"
 

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# SPDX-License-Identifier: MIT
+
 cd "$(dirname "$0")"/../../.. || exit 1
 
 if [ $# -lt 0 ] || [ $# -gt 1 ]; then

@@ -1,10 +1,9 @@
 [package]
 name = "vstreams-node"
 version = "0.1.0"
-description = "A fresh FRAME-based Substrate node, ready for hacking."
-homepage = "https://substrate.io/"
+description = "A Validated Streams node derived from the template Substrate node."
 edition = "2021"
-license = "Unlicense"
+license = "MIT"
 publish = false
 build = "build.rs"
 

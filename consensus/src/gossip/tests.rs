@@ -2,7 +2,6 @@ use super::{Gossip, GossipHandler};
 use crate::proofs::WitnessedEvent;
 use async_trait::async_trait;
 use libp2p::{gossipsub::IdentTopic, Multiaddr};
-use sc_service::TaskManager;
 use sp_core::sr25519::Public;
 use sp_runtime::app_crypto::CryptoTypePublicPair;
 use std::{
@@ -34,8 +33,6 @@ impl GossipHandler for MockGossipHandler {
 pub async fn test_self_message() {
 	let (mut streams_gossip, service) = Gossip::create();
 	let (mut mock_peer_gossip, mock_peer_service) = Gossip::create();
-	let tokio_handle = tokio::runtime::Handle::current();
-	let task_manager = TaskManager::new(tokio_handle, None).unwrap();
 	let self_addr: Multiaddr = "/ip4/127.0.0.1/tcp/10001".to_string().parse().unwrap();
 	let peer_mock_addr: Multiaddr = "/ip4/127.0.0.1/tcp/10002".to_string().parse().unwrap();
 	let handler_self = Arc::new(MockGossipHandler { messages: Mutex::new(Vec::new()) });
@@ -46,12 +43,12 @@ pub async fn test_self_message() {
 	streams_gossip.listen(self_addr.clone()).await;
 	streams_gossip.connect_to(vec![self_addr.clone()]).await;
 	let handler_self_c = handler_self.clone();
-	task_manager.spawn_handle().spawn("Test", None, async move {
+	tokio::spawn(async move {
 		service.run(handler_self_c).await;
 	});
 	mock_peer_gossip.listen(peer_mock_addr.clone()).await;
 	let handler_peer_mock_c = handler_peer_mock.clone();
-	task_manager.spawn_handle().spawn("Test2", None, async move {
+	tokio::spawn(async move {
 		mock_peer_service.run(handler_peer_mock_c).await;
 	});
 

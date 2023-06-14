@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# SPDX-License-Identifier: MIT
+
 if [ $# -lt 3 ] || [ $# -gt 4 ]; then
   echo "USAGE: $0 <path/to/vstreams_node|docker> <path/to/chainspec-to-generate.json> <output format> [node count]"
   echo "Example: $0 target/release/vstreams_node chainSpecRaw.json setup"

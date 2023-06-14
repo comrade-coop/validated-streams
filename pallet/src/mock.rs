@@ -5,10 +5,9 @@ use frame_support::{
 	BoundedVec,
 };
 use frame_system as system;
-use sc_keystore::LocalKeystore;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{sr25519::Public, ByteArray, H256};
-pub use sp_keystore::SyncCryptoStore;
+pub use sp_keystore::{SyncCryptoStore, testing::KeyStore};
 pub use sp_runtime::key_types::AURA;
 use sp_runtime::{
 	testing::Header,
@@ -16,7 +15,7 @@ use sp_runtime::{
 };
 use std::sync::Mutex;
 
-pub static KEYSTORE: Lazy<LocalKeystore> = Lazy::new(LocalKeystore::in_memory);
+pub static KEYSTORE: Lazy<KeyStore> = Lazy::new(KeyStore::new);
 pub static PAIRS: Mutex<Vec<Public>> = Mutex::new(Vec::new());
 
 fn get_pairs(pairs: &mut Vec<Public>, count: u16) -> impl Iterator<Item = &Public> {

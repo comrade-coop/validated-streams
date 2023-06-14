@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# SPDX-License-Identifier: MIT
+
 cd "$(dirname "$0")" || exit 1
 DOCKER='docker'
 DOCKER_COMPOSE='docker-compose'

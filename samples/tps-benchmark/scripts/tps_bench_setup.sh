@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# SPDX-License-Identifier: MIT
+
 function stop_processes {
   kill $(jobs -p) &> /dev/null
 }
