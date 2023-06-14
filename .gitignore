@@ -4,6 +4,6 @@ scripts/local_net.sh
 scripts/stream_node
 samples/*/obj
 samples/*/bin
-samples/TpsBench/target
+samples/*/target
 .vs/
 .vscode/

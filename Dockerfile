@@ -6,11 +6,8 @@ COPY . /validated-streams/
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/usr/local/cargo/git --mount=type=cache,target=/usr/local/rustup --mount=type=cache,target=/validated-streams/target cd /validated-streams/ && cargo build --release -Z unstable-options --out-dir=out
 
 FROM debian:bullseye-slim AS runtime
-COPY --from=build /validated-streams/out/node /bin/stream_node
-COPY ./scripts/private_chain_setup.sh /bin/private_chain_setup.sh
-WORKDIR /bin/
-RUN chmod +x private_chain_setup.sh
-EXPOSE 5555
+COPY --from=build /validated-streams/out/vstreams_node /bin/vstreams_node
+
 EXPOSE 6000
 
 # via https://www.fosslinux.com/35730
@@ -21,4 +18,5 @@ HEALTHCHECK \
   --retries=3 CMD \
     bash -c 'echo > /dev/tcp/127.0.0.1/6000'
 
-ENTRYPOINT ["/bin/private_chain_setup.sh"]
+ENTRYPOINT ["/bin/vstreams_node", "--execution", "Native"]
+CMD ["--dev", "--grpc-addr", "0.0.0.0:6000"]

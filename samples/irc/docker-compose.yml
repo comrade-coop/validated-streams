@@ -20,7 +20,7 @@ services:
   trustedclient1:
     build:
       context: ../..
-      dockerfile: samples/ValidatedStreams.Irc.TrustedClient/Dockerfile
+      dockerfile: samples/irc/Dockerfile
     image: comradecoop/validated-streams-irc-client
     command: 'http://172.19.0.2:6000 irc://172.19.0.11:6667 #validated-stream bot-alice'
     networks:

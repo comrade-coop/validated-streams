@@ -6,9 +6,9 @@ set -e
 
 trap stop_processes SIGINT
 if [ $# -lt 5 ] || [ $# -gt 6 ]; then
-  echo "USAGE: $0 <path/to/node> <path/to/client> <path/to/chainspec> <id: 1..32> <secret-phrase> [bootnode-or-node-key]"
-  echo "Example: $0 ../target/release/node ../samples/TpsBench/target/release/tps_bench 1 \"<1's secret phrase>\" 173b2adc7bd10ac4575cd31428ca3049dcf6a5dc675b30fd8140ccd47b2e92ad"
-  echo "       : $0 ../target/release/node ../samples/TpsBench/target/release/tps_bench 2 \"<2's secret phrase>\" /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWC11J8smiZvWoovfd28aM7SE5twyJTKEh8cEz8jguwR6i"
+  echo "USAGE: $0 <path/to/vstreams_node> <path/to/vstreams_tps_benchmark> <path/to/chainspec> <id: 1..32> <secret-phrase> [bootnode-or-node-key]"
+  echo "Example: $0 ../target/release/vstreams_node ../samples/tps-benchmark/target/release/vstreams_tps_benchmark 1 \"<1's secret phrase>\" 173b2adc7bd10ac4575cd31428ca3049dcf6a5dc675b30fd8140ccd47b2e92ad"
+  echo "       : $0 ../target/release/vstreams_node ../samples/tps-benchmark/target/release/vstreams_tps_benchmark 2 \"<2's secret phrase>\" /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWC11J8smiZvWoovfd28aM7SE5twyJTKEh8cEz8jguwR6i"
   exit 1
 fi
 

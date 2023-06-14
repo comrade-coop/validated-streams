@@ -2,7 +2,7 @@
 cd "$(dirname "$0")" || exit 1
 DOCKER='docker'
 DOCKER_COMPOSE='docker-compose'
-DOCKER_COMPOSE_FILE='docker-compose-example.yml'
+DOCKER_COMPOSE_FILE='docker-compose.yml'
 COMMAND=''
 FLAGS=''
 for arg in "$@"; do
@@ -14,10 +14,6 @@ for arg in "$@"; do
     '--docker')
       DOCKER='docker'
       DOCKER_COMPOSE='docker-compose' ;;
-    '--direct-sample')
-      DOCKER_COMPOSE_FILE='docker-compose-example.yml' ;;
-    '--irc-sample')
-      DOCKER_COMPOSE_FILE='../samples/ValidatedStreams.Irc.TrustedClient/docker-compose-irc.yml' ;;
     '--help')
       COMMAND="help"
       break ;;
@@ -48,11 +44,6 @@ function command_run__cleanup {
 }
 
 function command_run {
-  if [ "$DOCKER_COMPOSE_FILE" != "docker-compose-example.yml" ]; then
-    echo "'$0 run' can only be used with the --direct-sample sample.";
-    echo "Use '$0 start $FLAGS' instead.";
-    exit 1;
-  fi
   trap command_run__cleanup SIGINT
   command_start
   command_validated &
@@ -81,9 +72,7 @@ function command_disturb {
   command_stop
   command_start
   wait_bootstrap
-  if [ "$DOCKER_COMPOSE_FILE" = "docker-compose-example.yml" ]; then
-    witness_events &
-  fi
+  witness_events &
   command_logs &
   echo "********** 🔌 Applying a 60 seconds frequent crash-recovery for validator4 + delayed packets for the rest of validators **********"
   # randomly delay all packet transmissions for all containers with 6 seconds delay time and a variation of 0.5 seconds
@@ -140,10 +129,6 @@ function witness_events {
   wait
 }
 function command_witness {
-  if [ "$DOCKER_COMPOSE_FILE" != "docker-compose-example.yml" ]; then
-    echo "'$0 witness' can only be used with the --direct-sample sample.";
-    exit 1;
-  fi
   wait_bootstrap
   witness_events &
   command_logs
@@ -164,12 +149,11 @@ case "$COMMAND" in
   'disturb') command_disturb ;;
   *)
     echo "Usage: $0 COMMAND [flags]"
+    echo "A helper script for running the basic example."
     echo ""
     echo "Flags:"
     echo "  --docker        Use docker / docker-compose to run the samples (default)"
     echo "  --podman        Use podman / podman-compose"
-    echo "  --direct-sample Run the 'direct' sample, witnessing events directly to a network of validators"
-    echo "  --irc-sample    Run the 'irc' sample, witnessing events submitted to an irc channel (localhost:6667#validated-stream)"
     echo ""
     echo "Commands:"
     echo "  run       Run the sample (equivalent to running start; validated & witness; stop)"

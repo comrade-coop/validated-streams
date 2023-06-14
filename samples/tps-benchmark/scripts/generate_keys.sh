@@ -1,11 +1,11 @@
 #!/bin/bash
 
 if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-  echo "USAGE: $0 <path/to/node|docker> <path/to/chainspec-to-generate.json> <output format> [node count]"
-  echo "Example: $0 target/release/node chainSpecRaw.json setup"
+  echo "USAGE: $0 <path/to/vstreams_node|docker> <path/to/chainspec-to-generate.json> <output format> [node count]"
+  echo "Example: $0 target/release/vstreams_node chainSpecRaw.json setup"
   echo "Example: $0 docker /tmp/chainSpecRaw.json compose-vol"
-  echo "'docker' path to node:"
-  echo "  Uses the stream_node binary found in the comradecoop/validated-streams image through docker."
+  echo "'docker' as path to node:"
+  echo "  Uses the vstreams_node binary found in the comradecoop/validated-streams image through docker."
   echo "'setup' format:"
   echo "  The command would output a bunch of scripts/tps_bench_setup.sh command-line invocations that would need to be run later on each target machine."
   echo "  Those invocations expect NODE_COMMAND, CLIENT_COMMAND and FIRST_MACHINE to be set to, respectively, the path to the validated streams node binary, the TPS benchmark binary, and the IP of the first machine."
@@ -14,7 +14,7 @@ if [ $# -lt 3 ] || [ $# -gt 4 ]; then
   echo "  The chainspec will be linked as a docker-compose config."
   echo "'compose-vol' format:"
   echo "  The command would output a docker-compose invocation which uses a default debian image together with a docker volume named 'vol-tps-bench'."
-  echo "  See tps_bench_build_volume.sh for a way to create that volume."
+  echo "  See build_volume.sh for a way to create that volume."
   echo "  The chainspec will be copied into the output volume as 'chainspec.json'."
   exit 1
 fi
@@ -34,7 +34,7 @@ if [ "$NODE_COMMAND_O" = "docker" ]; then
     DOCKER_VOLUME=$($DOCKER volume create)
   fi
   $DOCKER run -d -v "$DOCKER_VOLUME:/data" --name vs-helper --entrypoint sleep comradecoop/validated-streams infinity >/dev/null
-  NODE_COMMAND="$DOCKER exec -i vs-helper /bin/stream_node"
+  NODE_COMMAND="$DOCKER exec -i vs-helper /bin/vstreams_node"
 fi
 
 $NODE_COMMAND build-spec --disable-default-bootnode -lerror > "$SPEC_PATH.init"
@@ -86,7 +86,7 @@ for ((i=1; i<=$COUNT; i++)); do
       echo "      - chainspec"
     elif [ "$FORMAT" = "compose-vol" ]; then
       echo '    image: debian:bullseye'
-      echo "    command: /mnt/tps_bench_setup.sh /mnt/stream_node /mnt/tps_bench /mnt/chainspec.json $node_conf"
+      echo "    command: /mnt/tps_bench_setup.sh /mnt/vstreams_node /mnt/vstreams_tps_benchmark /mnt/chainspec.json $node_conf"
       echo "    volumes:"
       echo '      - "vol-tps-bench:/mnt/:ro"'
     else
@@ -109,7 +109,7 @@ rm "$SPEC_PATH.init"
 if [ "$NODE_COMMAND_O" = "docker" ]; then
   $DOCKER cp "$SPEC_PATH.full" vs-helper:/data/chainspec.json.full >/dev/null
 
-  $DOCKER exec -i vs-helper bash -c '/bin/stream_node build-spec --chain /data/chainspec.json.full --raw -lerror >/data/chainspec.json' >/dev/null
+  $DOCKER exec -i vs-helper bash -c '/bin/vstreams_node build-spec --chain /data/chainspec.json.full --raw -lerror >/data/chainspec.json' >/dev/null
 
   $DOCKER cp vs-helper:/data/chainspec.json "$SPEC_PATH"
 

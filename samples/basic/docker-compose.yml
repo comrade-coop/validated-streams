@@ -3,12 +3,12 @@ services:
   validator1:
     stdin_open: true
     container_name: validator1
-    build: ..
+    build: ../..
     image: comradecoop/validated-streams
     ports:
       - "5556:6000"
       - "9944:9944"
-    command: --alice --ws-port 9944 --unsafe-ws-external --gossip-bootnodes /ip4/172.19.0.3/tcp/30343 --gossip-bootnodes /ip4/172.19.0.4/tcp/30343 --gossip-bootnodes /ip4/172.19.0.5/tcp/30343 --grpc-addr 0.0.0.0:6000
+    command: --alice --chain local --grpc-addr 0.0.0.0:6000 --ws-port 9944 --unsafe-ws-external
     networks:
      mynetwork:
        ipv4_address: 172.19.0.2
@@ -18,7 +18,7 @@ services:
     image: comradecoop/validated-streams
     ports:
       - "5557:6000"
-    command: --bob --gossip-bootnodes /ip4/172.19.0.2/tcp/30343 --gossip-bootnodes /ip4/172.19.0.4/tcp/30343 --gossip-bootnodes /ip4/172.19.0.5/tcp/30343 --grpc-addr 0.0.0.0:6000
+    command: --bob --chain local --grpc-addr 0.0.0.0:6000
     networks:
       mynetwork:
         ipv4_address: 172.19.0.3
@@ -28,7 +28,7 @@ services:
     image: comradecoop/validated-streams
     ports:
       - "5558:6000"
-    command: --charlie --gossip-bootnodes /ip4/172.19.0.2/tcp/30343 --gossip-bootnodes /ip4/172.19.0.3/tcp/30343 --gossip-bootnodes /ip4/172.19.0.5/tcp/30343 --grpc-addr 0.0.0.0:6000
+    command: --charlie --chain local --grpc-addr 0.0.0.0:6000
     networks:
       mynetwork:
         ipv4_address: 172.19.0.4
@@ -38,7 +38,7 @@ services:
     image: comradecoop/validated-streams
     ports:
       - "5559:6000"
-    command: --dave --gossip-bootnodes /ip4/172.19.0.2/tcp/30343 --gossip-bootnodes /ip4/172.19.0.3/tcp/30343 --gossip-bootnodes /ip4/172.19.0.4/tcp/30343 --grpc-addr 0.0.0.0:6000
+    command: --dave --chain local --grpc-addr 0.0.0.0:6000
     networks:
       mynetwork:
         ipv4_address: 172.19.0.5

@@ -8,11 +8,11 @@ Running the example:
 
 1. Build the necessary docker images:
     ```
-    ./scripts/run-example.sh build --irc-sample
+    docker-compose build
     ```
 2. Start the local network of validators, trusted clients, and an IRC server:
     ```
-    ./scripts/run-example.sh start --irc-sample
+    docker-compose up -d
     ```
 3. Connect to the local IRC server at [`localhost:6667`](irc://localhost:6667/validated-stream) (non-TLS), join `#validated-stream` and send a message. Sample interaction:
     ```
@@ -27,7 +27,7 @@ Running the example:
     Empirical testing shows that events are validated (finalized) in roughly ~16 seconds by the sample network. It is plausible that tuning the node configuration could produce faster finalizations.
 4. Stop the network when you are finished:
     ```
-    ./scripts/run-example.sh stop --irc-sample
+    docker-compose down
     ```
 
 ## Architecture

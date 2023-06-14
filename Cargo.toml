@@ -6,7 +6,7 @@ members = [
 	"node"
 ]
 exclude = [
-	"samples/TpsBench"
+	"samples/tps-benchmark"
 ]
 [profile.release]
 panic = "unwind"

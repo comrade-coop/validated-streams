@@ -162,7 +162,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let args: Vec<String> = env::args().collect();
 	if args.len() < 4 {
 		println!(
-			"USAGE: tps_bench <Target_Address> <Increase_Factor> <Decrease_Factor> <Max_events>"
+			"USAGE: {} <Target_Address> <Increase_Factor> <Decrease_Factor> <Max_events>",
+		   args.get(0).unwrap_or(&"vstreams_tps_benchmark".to_string())
 		);
 		return Ok(())
 	}

@@ -1,6 +1,6 @@
 //! Specification for the chains used by this node
 
-use node_runtime::{
+use vstreams_node_runtime::{
 	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig, Signature, SudoConfig,
 	SystemConfig, WASM_BINARY,
 };
