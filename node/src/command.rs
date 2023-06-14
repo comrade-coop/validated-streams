@@ -5,12 +5,12 @@ use crate::{
 	service::{self, ExecutorDispatch},
 };
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
-use vstreams_node_runtime::{Block, EXISTENTIAL_DEPOSIT};
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
 use sp_keyring::Sr25519Keyring;
 #[cfg(feature = "try-runtime")]
 use try_runtime_cli::block_building_info::timestamp_with_aura_info;
+use vstreams_node_runtime::{Block, EXISTENTIAL_DEPOSIT};
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> String {

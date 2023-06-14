@@ -7,7 +7,7 @@ use frame_support::{
 use frame_system as system;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{sr25519::Public, ByteArray, H256};
-pub use sp_keystore::{SyncCryptoStore, testing::KeyStore};
+pub use sp_keystore::{testing::KeyStore, SyncCryptoStore};
 pub use sp_runtime::key_types::AURA;
 use sp_runtime::{
 	testing::Header,

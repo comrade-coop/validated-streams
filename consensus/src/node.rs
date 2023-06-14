@@ -2,14 +2,14 @@
 
 use crate::{
 	config::ValidatedStreamsNetworkConfiguration,
-	events::{AuthoritiesList, EventGossipHandler, EventValidator, EventWitnesser},
+	events::{BlockStateCache, EventGossipHandler, EventValidator, EventWitnesser},
 	gossip::Gossip,
 	proofs::EventProofsTrait,
 	server,
 };
 use codec::Codec;
 use futures::future;
-use lru::LruCache;
+
 use pallet_validated_streams::ValidatedStreamsApi;
 use sc_client_api::{BlockBackend, BlockchainEvents, HeaderBackend};
 use sc_network::config::NetworkConfiguration;
@@ -20,7 +20,33 @@ use sp_blockchain::HeaderMetadata;
 use sp_consensus_aura::AuraApi;
 use sp_keystore::CryptoStore;
 use sp_runtime::app_crypto::CryptoTypePublicPair;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+
+/// Parameters for the [start] function.
+pub struct StartParams<
+	Block: BlockT,
+	TxPool: LocalTransactionPool<Block = Block> + 'static,
+	Client: Sync + Send + 'static,
+	EventProofs: EventProofsTrait + Sync + Send + 'static,
+> {
+	/// The spawn handle to launch services under.
+	pub spawn_handle: SpawnTaskHandle,
+	/// A reference to an [EventProofsTrait] instance for storing events proofs.
+	pub event_proofs: Arc<EventProofs>,
+	/// The client.
+	pub client: Arc<Client>,
+	/// A keystore for signing witnessed events.
+	pub keystore: Arc<dyn CryptoStore>,
+	/// A reference to the transaction pool where fully-witnessed events will be submitted.
+	pub transaction_pool: Arc<TxPool>,
+	/// The substrate network configuration.
+	pub network_configuration: NetworkConfiguration,
+	/// The validated streams -specific network configuration.
+	pub validated_streams_network_config: ValidatedStreamsNetworkConfiguration,
+	/// A cache for storing recently-accesed blocks.
+	pub block_state: BlockStateCache<Block>,
+}
+
 /// Start all the services of the Validated Streams node.
 /// This functions starts the gossip, event service, and the gRPC server for the current node, and
 /// configures their ports using the passed configuration.
@@ -31,14 +57,7 @@ pub fn start<
 	EventProofs: EventProofsTrait + Sync + Send + 'static,
 	AuthorityId: Codec + Send + Sync + 'static,
 >(
-	spawn_handle: SpawnTaskHandle,
-	event_proofs: Arc<EventProofs>,
-	client: Arc<Client>,
-	keystore: Arc<dyn CryptoStore>,
-	tx_pool: Arc<TxPool>,
-	vs_network_configuration: ValidatedStreamsNetworkConfiguration,
-	network_configuration: NetworkConfiguration,
-	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash, AuthoritiesList>>>,
+	params: StartParams<Block, TxPool, Client, EventProofs>,
 ) -> Result<(), ServiceError>
 where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
@@ -50,13 +69,24 @@ where
 	Client::Api: ValidatedStreamsApi<Block> + AuraApi<Block, AuthorityId>,
 	<<Block as BlockT>::Header as HeaderT>::Number: Into<u32>,
 {
+	let StartParams {
+		spawn_handle,
+		event_proofs,
+		client,
+		keystore,
+		transaction_pool: tx_pool,
+		validated_streams_network_config: vs_network_configuration,
+		network_configuration,
+		block_state,
+	} = params;
+
 	let (streams_gossip, streams_gossip_service) = Gossip::create();
 
 	let event_gossip_handler = Arc::new(EventGossipHandler::new(
-		block_state.clone(),
 		client.clone(),
 		event_proofs,
 		tx_pool,
+		block_state.clone(),
 	));
 
 	let event_witnesser = Arc::new(EventWitnesser::new(

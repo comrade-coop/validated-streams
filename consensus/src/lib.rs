@@ -22,4 +22,6 @@ pub use block_import::ValidatedStreamsBlockImport;
 
 pub use config::{ValidatedStreamsNetworkConfiguration, ValidatedStreamsNetworkParams};
 
-pub use node::start;
+pub use node::{start, StartParams};
+
+pub use events::BlockStateCache;

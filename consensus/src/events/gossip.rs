@@ -1,6 +1,6 @@
 //! Service which processes all the incoming events
 
-use super::{get_latest_authorities_list, AuthoritiesList};
+use super::{get_latest_authorities_list, BlockStateCache};
 use crate::{
 	errors::Error,
 	gossip::GossipHandler,
@@ -24,14 +24,8 @@ use sp_core::{
 use sp_runtime::{
 	app_crypto::CryptoTypePublicPair, generic::BlockId, transaction_validity::InvalidTransaction,
 };
-use std::{
-	collections::HashMap,
-	marker::PhantomData,
-	sync::{Arc, Mutex},
-};
-extern crate lru;
+use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
-use lru::LruCache;
 /// The topic on which the [EventGossipHandler] listens.
 pub const WITNESSED_EVENTS_TOPIC: &str = "WitnessedEvent";
 
@@ -41,7 +35,7 @@ pub struct EventGossipHandler<TxPool, Client, EventProofs, AuthorityId, Block: B
 	event_proofs: Arc<EventProofs>,
 	tx_pool: Arc<TxPool>,
 	client: Arc<Client>,
-	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash, AuthoritiesList>>>,
+	block_state: BlockStateCache<Block>,
 	phantom: PhantomData<AuthorityId>,
 }
 
@@ -66,10 +60,10 @@ where
 
 	/// Creates a new EventGossipHandler
 	pub fn new(
-		block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash, AuthoritiesList>>>,
 		client: Arc<Client>,
 		event_proofs: Arc<EventProofs>,
 		tx_pool: Arc<TxPool>,
+		block_state: BlockStateCache<Block>,
 	) -> Self {
 		Self { client, event_proofs, tx_pool, phantom: PhantomData, block_state }
 	}

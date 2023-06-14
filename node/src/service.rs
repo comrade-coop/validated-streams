@@ -2,11 +2,9 @@
 #[cfg(feature = "off-chain-proofs")]
 use consensus_validated_streams::ValidatedStreamsBlockImport;
 use consensus_validated_streams::{
-	config::ValidatedStreamsNetworkConfiguration, events::AuthoritiesList,
-	proofs::OffchainStorageEventProofs,
+	proofs::OffchainStorageEventProofs, BlockStateCache, ValidatedStreamsNetworkConfiguration,
 };
 use lru::LruCache;
-use vstreams_node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_consensus_grandpa::SharedVoterState;
@@ -21,12 +19,13 @@ use sc_telemetry::{Telemetry, TelemetryWorker};
 #[cfg(feature = "off-chain-proofs")]
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-use sp_core::H256;
+
 use std::{
 	num::NonZeroUsize,
 	sync::{Arc, Mutex},
 	time::Duration,
 };
+use vstreams_node_runtime::{self, opaque::Block, RuntimeApi};
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
@@ -71,6 +70,7 @@ type FullPartialComponentsOther = (
 	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
 	Arc<OffchainStorageEventProofs<<FullBackend as Backend<Block>>::OffchainStorage>>,
+	BlockStateCache<Block>,
 );
 
 #[cfg(feature = "off-chain-proofs")]
@@ -87,7 +87,7 @@ type FullPartialComponentsOther = (
 	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 	Option<Telemetry>,
 	Arc<OffchainStorageEventProofs<<FullBackend as Backend<Block>>::OffchainStorage>>,
-	Arc<Mutex<LruCache<H256, AuthoritiesList>>>,
+	BlockStateCache<Block>,
 );
 
 /// Build the services a client is composed of, but don't run it yet
@@ -150,11 +150,12 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 			.ok_or_else(|| ServiceError::Other("Offchain storage is required.".into()))?,
 	));
 
-	#[cfg(not(feature = "on-chain-proofs"))]
-	let block_state = Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(CACHE_CAPACITY).unwrap())));
-	#[cfg(feature = "on-chain-proofs")]
+	let block_state =
+		Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(CACHE_CAPACITY).unwrap())));
+
+	#[cfg(not(feature = "off-chain-proofs"))]
 	let block_import = grandpa_block_import.clone();
-	#[cfg(not(feature = "on-chain-proofs"))]
+	#[cfg(feature = "off-chain-proofs")]
 	let (block_import, provide_sync_service) = ValidatedStreamsBlockImport::new(
 		grandpa_block_import.clone(),
 		client.clone(),
@@ -195,7 +196,7 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 		select_chain,
 		transaction_pool,
 		#[cfg(not(feature = "off-chain-proofs"))]
-		other: (block_import, grandpa_link, telemetry, event_proofs),
+		other: (block_import, grandpa_link, telemetry, event_proofs, block_state),
 		#[cfg(feature = "off-chain-proofs")]
 		other: (
 			block_import,
@@ -203,7 +204,7 @@ pub fn new_partial(config: &Configuration) -> Result<FullPartialComponents, Serv
 			grandpa_link,
 			telemetry,
 			event_proofs,
-			block_state.clone(),
+			block_state,
 		),
 	})
 }
@@ -218,7 +219,7 @@ fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
 /// Builds a new service for a full client.
 pub fn new_full(
 	mut config: Configuration,
-	validated_streams_config: ValidatedStreamsNetworkConfiguration,
+	validated_streams_network_config: ValidatedStreamsNetworkConfiguration,
 ) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
 		client,
@@ -229,22 +230,22 @@ pub fn new_full(
 		select_chain,
 		transaction_pool,
 		#[cfg(not(feature = "off-chain-proofs"))]
-			other: (block_import, grandpa_link, mut telemetry, event_proofs),
-		#[cfg(not(feature = "on-chain-proofs"))]
+			other: (block_import, grandpa_link, mut telemetry, event_proofs, block_state),
+		#[cfg(feature = "off-chain-proofs")]
 			other:
 			(block_import, provide_sync_service, grandpa_link, mut telemetry, event_proofs, block_state),
 	} = new_partial(&config)?;
 
-	consensus_validated_streams::start(
-		task_manager.spawn_handle(),
+	consensus_validated_streams::start(consensus_validated_streams::StartParams {
+		spawn_handle: task_manager.spawn_handle(),
 		event_proofs,
-		client.clone(),
-		keystore_container.keystore(),
-		transaction_pool.clone(),
-		validated_streams_config,
-		config.network.clone(),
-		block_state.clone(),
-	)?;
+		client: client.clone(),
+		keystore: keystore_container.keystore(),
+		transaction_pool: transaction_pool.clone(),
+		validated_streams_network_config,
+		network_configuration: config.network.clone(),
+		block_state,
+	})?;
 
 	if let Some(url) = &config.keystore_remote {
 		match remote_keystore(url) {

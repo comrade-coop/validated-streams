@@ -27,6 +27,9 @@ pub use gossip::EventGossipHandler;
 pub use validate::EventValidator;
 pub use witness::EventWitnesser;
 
+/// A cache for the list of authorities in a block.
+pub type BlockStateCache<Block> = Arc<Mutex<LruCache<<Block as BlockT>::Hash, AuthoritiesList>>>;
+
 /// Internal struct holding the list of the authorities at a particular block.
 #[derive(Clone, Debug)]
 pub struct AuthoritiesList {
@@ -94,7 +97,7 @@ impl AuthoritiesList {
 /// Returns the list of events that we do not have enough witnesses for, using the authorities in
 /// the given block.
 pub(crate) fn verify_events_validity<Block, EventProofs, Client, AuthorityId>(
-	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash, AuthoritiesList>>>,
+	block_state: BlockStateCache<Block>,
 	client: Arc<Client>,
 	authorities_block_id: <Block as BlockT>::Hash,
 	event_proofs: Arc<EventProofs>,
@@ -123,8 +126,8 @@ where
 }
 
 /// Reads the latest finalized list of authorities. For use when pruining event proofs.
-fn get_latest_authorities_list<Block, Client, AuthorityId>(
-	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash, AuthoritiesList>>>,
+pub(crate) fn get_latest_authorities_list<Block, Client, AuthorityId>(
+	block_state: BlockStateCache<Block>,
 	client: &Client,
 ) -> Result<AuthoritiesList, Error>
 where
@@ -138,9 +141,8 @@ where
 }
 
 /// Reads the list of authorities from a block.
-// NOTE: Might benefit from a LRU cache.
-fn get_authorities_list<Block, Client, AuthorityId>(
-	block_state: Arc<Mutex<LruCache<<Block as BlockT>::Hash, AuthoritiesList>>>,
+pub(crate) fn get_authorities_list<Block, Client, AuthorityId>(
+	block_state: BlockStateCache<Block>,
 	client: &Client,
 	authorities_block_id: <Block as BlockT>::Hash,
 ) -> Result<AuthoritiesList, Error>
@@ -151,11 +153,7 @@ where
 	CryptoTypePublicPair: for<'a> From<&'a AuthorityId>,
 	Client::Api: ValidatedStreamsApi<Block> + AuraApi<Block, AuthorityId>,
 {
-	if let Some(block_state) = block_state
-		.lock()
-		.or(Err(Error::LockFail("BlockState".to_string())))?
-		.get(&authorities_block_id)
-	{
+	if let Some(block_state) = block_state.lock()?.get(&authorities_block_id) {
 		return Ok(block_state.clone())
 	}
 	let public_keys = client
@@ -166,10 +164,7 @@ where
 		.map(CryptoTypePublicPair::from)
 		.collect();
 	let new_block_state = AuthoritiesList::new(public_keys);
-	block_state
-		.lock()
-		.or(Err(Error::LockFail("BlockState".to_string())))?
-		.put(authorities_block_id, new_block_state.clone());
+	block_state.lock()?.put(authorities_block_id, new_block_state.clone());
 
 	Ok(new_block_state)
 }
