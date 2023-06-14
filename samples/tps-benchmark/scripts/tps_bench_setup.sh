@@ -59,8 +59,7 @@ fi
 echo $NODE_COMMAND "${ARGS[@]}"
 $NODE_COMMAND "${ARGS[@]}" &
 sleep 10
-$CLIENT_COMMAND http://127.0.0.1:6000 2 2 10000
-sleep 400
+$CLIENT_COMMAND http://127.0.0.1:6000 2 2 10000 && sleep 400
 stop_processes
 
 wait
