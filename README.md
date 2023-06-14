@@ -10,7 +10,7 @@ Validated Streams also acts as a fundamental building block of [Apocryph](https:
 3. Transactions-per-second benchmark: Finally, there is a benchmark measuring TPS [in the respective sample folder](samples/tps-benchmark/README.md).
 
 ## Architecture
-![Diagram of Validated Streams, with a grpc service ingesting events from an application, passing them to a gossip, which then leads to on-chain transactions, that, after block finalization, get forwarded back to the application. (validated-streams.drawio.png)](https://user-images.githubusercontent.com/5276727/211316562-ad73fdd0-0dec-4543-884e-fe60cb09ee7a.png)
+![Diagram of Validated Streams, with a grpc service ingesting events from an application, passing them to a gossip, which then leads to on-chain transactions, that, after block finalization, get forwarded back to the application. (validated-streams.drawio.png)](https://user-images.githubusercontent.com/5276727/245819750-12bd4150-7a40-460d-96ab-5269f9c313ac.png)
 
 Each of validator is a Substrate node that has an attached trusted client(s). The client submits hashes representing events that have been witnessed locally. Since a malicious client would be able to fabricate or censor data at whim, it is necessary that the operators of validators don't trust other validators (or third parties in general) with the task of running trusted clients, but run their own, perhaps even collocating it with the validator node.
 
