@@ -6,7 +6,7 @@ COPY . /validated-streams/
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/usr/local/cargo/git --mount=type=cache,target=/usr/local/rustup --mount=type=cache,target=/validated-streams/target cd /validated-streams/ && cargo build --release -Z unstable-options --out-dir=out
 
 FROM debian:bullseye-slim AS runtime
-COPY --from=build /validated-streams/out/vstreams_node /bin/vstreams_node
+COPY --from=build /validated-streams/out/vstreams-node /bin/vstreams-node
 
 EXPOSE 6000
 
@@ -18,5 +18,5 @@ HEALTHCHECK \
   --retries=3 CMD \
     bash -c 'echo > /dev/tcp/127.0.0.1/6000'
 
-ENTRYPOINT ["/bin/vstreams_node", "--execution", "Native"]
+ENTRYPOINT ["/bin/vstreams-node", "--execution", "Native"]
 CMD ["--dev", "--grpc-addr", "0.0.0.0:6000"]

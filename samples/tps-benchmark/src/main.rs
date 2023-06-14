@@ -163,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	if args.len() < 4 {
 		println!(
 			"USAGE: {} <Target_Address> <Increase_Factor> <Decrease_Factor> <Max_events>",
-		   args.get(0).unwrap_or(&"vstreams_tps_benchmark".to_string())
+			args.get(0).unwrap_or(&"vstreams-tps-benchmark".to_string())
 		);
 		return Ok(())
 	}
@@ -176,7 +176,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	let client = loop {
 		if let Ok(val) = StreamsClient::connect(validator_addr.clone()).await {
-			break val;
+			break val
 		} else {
 			tokio::time::sleep(Duration::from_secs(5)).await;
 		}

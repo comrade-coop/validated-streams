@@ -29,7 +29,7 @@ To run without Docker:
 
 1. Run `scripts/generate_keys.sh`. E.g. with a release-build node in the usual target directory:
     ```bash
-    scripts/generate_keys.sh ../../target/release/vstreams_node chainSpecRaw.json setup
+    scripts/generate_keys.sh ../../target/release/vstreams-node chainSpecRaw.json setup
     ```
 
     (to generate keys for a smaller network, pass the number of nodes as a 4-th parameter.)
@@ -42,8 +42,8 @@ To run without Docker:
 
     Each one of those lines is a command-line invocation for a different node of the benchmark.
 3. On each node, run the corresponding command lines, replacing:
-    `$NODE_COMMAND` with the path to the `target/XX/vstreams_node` binary.
-    `$CLIENT_COMMAND` with the path to the `samples/tps-benchmark/target/XX/vstreams_tps_benchmark` binary.
+    `$NODE_COMMAND` with the path to the `target/XX/vstreams-node` binary.
+    `$CLIENT_COMMAND` with the path to the `samples/tps-benchmark/target/XX/vstreams-tps-benchmark` binary.
     `$FIRST_MACHINE` with the ip(v4) address of the first node of the list.
 
 Note: When running, make sure all the machines' clocks are roughly in sync (not more than a few seconds off), and start executing the code around the same time. Otherwise, you risk some of the nodes getting slashed and the benchmark not testing the whole network.

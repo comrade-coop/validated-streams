@@ -1,8 +1,8 @@
 FROM comradecoop/validated-streams-tps-bench as tps-bench
 FROM comradecoop/validated-streams
-COPY --from=tps-bench /bin/vstreams_tps_benchmark /bin/vstreams_tps_benchmark
+COPY --from=tps-bench /bin/vstreams-tps-benchmark /bin/vstreams-tps-benchmark
 COPY ./scripts/tps_bench_setup.sh /bin/tps_bench_setup.sh
 WORKDIR /bin/
 RUN chmod +x /bin/tps_bench_setup.sh
-ENTRYPOINT ["/bin/tps_bench_setup.sh", "/bin/vstreams_node", "/bin/vstreams_tps_benchmark"]
+ENTRYPOINT ["/bin/tps_bench_setup.sh", "/bin/vstreams-node", "/bin/vstreams-tps-benchmark"]
 
