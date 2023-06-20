@@ -14,10 +14,10 @@ use sp_runtime::{app_crypto::RuntimePublic, RuntimeAppPublic};
 #[cfg(feature = "off-chain-proofs")]
 benchmarks! {
 	validate_event {
-		let event_id: T::Hash = T::Hash::default();
+		let event_id = H256::default();
 	}: _(RawOrigin::None, event_id, None)
 	verify {
-		assert!(pallet_validated_streams::<T>::verify_event(event_id));
+		assert!(pallet_validated_streams::<T>::is_event_valid(event_id));
 	}
 	impl_benchmark_test_suite!(
 		pallet_validated_streams,

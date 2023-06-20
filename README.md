@@ -43,7 +43,7 @@ To run the tests, use the following commands in the root directory of the projec
   ```
 * With on-chain proofs:
   ```
-  cargo test -p consensus-validated-streams --no-default-features
+  cargo test -p consensus-validated-streams --no-default-features --features rocksdb
   ```
 #### Pallet:
 * Default:
@@ -53,7 +53,7 @@ To run the tests, use the following commands in the root directory of the projec
     ```
 * With on-chain proofs:
     ```
-    cargo test -p pallet-validated-streams --no-default-features
+    cargo test -p pallet-validated-streams --features off-chain-proofs
     ```
 #### Integration tests:
 
