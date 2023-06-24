@@ -1,7 +1,9 @@
 use super::{
-	EventProofsTrait, InMemoryEventProofs, OffchainStorageEventProofs, RocksDbEventProofs,
+	EventProofsTrait, InMemoryEventProofs, OffchainStorageEventProofs,
 	WitnessedEvent,
 };
+#[cfg(feature = "rocksdb")]
+use super::RocksDbEventProofs;
 use rstest::rstest;
 use sp_core::{sr25519::Public, H256};
 use sp_runtime::{app_crypto::CryptoTypePublicPair, offchain::testing::TestPersistentOffchainDB};
@@ -14,7 +16,9 @@ fn in_memory_proofs() -> impl EventProofsTrait {
 	InMemoryEventProofs::new()
 }
 
+#[cfg(feature = "rocksdb")]
 static ROCKSDB_INSTANCE: AtomicUsize = AtomicUsize::new(1);
+#[cfg(feature = "rocksdb")]
 fn rocksdb_proofs() -> impl EventProofsTrait {
 	let path =
 		format!("/tmp/testvstreamsrocksdb{}", ROCKSDB_INSTANCE.fetch_add(1, Ordering::SeqCst));
@@ -28,6 +32,7 @@ fn offchain_proofs() -> impl EventProofsTrait {
 
 #[rstest]
 #[case(in_memory_proofs())]
+#[cfg(feature = "rocksdb")]
 #[case(rocksdb_proofs())]
 #[case(offchain_proofs())]
 fn test_add_event_proof(#[case] proofs: impl EventProofsTrait) {
@@ -41,6 +46,7 @@ fn test_add_event_proof(#[case] proofs: impl EventProofsTrait) {
 
 #[rstest]
 #[case(in_memory_proofs())]
+#[cfg(feature = "rocksdb")]
 #[case(rocksdb_proofs())]
 #[case(offchain_proofs())]
 fn test_get_proof_count(#[case] proofs: impl EventProofsTrait) {
@@ -58,6 +64,7 @@ fn test_get_proof_count(#[case] proofs: impl EventProofsTrait) {
 
 #[rstest]
 #[case(in_memory_proofs())]
+#[cfg(feature = "rocksdb")]
 #[case(rocksdb_proofs())]
 #[case(offchain_proofs())]
 fn test_get_proof_proofs(#[case] proofs: impl EventProofsTrait) {
@@ -78,6 +85,7 @@ fn test_get_proof_proofs(#[case] proofs: impl EventProofsTrait) {
 
 #[rstest]
 #[case(in_memory_proofs())]
+#[cfg(feature = "rocksdb")]
 #[case(rocksdb_proofs())]
 #[case(offchain_proofs())]
 fn test_remove_stale_events(#[case] proofs: impl EventProofsTrait) {
