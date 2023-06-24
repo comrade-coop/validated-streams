@@ -2,7 +2,7 @@
 
 # SPDX-License-Identifier: MIT
 
-if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+if [ $# -lt 3 ] || [ $# -gt 6 ]; then
   echo "USAGE: $0 <path/to/vstreams-node|docker> <path/to/chainspec-to-generate.json> <output format> [node count]"
   echo "Example: $0 target/release/vstreams-node chainSpecRaw.json setup"
   echo "Example: $0 docker /tmp/chainSpecRaw.json compose-vol"
@@ -18,6 +18,12 @@ if [ $# -lt 3 ] || [ $# -gt 4 ]; then
   echo "  The command would output a docker-compose invocation which uses a default debian image together with a docker volume named 'vol-tps-bench'."
   echo "  See build_volume.sh for a way to create that volume."
   echo "  The chainspec will be copied into the output volume as 'chainspec.json'."
+  echo "'compose-vol-remote' format:"
+  echo "  The command would output a docker-compose invocation which uses a default debian image together with a docker volume named 'vol-tps-bench'."
+  echo "  The difference with compose-vol format is that the debian image acts as proxy for a remote machine that is actually executing the application."
+  echo "  The command takes as additional last arguments: file with list of remote hosts (should be equal to the count of nodes) and name of SSH key." 
+  echo "  See build_volume.sh for a way to create that volume."
+  echo "  The chainspec will be copied into the output volume as 'chainspec.json'."
   exit 1
 fi
 
@@ -27,10 +33,12 @@ NODE_COMMAND_O=$1
 SPEC_PATH=$2
 FORMAT=$3
 COUNT=${4:-32}
+SSH_HOSTS=$5
+SSH_KEY=$6
 
 if [ "$NODE_COMMAND_O" = "docker" ]; then
   $DOCKER rm -f vs-helper &>/dev/null
-  if [ "$FORMAT" = "compose-vol" ]; then
+  if [ "$FORMAT" = "compose-vol" ] || [ "$FORMAT" = "compose-vol-remote" ]; then
     DOCKER_VOLUME=vol-tps-bench
   else
     DOCKER_VOLUME=$($DOCKER volume create)
@@ -76,6 +84,9 @@ for ((i=1; i<=$COUNT; i++)); do
     echo "scripts/tps_bench_setup.sh \$NODE_COMMAND \$CLIENT_COMMAND $SPEC_PATH $i \"$secret_phrase\" $bootnode_or_key"
   elif [[ "$FORMAT" =~ "compose" ]]; then
     machine_ip="172.20.0.$(($i + 1))"
+    if [ "$FORMAT" = "compose-vol-remote" ]; then
+      machine_ip=$(sed "${i}q;d" $SSH_HOSTS)
+    fi
     bootnode_key=$($NODE_COMMAND key generate-node-key 2>/dev/null)
     bootnode="/ip4/$machine_ip/tcp/30333/p2p/$(echo "$bootnode_key" | $NODE_COMMAND key inspect-node-key)"
     JQ_FILTERS+='| .bootNodes += ["'$bootnode'"]'
@@ -86,19 +97,30 @@ for ((i=1; i<=$COUNT; i++)); do
       echo "    command: /chainspec $node_conf"
       echo "    configs:"
       echo "      - chainspec"
+      echo '    restart: on-failure'
+      echo '    networks:'
+      echo '     tpsnetwork:'
+      echo "       ipv4_address: $machine_ip"
     elif [ "$FORMAT" = "compose-vol" ]; then
       echo '    image: debian:bullseye'
       echo "    command: /mnt/tps_bench_setup.sh /mnt/vstreams-node /mnt/vstreams-tps-benchmark /mnt/chainspec.json $node_conf"
       echo "    volumes:"
       echo '      - "vol-tps-bench:/mnt/:ro"'
+      echo '    restart: on-failure'
+      echo '    networks:'
+      echo '     tpsnetwork:'
+      echo "       ipv4_address: $machine_ip"
+    elif [ "$FORMAT" = "compose-vol-remote" ]; then
+      echo '    image: kroniak/ssh-client'
+      echo "    command: /mnt/tps_bench_setup_remote.sh $machine_ip $SSH_KEY /mnt/vstreams-node /mnt/vstreams-tps-benchmark /mnt/chainspec.json $node_conf 100"
+      echo "    volumes:"
+      echo '      - "vol-tps-bench:/mnt/:ro"'
+      echo '      - "${HOME}/.ssh:/home/root/.ssh"'
+      echo '    restart: on-failure'
     else
       echo "Unknown format: $FORMAT"
       exit 1
     fi
-    echo '    restart: on-failure'
-    echo '    networks:'
-    echo '     tpsnetwork:'
-    echo "       ipv4_address: $machine_ip"
   else
     echo "Unknown format: $FORMAT"
     exit 1
@@ -117,7 +139,7 @@ if [ "$NODE_COMMAND_O" = "docker" ]; then
 
   $DOCKER rm -f vs-helper >/dev/null
 
-  if [ "$FORMAT" != "compose-vol" ]; then
+  if [ "$FORMAT" != "compose-vol" ] && [ "$FORMAT" != "compose-vol-remote" ]; then
     $DOCKER volume remove "$DOCKER_VOLUME"
   fi
 else
@@ -130,17 +152,27 @@ else
   fi
 fi
 
+if [ "$FORMAT" = "compose" ]; then
 echo 'networks:'
 echo '  tpsnetwork:'
 echo '    driver: bridge'
 echo '    ipam:'
 echo '      config:'
 echo '        - subnet: 172.20.0.0/16'
-if [ "$FORMAT" = "compose" ]; then
 echo 'configs:'
 echo '  chainspec:'
 echo "    file: $SPEC_PATH"
 elif [ "$FORMAT" = "compose-vol" ]; then
+echo 'networks:'
+echo '  tpsnetwork:'
+echo '    driver: bridge'
+echo '    ipam:'
+echo '      config:'
+echo '        - subnet: 172.20.0.0/16'
+echo 'volumes:'
+echo '  vol-tps-bench:'
+echo '    external: true'
+elif [ "$FORMAT" = "compose-vol-remote" ]; then
 echo 'volumes:'
 echo '  vol-tps-bench:'
 echo '    external: true'

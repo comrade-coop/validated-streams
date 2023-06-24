@@ -18,5 +18,5 @@ $DOCKER build -t comradecoop/validated-streams-tps-bench-full samples/tps-benchm
 
 $DOCKER volume create "$DOCKER_VOLUME"
 
-$DOCKER run --rm -v "$DOCKER_VOLUME":/mnt --entrypoint cp comradecoop/validated-streams-tps-bench-full /bin/{vstreams-node,vstreams-tps-benchmark,tps_bench_setup.sh} /mnt
+$DOCKER run --rm -v "$DOCKER_VOLUME":/mnt --entrypoint cp comradecoop/validated-streams-tps-bench-full /bin/{vstreams-node,vstreams-tps-benchmark,tps_bench_setup.sh,tps_bench_setup_remote.sh} /mnt
 
