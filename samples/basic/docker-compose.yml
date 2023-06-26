@@ -8,7 +8,7 @@ services:
     ports:
       - "5556:6000"
       - "9944:9944"
-    command: --alice --chain local --grpc-addr 0.0.0.0:6000 --ws-port 9944 --unsafe-ws-external
+    command: --alice --node-key fd404d5a8b5dd7222673c3f4983807cf467f95e23b6d326d72f3c985ed0e1608 --grpc-addr 0.0.0.0:6000 --ws-port 9944 --unsafe-ws-external
     networks:
      mynetwork:
        ipv4_address: 172.19.0.2
@@ -18,30 +18,36 @@ services:
     image: comradecoop/validated-streams
     ports:
       - "5557:6000"
-    command: --bob --chain local --grpc-addr 0.0.0.0:6000
+    command: --bob --bootnodes /ip4/172.19.0.2/tcp/30333/p2p/12D3KooWGPJmTWV21XHG6FxVtxXCPCcCwdP5opj4aVsU9jK3ACkB --grpc-addr 0.0.0.0:6000
     networks:
       mynetwork:
         ipv4_address: 172.19.0.3
+    depends_on:
+      - validator1
   validator3:
     stdin_open: true
     container_name: validator3
     image: comradecoop/validated-streams
     ports:
       - "5558:6000"
-    command: --charlie --chain local --grpc-addr 0.0.0.0:6000
+    command: --charlie --bootnodes /ip4/172.19.0.2/tcp/30333/p2p/12D3KooWGPJmTWV21XHG6FxVtxXCPCcCwdP5opj4aVsU9jK3ACkB --grpc-addr 0.0.0.0:6000
     networks:
       mynetwork:
         ipv4_address: 172.19.0.4
+    depends_on:
+      - validator1
   validator4:
     stdin_open: true
     container_name: validator4
     image: comradecoop/validated-streams
     ports:
       - "5559:6000"
-    command: --dave --chain local --grpc-addr 0.0.0.0:6000
+    command: --dave --bootnodes /ip4/172.19.0.2/tcp/30333/p2p/12D3KooWGPJmTWV21XHG6FxVtxXCPCcCwdP5opj4aVsU9jK3ACkB --grpc-addr 0.0.0.0:6000
     networks:
       mynetwork:
         ipv4_address: 172.19.0.5
+    depends_on:
+      - validator1
 networks:
   mynetwork:
     driver: bridge

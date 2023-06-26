@@ -126,7 +126,7 @@ function witness_events {
       "event_id": "'"$hash_value"'"
     }'
     for server in "${validators[@]}"; do
-      grpcurl -plaintext -import-path ../proto -proto streams.proto -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent >/dev/null 2>&1 & #redirect all errors to null
+      grpcurl -plaintext -import-path ../../proto -proto streams.proto -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent >/dev/null 2>&1 & #redirect all errors to null
     done
   done
   wait
@@ -138,7 +138,7 @@ function command_witness {
 }
 
 function command_validated {
-  grpcurl -plaintext -import-path ../proto -proto streams.proto -d "{}" "${validators[0]}" ValidatedStreams.Streams/ValidatedEvents
+  grpcurl -plaintext -import-path ../../proto -proto streams.proto -d "{}" "${validators[0]}" ValidatedStreams.Streams/ValidatedEvents
 }
 
 case "$COMMAND" in
