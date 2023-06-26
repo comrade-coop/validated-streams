@@ -109,7 +109,7 @@ function wait_bootstrap {
       req='{
         "event_id": "'"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="'"
       }'
-      if grpcurl -plaintext -import-path ../proto -proto streams.proto -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent >/dev/null 2>&1; then
+      if grpcurl -plaintext -import-path ../../proto -proto streams.proto -d "$req" "$server" ValidatedStreams.Streams/WitnessEvent >/dev/null 2>&1; then
         break
       else
         sleep 1
