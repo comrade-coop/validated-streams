@@ -90,7 +90,7 @@ async fn witness_events(
 		let current_block_instant = Instant::now();
 		let total_time = (current_block_instant - start_instant).as_secs_f32();
 
-		println!("Block: #{num_blocks} finalized");
+		println!("Block: #{} finalized", response.next_block);
 		println!(
 			"Events in block curr / avg #: {current_block_events} / {}",
 			received_events as f32 / num_blocks as f32
